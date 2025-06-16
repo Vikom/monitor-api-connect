@@ -1,0 +1,36 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ec80c1f054d92b6181e9b4fc3cb682d3"
+name = "monitor-api-connect"
+handle = "monitor-api-connect"
+application_url = "https://bored-soldiers-literature-want.trycloudflare.com"
+embedded = true
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products, read_orders"
+
+[auth]
+redirect_urls = [
+  "https://bored-soldiers-literature-want.trycloudflare.com/auth/callback",
+  "https://bored-soldiers-literature-want.trycloudflare.com/auth/shopify/callback",
+  "https://bored-soldiers-literature-want.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
