@@ -2,8 +2,32 @@ import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
 import { fetchProductsFromThirdParty } from "./utils/thirdPartyApi.js";
 import dotenv from "dotenv";
-import { GraphqlClient } from "@shopify/shopify-api";
+import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
+
+const shopifyConfig = shopifyApi({
+  apiKey: process.env.SHOPIFY_API_KEY,
+  apiSecretKey: process.env.SHOPIFY_API_SECRET,
+  scopes: process.env.SCOPES?.split(","),
+  hostName: process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, ""),
+  apiVersion: LATEST_API_VERSION,
+  isEmbeddedApp: true,
+});
+// Polyfill for global object
+var _globalThis = (function() {
+  try {
+    // eslint-disable-next-line no-new-func
+    return Function('return this')();
+  } catch (e) {
+    if (typeof self !== 'undefined') return self;
+    if (typeof window !== 'undefined') return window;
+    if (typeof global !== 'undefined') return global;
+    throw new Error('Unable to locate global object');
+  }
+})();
+
+if (!_globalThis.Shopify) _globalThis.Shopify = {};
+_globalThis.Shopify.config = shopifyConfig.config;
 
 // This function will be called every hour
 async function syncProducts() {
@@ -14,83 +38,89 @@ async function syncProducts() {
     return;
   }
   // Use the low-level GraphQL client from @shopify/shopify-api
-  const admin = new GraphqlClient({
-    session: {
-      shop: session.shop,
-      accessToken: session.accessToken,
-      isCustomStoreApp: false, // explicitly set to avoid undefined error
-    },
-    apiVersion: "2024-01", // or your current ApiVersion
-  });
-  let products;
   try {
-    products = await fetchProductsFromThirdParty();
-  } catch (err) {
-    console.error("Error fetching products from third party:", err);
-    return;
-  }
-  if (!Array.isArray(products)) {
-    console.error("Third-party product fetch failed or returned unexpected data.");
-    return;
-  }
-  const mutation = `
-    mutation productCreate($product: ProductCreateInput!) {
-      productCreate(product: $product) {
-        product {
-          id
-          title
-          status
-        }
-        userErrors {
-          field
-          message
+    console.log("[DEBUG] About to instantiate GraphqlClient");
+    // Use the static factory method from shopifyConfig
+    const admin = new shopifyConfig.clients.Graphql({
+      session: {
+        shop: session.shop,
+        accessToken: session.accessToken,
+      },
+      apiVersion: "2024-01", // or your current ApiVersion
+    });
+    console.log("[DEBUG] GraphqlClient instantiated successfully");
+    let products;
+    try {
+      products = await fetchProductsFromThirdParty();
+    } catch (err) {
+      console.error("Error fetching products from third party:", err);
+      return;
+    }
+    if (!Array.isArray(products)) {
+      console.error("Third-party product fetch failed or returned unexpected data.");
+      return;
+    }
+    const mutation = `
+      mutation productCreate($product: ProductCreateInput!) {
+        productCreate(product: $product) {
+          product {
+            id
+            title
+            status
+          }
+          userErrors {
+            field
+            message
+          }
         }
       }
-    }
-  `;
-  for (const product of products) {
-    try {
-      const variables = {
-        product: {
-          title: product.name,
-          status: "ACTIVE",
-          variants: [
-            {
-              price: product.price.toString(),
-              option1: "Default Title",
-            },
-          ],
-        },
-      };
-      // Log the mutation and variables for debugging
-      console.log("Attempting mutation with variables:", JSON.stringify(variables, null, 2));
-      // Use the admin.graphql method
-      const response = await admin.query({
-        data: {
+    `;
+    for (const product of products) {
+      try {
+        const variables = {
+          product: {
+            title: product.name,
+            status: "ACTIVE",
+            variants: [
+              {
+                price: product.price.toString(),
+                option1: "Default Title",
+              },
+            ],
+          },
+        };
+        // Log the mutation and variables for debugging
+        console.log("Attempting mutation with variables:", JSON.stringify(variables, null, 2));
+        // Use the admin.request method instead of the deprecated query method
+        const response = await admin.request({
           query: mutation,
           variables,
-        },
-      });
-      const json = await response.json();
-      // Print the full raw response for debugging
-      console.log("Raw Shopify response:", JSON.stringify(json, null, 2));
-      if (json.errors) {
-        console.error("❌ Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
-      }
-      if (json.data && json.data.productCreate && json.data.productCreate.product) {
-        console.log(`✅ Synced: ${json.data.productCreate.product.title}`);
-      } else if (json.data && json.data.productCreate && json.data.productCreate.userErrors) {
-        console.log(`❌ User error: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
-      } else {
-        console.log("❌ Unknown error:", JSON.stringify(json));
-      }
-    } catch (err) {
-      if (err && err.response && err.response.body) {
-        console.error("GraphQL error (detailed):", JSON.stringify(err.response.body, null, 2));
-      } else {
-        console.error("GraphQL error:", err);
+        });
+        // The response is already parsed JSON
+        const json = response;
+        // Print the full raw response for debugging
+        // console.log("Raw Shopify response:", JSON.stringify(json, null, 2));
+        if (json.errors) {
+          console.error("❌ Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
+        }
+        if (json.data && json.data.productCreate && json.data.productCreate.product) {
+          console.log(`✅ Synced: ${json.data.productCreate.product.title}`);
+        } else if (json.data && json.data.productCreate && json.data.productCreate.userErrors) {
+          console.log(`❌ User error: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
+        } else {
+          console.log("❌ Unknown error:", JSON.stringify(json));
+        }
+      } catch (err) {
+        if (err && err.response && err.response.body) {
+          console.error("GraphQL error (detailed):");
+        } else {
+          console.error("GraphQL error:", err);
+        }
       }
     }
+  } catch (err) {
+    console.error("[ERROR] Failed to instantiate GraphqlClient:", err);
+    throw err;
   }
 }
 
