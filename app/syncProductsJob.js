@@ -60,44 +60,53 @@ async function syncProducts() {
       console.error("Third-party product fetch failed or returned unexpected data.");
       return;
     }
-    const mutation = `
-      mutation productCreate($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            status
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
+    // Inline the mutation string to avoid line breaks
+    const mutation = "mutation productCreate($input: ProductInput!) { productCreate(input: $input) { product { id title status } userErrors { field message } } }";
     for (const product of products) {
       try {
         const variables = {
-          product: {
+          input: {
             title: product.name,
             status: "ACTIVE",
+            vendor: product.vendor || "Default Vendor",
+            options: ["Title"], // Add options at the product level
             variants: [
               {
                 price: product.price.toString(),
-                option1: "Default Title",
+                // Remove option1, not valid in ProductVariantInput
               },
             ],
           },
         };
         // Log the mutation and variables for debugging
         console.log("Attempting mutation with variables:", JSON.stringify(variables, null, 2));
-        // Use the admin.request method instead of the deprecated query method
-        const response = await admin.request({
-          query: mutation,
-          variables,
-        });
+        // Log the outgoing request body for debugging
+        console.log("Outgoing request body:", JSON.stringify({ query: mutation, variables }, null, 2));
+        let response, json;
+        try {
+          // Try Shopify API client first
+          response = await admin.request({
+            query: mutation,
+            variables,
+          });
+          json = response;
+        } catch (clientErr) {
+          console.error("[Fallback] Shopify API client failed, trying fetch directly.");
+          // Fallback to fetch if client fails
+          const fetch = (await import('node-fetch')).default;
+          const shop = session.shop;
+          const accessToken = session.accessToken;
+          const fetchRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': accessToken,
+            },
+            body: JSON.stringify({ query: mutation, variables }),
+          });
+          json = await fetchRes.json();
+        }
         // The response is already parsed JSON
-        const json = response;
         // Print the full raw response for debugging
         // console.log("Raw Shopify response:", JSON.stringify(json, null, 2));
         if (json.errors) {
@@ -112,6 +121,7 @@ async function syncProducts() {
         }
       } catch (err) {
         if (err && err.response && err.response.body) {
+          console.error("GraphQL error (raw response):", err.response.body);
           console.error("GraphQL error (detailed):");
         } else {
           console.error("GraphQL error:", err);
