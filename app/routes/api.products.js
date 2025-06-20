@@ -1,6 +1,6 @@
 // app/routes/api.products.js
 import { json } from "@remix-run/node";
-import { fetchProductsFromThirdParty } from "../utils/thirdPartyApi";
+import { fetchProductsFromThirdParty } from "../utils/monitor";
 
 export const loader = async () => {
   try {

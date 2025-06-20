@@ -30,3 +30,9 @@ model Session {
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
 }
+
+model MonitorSession {
+  id         Int      @id @default(1)
+  sessionId  String?
+  updatedAt  DateTime @updatedAt
+}

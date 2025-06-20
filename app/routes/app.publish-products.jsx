@@ -1,7 +1,7 @@
 import { useFetcher } from "@remix-run/react";
 import { Page, Card, Button, BlockStack, Text } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { fetchProductsFromThirdParty } from "../utils/thirdPartyApi";
+import { fetchProductsFromThirdParty } from "../utils/monitor";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
