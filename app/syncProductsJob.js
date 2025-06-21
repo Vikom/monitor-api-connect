@@ -13,21 +13,9 @@ const shopifyConfig = shopifyApi({
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
 });
-// Polyfill for global object
-var _globalThis = (function() {
-  try {
-    // eslint-disable-next-line no-new-func
-    return Function('return this')();
-  } catch (e) {
-    if (typeof self !== 'undefined') return self;
-    if (typeof window !== 'undefined') return window;
-    if (typeof global !== 'undefined') return global;
-    throw new Error('Unable to locate global object');
-  }
-})();
-
-if (!_globalThis.Shopify) _globalThis.Shopify = {};
-_globalThis.Shopify.config = shopifyConfig.config;
+// Use Node.js global object directly
+if (!global.Shopify) global.Shopify = {};
+global.Shopify.config = shopifyConfig.config;
 
 async function syncProducts() {
   const prisma = (await import("./db.server.js")).default;
@@ -50,13 +38,13 @@ async function syncProducts() {
     let products;
     try {
       products = await fetchProductsFromMonitor();
-      console.log("Fetched products from third party:", products.length, "items found");
+      console.log("Fetched products", JSON.stringify(products), null, 2);
+      if (!Array.isArray(products) || products.length === 0) {
+        console.log("No products found to sync.");
+        return;
+      }
     } catch (err) {
-      console.error("Error fetching products from third party:", err);
-      return;
-    }
-    if (!Array.isArray(products)) {
-      console.error("Third-party product fetch failed or returned unexpected data.");
+      console.error("Error fetching products", err);
       return;
     }
     const mutation = "mutation productCreate($input: ProductInput!) { productCreate(input: $input) { product { id title status } userErrors { field message } } }";
@@ -68,20 +56,21 @@ async function syncProducts() {
       try {
         const variables = {
           input: {
-            title: product.name,
-            status: "ACTIVE",
+            // id: product.id, // Use the product ID from Monitor, @TODO Is it to long?
+            title: product.description,
+            status: "ACTIVE", // @TODO What is status 4 in Monitor?
             vendor: product.vendor || "Default Vendor",
-            options: ["Title"], // Add options at the product level
+            // options: ["Title"],
             variants: [
               {
                 price: product.price != null ? product.price.toString() : "0",
-                // Remove option1, not valid in ProductVariantInput
+                sku: product.sku || "",
+                weight: product.weight != null && !isNaN(Number(product.weight)) ? Number(product.weight) : 0,
+                barcode: product.barcode || "",
               },
             ],
           },
         };
-        // Log the outgoing request body for debugging
-        // console.log("Outgoing request body:", JSON.stringify({ query: mutation, variables }, null, 2));
         let response, json;
         try {
           // Try Shopify API client first

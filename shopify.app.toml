@@ -3,7 +3,7 @@
 client_id = "ec80c1f054d92b6181e9b4fc3cb682d3"
 name = "monitor-api-connect"
 handle = "monitor-api-connect"
-application_url = "https://cos-inventory-startup-applicable.trycloudflare.com"
+application_url = "https://answered-gentleman-xhtml-could.trycloudflare.com"
 embedded = true
 
 [build]
@@ -27,9 +27,9 @@ scopes = "read_orders,write_products"
 
 [auth]
 redirect_urls = [
-  "https://cos-inventory-startup-applicable.trycloudflare.com/auth/callback",
-  "https://cos-inventory-startup-applicable.trycloudflare.com/auth/shopify/callback",
-  "https://cos-inventory-startup-applicable.trycloudflare.com/api/auth/callback"
+  "https://answered-gentleman-xhtml-could.trycloudflare.com/auth/callback",
+  "https://answered-gentleman-xhtml-could.trycloudflare.com/auth/shopify/callback",
+  "https://answered-gentleman-xhtml-could.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

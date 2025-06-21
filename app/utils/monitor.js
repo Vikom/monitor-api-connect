@@ -77,7 +77,7 @@ class MonitorClient {
   async fetchProducts() {
     const sessionId = await this.getSessionId();
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
-    url += '?$top=10'; // Just fetch 10 products
+    url += '?$top=12'; // Just fetch 2 products
     let res = await fetch(url, {
       headers: {
         Accept: "application/json",
