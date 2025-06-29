@@ -122,19 +122,18 @@ export async function fetchProductsFromMonitor() {
     }
     return products.map(product => ({
       id: product.Id,
-      name: product.Name || product.PartNumber || "Unnamed Product",
+      name: product.PartNumber,
       sku: product.PartNumber,
-      description: product.Description || product.ExtraDescription || "",
+      description: product.Description || "",
       extraDescription: product.ExtraDescription || "",
-      vendor: product.Vendor || "Default Vendor",
-      price: product.StandardPrice != null ? product.StandardPrice : (product.Price != null ? product.Price : 0),
+      // vendor: @TODO Needed?
+      price: product.StandardPrice,
       weight: product.WeightPerUnit,
       length: product.Length,
       width: product.Width,
       height: product.Height,
       category: product.CategoryString,
-      stock: product.Stock != null ? product.Stock : (product.ManageStockBalance ? 1 : 0),
-      countryOfOrigin: product.CountryOfOrigin || product.CountryOfOriginId,
+      // stock: @TODO
       barcode: product.Gs1Code,
       status: product.Status,
     }));

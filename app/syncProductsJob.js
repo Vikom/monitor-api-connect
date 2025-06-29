@@ -8,7 +8,7 @@ dotenv.config();
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: process.env.SHOPIFY_SCOPES?.split(","),
   hostName: process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, ""),
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
@@ -26,7 +26,7 @@ async function syncProducts() {
   }
   // Use the low-level GraphQL client from @shopify/shopify-api
   try {
-    console.log("About to instantiate GraphqlClient");
+    /*console.log("About to instantiate GraphqlClient");
     const admin = new shopifyConfig.clients.Graphql({
       session: {
         shop: session.shop,
@@ -34,7 +34,7 @@ async function syncProducts() {
       },
       apiVersion: "2024-01", // or your current ApiVersion
     });
-    console.log("GraphqlClient instantiated successfully");
+    console.log("GraphqlClient instantiated successfully");*/
     let products;
     try {
       products = await fetchProductsFromMonitor();
@@ -53,11 +53,90 @@ async function syncProducts() {
         console.warn("Skipping product with blank name:", product);
         continue;
       }
+
+/*{
+  products(first: 1, query: "metafield:custom.monitor_id=YOUR_MONITOR_ID_VALUE") {
+    edges {
+      node {
+        id
+        title
+        metafields(first: 1, namespace: "custom", keys: ["monitor_id"]) {
+          edges {
+            node {
+              key
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}*/
+
+      // Check if product with this monitor_id already exists (with pagination)
+      const monitorId = product.id.toString();
+      let exists = false;
+      let endCursor = null;
+      let hasNextPage = true;
+      const fetch = (await import('node-fetch')).default;
+      const shop = session.shop;
+      const accessToken = session.accessToken;
+      while (hasNextPage && !exists) {
+        const checkQuery = `query {
+          products(first: 50${endCursor ? `, after: "${endCursor}"` : ""}, query: "") {
+            edges {
+              cursor
+              node {
+                id
+                title
+                metafields(first: 5, namespace: "custom", keys: ["monitor_id"]) {
+                  edges {
+                    node {
+                      key
+                      value
+                    }
+                  }
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }`;
+        const checkRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({ query: checkQuery }),
+        });
+        const checkJson = await checkRes.json();
+        if (checkJson.data && checkJson.data.products && checkJson.data.products.edges.length > 0) {
+          for (const edge of checkJson.data.products.edges) {
+            const metafields = edge.node.metafields.edges;
+            if (metafields.some(mf => mf.node.value === monitorId)) {
+              exists = true;
+              break;
+            }
+          }
+        }
+        hasNextPage = checkJson.data.products.pageInfo.hasNextPage;
+        endCursor = checkJson.data.products.pageInfo.endCursor;
+      }
+      console.log("Check product existence (paginated) response: exists=", exists);
+      if (exists) {
+        console.log(`Product with monitor_id ${product.id} already exists, skipping.`);
+        continue;
+      }
+
       try {
         const variables = {
           input: {
-            // id: product.id, // Use the product ID from Monitor, @TODO Is it to long?
             title: product.description,
+            descriptionHtml: `<p>${product.extraDescription || ""}</p>`,
             status: "ACTIVE", // @TODO What is status 4 in Monitor?
             vendor: product.vendor || "Default Vendor",
             // options: ["Title"],
@@ -69,18 +148,33 @@ async function syncProducts() {
                 barcode: product.barcode || "",
               },
             ],
+            metafields: [
+              {
+                namespace: "custom",
+                key: "monitor_id",
+                value: product.id.toString(),
+                type: "single_line_text_field"
+              }
+            ],
           },
         };
-        let response, json;
+        let json;
+        /*let response, json;
         try {
+
+          // @TODO Should we try and make the failing client work or just stick to node-fetch?
+
           // Try Shopify API client first
           response = await admin.request({
-            query: mutation,
+            mutation,
             variables,
           });
           json = response;
-        } catch (clientErr) {
-          console.error("[Fallback] Shopify API client failed, trying fetch directly.");
+        } catch (err) {
+          console.error("Status:", err.response.code, err.response.statusText);
+          // Attempt to inspect the raw body object
+          console.error("Error Body:", JSON.stringify(err.response.body, null, 2));*/
+          // console.error("[Fallback] Shopify API client failed.", clientErr);
           // Fallback to fetch if client fails
           const fetch = (await import('node-fetch')).default;
           const shop = session.shop;
@@ -94,12 +188,18 @@ async function syncProducts() {
             body: JSON.stringify({ query: mutation, variables }),
           });
           json = await fetchRes.json();
-        }
+        //}
         if (json.errors) {
           console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
         }
         if (json.data && json.data.productCreate && json.data.productCreate.product) {
           console.log(`Synced: ${json.data.productCreate.product.title}`);
+
+          // @TODO
+          // a. Get inventoryItemId from the created variant
+          // The GraphQL response will include inventoryItem.id for each variant.
+          // b. Use inventory mutation
+
         } else if (json.data && json.data.productCreate && json.data.productCreate.userErrors) {
           console.log(`User error: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
         } else {
