@@ -17,13 +17,68 @@ const shopifyConfig = shopifyApi({
 if (!global.Shopify) global.Shopify = {};
 global.Shopify.config = shopifyConfig.config;
 
+// Helper function to validate if a session is still valid
+async function validateSession(shop, accessToken) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const testQuery = `query {
+    shop {
+      id
+      name
+    }
+  }`;
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: testQuery }),
+    });
+
+    const result = await response.json();
+    
+    if (result.errors) {
+      console.error("Session validation failed:", result.errors);
+      return false;
+    }
+    
+    return result.data && result.data.shop;
+  } catch (error) {
+    console.error("Error validating session:", error);
+    return false;
+  }
+}
+
 async function syncProducts() {
   const prisma = (await import("./db.server.js")).default;
   const session = await prisma.session.findFirst();
   if (!session) {
     console.log("No Shopify session found. Cannot sync products.");
+    console.log("Please visit your Shopify app to authenticate first.");
     return;
   }
+
+  // Check if session has expired
+  if (session.expires && session.expires < new Date()) {
+    console.log("Shopify session has expired. Please re-authenticate your app.");
+    return;
+  }
+
+  // Validate the session by making a test API call
+  const isValidSession = await validateSession(session.shop, session.accessToken);
+  if (!isValidSession) {
+    console.log("❌ Shopify session is invalid or expired.");
+    console.log("To fix this:");
+    console.log("1. Run 'npm run dev' to start the development server");
+    console.log("2. Visit the app in your browser to re-authenticate");
+    console.log("3. Once authenticated, you can run the sync job again");
+    return;
+  }
+
+  console.log("✅ Shopify session is valid. Starting product sync...");
   // Use the low-level GraphQL client from @shopify/shopify-api
   try {
     /*console.log("About to instantiate GraphqlClient");
@@ -38,7 +93,7 @@ async function syncProducts() {
     let products;
     try {
       products = await fetchProductsFromMonitor();
-      console.log("Fetched products", JSON.stringify(products), null, 2);
+      console.log("Fetched products", JSON.stringify(products));
       if (!Array.isArray(products) || products.length === 0) {
         console.log("No products found to sync.");
         return;
@@ -47,170 +102,38 @@ async function syncProducts() {
       console.error("Error fetching products", err);
       return;
     }
-    const mutation = "mutation productCreate($input: ProductInput!) { productCreate(input: $input) { product { id title status } userErrors { field message } } }";
+    
+    // Group products by productName (ARTWEBKAT)
+    const productGroups = new Map();
+    
     for (const product of products) {
-      if (!product.name || product.name.trim() === "") {
-        console.warn("Skipping product with blank name:", product);
+      if (!product.productName || product.productName.trim() === "") {
+        console.warn("Skipping product with blank productName:", product);
         continue;
       }
-
-/*{
-  products(first: 1, query: "metafield:custom.monitor_id=YOUR_MONITOR_ID_VALUE") {
-    edges {
-      node {
-        id
-        title
-        metafields(first: 1, namespace: "custom", keys: ["monitor_id"]) {
-          edges {
-            node {
-              key
-              value
-            }
-          }
-        }
+      
+      if (!productGroups.has(product.productName)) {
+        productGroups.set(product.productName, []);
       }
+      productGroups.get(product.productName).push(product);
     }
-  }
-}*/
 
-      // Check if product with this monitor_id already exists (with pagination)
-      const monitorId = product.id.toString();
-      let exists = false;
-      let endCursor = null;
-      let hasNextPage = true;
-      const fetch = (await import('node-fetch')).default;
-      const shop = session.shop;
-      const accessToken = session.accessToken;
-      while (hasNextPage && !exists) {
-        const checkQuery = `query {
-          products(first: 50${endCursor ? `, after: "${endCursor}"` : ""}, query: "") {
-            edges {
-              cursor
-              node {
-                id
-                title
-                metafields(first: 5, namespace: "custom", keys: ["monitor_id"]) {
-                  edges {
-                    node {
-                      key
-                      value
-                    }
-                  }
-                }
-              }
-            }
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-          }
-        }`;
-        const checkRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': accessToken,
-          },
-          body: JSON.stringify({ query: checkQuery }),
-        });
-        const checkJson = await checkRes.json();
-        if (checkJson.data && checkJson.data.products && checkJson.data.products.edges.length > 0) {
-          for (const edge of checkJson.data.products.edges) {
-            const metafields = edge.node.metafields.edges;
-            if (metafields.some(mf => mf.node.value === monitorId)) {
-              exists = true;
-              break;
-            }
-          }
-        }
-        hasNextPage = checkJson.data.products.pageInfo.hasNextPage;
-        endCursor = checkJson.data.products.pageInfo.endCursor;
-      }
-      console.log("Check product existence (paginated) response: exists=", exists);
-      if (exists) {
-        console.log(`Product with monitor_id ${product.id} already exists, skipping.`);
-        continue;
-      }
+    const shop = session.shop;
+    const accessToken = session.accessToken;
 
-      try {
-        const variables = {
-          input: {
-            title: product.description,
-            descriptionHtml: `<p>${product.extraDescription || ""}</p>`,
-            status: "ACTIVE", // @TODO What is status 4 in Monitor?
-            vendor: product.vendor || "Default Vendor",
-            // options: ["Title"],
-            variants: [
-              {
-                price: product.price != null ? product.price.toString() : "0",
-                sku: product.sku || "",
-                weight: product.weight != null && !isNaN(Number(product.weight)) ? Number(product.weight) : 0,
-                barcode: product.barcode || "",
-              },
-            ],
-            metafields: [
-              {
-                namespace: "custom",
-                key: "monitor_id",
-                value: product.id.toString(),
-                type: "single_line_text_field"
-              }
-            ],
-          },
-        };
-        let json;
-        /*let response, json;
-        try {
-
-          // @TODO Should we try and make the failing client work or just stick to node-fetch?
-
-          // Try Shopify API client first
-          response = await admin.request({
-            mutation,
-            variables,
-          });
-          json = response;
-        } catch (err) {
-          console.error("Status:", err.response.code, err.response.statusText);
-          // Attempt to inspect the raw body object
-          console.error("Error Body:", JSON.stringify(err.response.body, null, 2));*/
-          // console.error("[Fallback] Shopify API client failed.", clientErr);
-          // Fallback to fetch if client fails
-          const fetch = (await import('node-fetch')).default;
-          const shop = session.shop;
-          const accessToken = session.accessToken;
-          const fetchRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Shopify-Access-Token': accessToken,
-            },
-            body: JSON.stringify({ query: mutation, variables }),
-          });
-          json = await fetchRes.json();
-        //}
-        if (json.errors) {
-          console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
-        }
-        if (json.data && json.data.productCreate && json.data.productCreate.product) {
-          console.log(`Synced: ${json.data.productCreate.product.title}`);
-
-          // @TODO
-          // a. Get inventoryItemId from the created variant
-          // The GraphQL response will include inventoryItem.id for each variant.
-          // b. Use inventory mutation
-
-        } else if (json.data && json.data.productCreate && json.data.productCreate.userErrors) {
-          console.log(`User error: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
-        } else {
-          console.log("Unknown error:", JSON.stringify(json));
-        }
-      } catch (err) {
-        if (err && err.response && err.response.body) {
-          console.error("GraphQL error (raw response):", err.response.body);
-        } else {
-          console.error("GraphQL error:", err);
-        }
+    // Process each product group
+    for (const [productName, variations] of productGroups) {
+      console.log(`Processing product: ${productName} with ${variations.length} variations`);
+      
+      // Check if product already exists in Shopify by productName
+      const existingProduct = await findExistingProductByName(shop, accessToken, productName);
+      
+      if (existingProduct) {
+        console.log(`Product "${productName}" already exists, adding new variations if needed`);
+        await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+      } else {
+        console.log(`Creating new product: ${productName}`);
+        await createNewProductWithVariations(shop, accessToken, productName, variations);
       }
     }
   } catch (err) {
@@ -219,11 +142,346 @@ async function syncProducts() {
   }
 }
 
+// Helper function to find existing product by productName
+async function findExistingProductByName(shop, accessToken, productName) {
+  const fetch = (await import('node-fetch')).default;
+  let endCursor = null;
+  let hasNextPage = true;
+  
+  while (hasNextPage) {
+    const checkQuery = `query {
+      products(first: 50${endCursor ? `, after: "${endCursor}"` : ""}) {
+        edges {
+          cursor
+          node {
+            id
+            title
+            metafields(first: 5, namespace: "custom", keys: ["product_name"]) {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }`;
+    
+    const checkRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: checkQuery }),
+    });
+    
+    const checkJson = await checkRes.json();
+    
+    if (checkJson.errors) {
+      console.error("GraphQL errors while checking products:", JSON.stringify(checkJson.errors, null, 2));
+      break;
+    }
+    
+    if (checkJson.data?.products?.edges) {
+      for (const edge of checkJson.data.products.edges) {
+        const metafields = edge.node.metafields.edges;
+        const productNameMetafield = metafields.find(mf => mf.node.key === "product_name" && mf.node.value === productName);
+        if (productNameMetafield) {
+          return { id: edge.node.id, title: edge.node.title };
+        }
+      }
+    }
+    
+    hasNextPage = checkJson.data?.products?.pageInfo?.hasNextPage || false;
+    endCursor = checkJson.data?.products?.pageInfo?.endCursor;
+  }
+  
+  return null;
+}
+
+// Helper function to create a new product with all its variations
+async function createNewProductWithVariations(shop, accessToken, productName, variations) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Create variants array from all variations
+  const variants = variations.map(variation => ({
+    price: variation.price != null ? variation.price.toString() : "0",
+    sku: variation.sku || "",
+    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0,
+    barcode: variation.barcode || "",
+    inventoryManagement: "shopify",
+    inventoryPolicy: "deny",
+    option1: variation.productVariation || "Default"
+  }));
+
+  const mutation = `mutation productCreate($input: ProductInput!) { 
+    productCreate(input: $input) { 
+      product { 
+        id 
+        title 
+        status 
+        variants(first: 10) {
+          edges {
+            node {
+              id
+              sku
+              title
+            }
+          }
+        }
+      } 
+      userErrors { 
+        field 
+        message 
+      } 
+    } 
+  }`;
+  
+  const variables = {
+    input: {
+      title: productName,
+      descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
+      status: "ACTIVE",
+      vendor: variations[0].vendor || "Default Vendor",
+      options: ["Variation"],
+      variants: variants,
+      metafields: [
+        {
+          namespace: "custom",
+          key: "product_name",
+          value: productName,
+          type: "single_line_text_field"
+        }
+      ],
+    },
+  };
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+  
+  const json = await fetchRes.json();
+  
+  if (json.errors) {
+    console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
+    return;
+  }
+  
+  if (json.data?.productCreate?.product) {
+    console.log(`Created product: ${json.data.productCreate.product.title} with ${json.data.productCreate.product.variants.edges.length} variants`);
+    
+    // Now add monitor_id metafields to each variant
+    await addMonitorIdToVariants(shop, accessToken, json.data.productCreate.product.variants.edges, variations);
+    
+  } else if (json.data?.productCreate?.userErrors) {
+    console.log(`User error creating product: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
+  } else {
+    console.log("Unknown error creating product:", JSON.stringify(json));
+  }
+}
+
+// Helper function to add variations to an existing product
+async function addVariationsToExistingProduct(shop, accessToken, productId, variations) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // First, get existing variants to check for duplicates
+  const existingVariants = await getExistingVariants(shop, accessToken, productId);
+  const existingMonitorIds = new Set(existingVariants.map(v => v.monitorId).filter(Boolean));
+  
+  // Filter out variations that already exist
+  const newVariations = variations.filter(variation => !existingMonitorIds.has(variation.id.toString()));
+  
+  if (newVariations.length === 0) {
+    console.log(`All variations already exist for product ${productId}`);
+    return;
+  }
+
+  // Add each new variation as a separate variant
+  for (const variation of newVariations) {
+    const mutation = `mutation productVariantCreate($input: ProductVariantInput!) {
+      productVariantCreate(input: $input) {
+        productVariant {
+          id
+          sku
+          title
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+
+    const variables = {
+      input: {
+        productId: productId,
+        price: variation.price != null ? variation.price.toString() : "0",
+        sku: variation.sku || "",
+        weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0,
+        barcode: variation.barcode || "",
+        inventoryManagement: "shopify",
+        inventoryPolicy: "deny",
+        option1: variation.productVariation || "Default",
+        metafields: [
+          {
+            namespace: "custom",
+            key: "monitor_id",
+            value: variation.id.toString(),
+            type: "single_line_text_field"
+          }
+        ]
+      }
+    };
+
+    const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const json = await fetchRes.json();
+
+    if (json.errors) {
+      console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
+    } else if (json.data?.productVariantCreate?.productVariant) {
+      console.log(`Added variant: ${json.data.productVariantCreate.productVariant.sku} to product ${productId}`);
+    } else if (json.data?.productVariantCreate?.userErrors) {
+      console.log(`User error adding variant: ${json.data.productVariantCreate.userErrors.map(e => e.message).join(", ")}`);
+    }
+  }
+}
+
+// Helper function to get existing variants with their monitor_ids
+async function getExistingVariants(shop, accessToken, productId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const query = `query {
+    product(id: "${productId}") {
+      variants(first: 100) {
+        edges {
+          node {
+            id
+            sku
+            metafields(first: 5, namespace: "custom", keys: ["monitor_id"]) {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("GraphQL errors:", JSON.stringify(json.errors, null, 2));
+    return [];
+  }
+
+  if (!json.data?.product?.variants?.edges) {
+    return [];
+  }
+
+  return json.data.product.variants.edges.map(edge => {
+    const monitorIdMetafield = edge.node.metafields.edges.find(mf => mf.node.key === "monitor_id");
+    return {
+      id: edge.node.id,
+      sku: edge.node.sku,
+      monitorId: monitorIdMetafield?.node.value
+    };
+  });
+}
+
+// Helper function to add monitor_id metafields to variants
+async function addMonitorIdToVariants(shop, accessToken, variantEdges, variations) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Match variants with variations by index (assuming they're in the same order)
+  for (let i = 0; i < Math.min(variantEdges.length, variations.length); i++) {
+    const variant = variantEdges[i].node;
+    const variation = variations[i];
+    
+    const mutation = `mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          id
+          key
+          value
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+
+    const variables = {
+      metafields: [
+        {
+          ownerId: variant.id,
+          namespace: "custom",
+          key: "monitor_id",
+          value: variation.id.toString(),
+          type: "single_line_text_field"
+        }
+      ]
+    };
+
+    const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const json = await fetchRes.json();
+
+    if (json.errors) {
+      console.error("GraphQL errors adding monitor_id:", JSON.stringify(json.errors, null, 2));
+    } else if (json.data?.metafieldsSet?.userErrors?.length > 0) {
+      console.log(`User error adding monitor_id: ${json.data.metafieldsSet.userErrors.map(e => e.message).join(", ")}`);
+    } else {
+      console.log(`Added monitor_id ${variation.id} to variant ${variant.sku}`);
+    }
+  }
+}
+
 // Schedule to run every hour
-cron.schedule("0 * * * *", () => {
+/*cron.schedule("0 * * * *", () => {
   console.log("[CRON] Syncing products to Shopify...");
   syncProducts();
-});
+});*/
 
 // Run once on startup as well
 syncProducts();

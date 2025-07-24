@@ -3,7 +3,7 @@
 client_id = "ec80c1f054d92b6181e9b4fc3cb682d3"
 name = "monitor-api-connect"
 handle = "monitor-api-connect"
-application_url = "https://electric-diego-patio-mem.trycloudflare.com"
+application_url = "https://susan-promotes-family-matter.trycloudflare.com"
 embedded = true
 
 [build]
@@ -23,13 +23,13 @@ api_version = "2025-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,write_products"
+scopes = "read_orders,write_products,write_customers"
 
 [auth]
 redirect_urls = [
-  "https://electric-diego-patio-mem.trycloudflare.com/auth/callback",
-  "https://electric-diego-patio-mem.trycloudflare.com/auth/shopify/callback",
-  "https://electric-diego-patio-mem.trycloudflare.com/api/auth/callback"
+  "https://susan-promotes-family-matter.trycloudflare.com/auth/callback",
+  "https://susan-promotes-family-matter.trycloudflare.com/auth/shopify/callback",
+  "https://susan-promotes-family-matter.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
