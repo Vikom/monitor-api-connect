@@ -156,7 +156,7 @@ async function findExistingProductByName(shop, accessToken, productName) {
           node {
             id
             title
-            metafields(first: 5, namespace: "custom", keys: ["product_name"]) {
+            metafields(first: 5, namespace: "custom") {
               edges {
                 node {
                   key
@@ -210,31 +210,17 @@ async function findExistingProductByName(shop, accessToken, productName) {
 async function createNewProductWithVariations(shop, accessToken, productName, variations) {
   const fetch = (await import('node-fetch')).default;
   
-  // Create variants array from all variations
-  const variants = variations.map(variation => ({
-    price: variation.price != null ? variation.price.toString() : "0",
-    sku: variation.sku || "",
-    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0,
-    barcode: variation.barcode || "",
-    inventoryManagement: "shopify",
-    inventoryPolicy: "deny",
-    option1: variation.productVariation || "Default"
-  }));
-
-  const mutation = `mutation productCreate($input: ProductInput!) { 
-    productCreate(input: $input) { 
+  // First, create the product with product options (but no variants yet)
+  const mutation = `mutation productCreate($product: ProductCreateInput!) { 
+    productCreate(product: $product) { 
       product { 
         id 
         title 
         status 
-        variants(first: 10) {
-          edges {
-            node {
-              id
-              sku
-              title
-            }
-          }
+        options {
+          id
+          name
+          position
         }
       } 
       userErrors { 
@@ -245,13 +231,19 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   }`;
   
   const variables = {
-    input: {
+    product: {
       title: productName,
       descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
       status: "ACTIVE",
       vendor: variations[0].vendor || "Default Vendor",
-      options: ["Variation"],
-      variants: variants,
+      productOptions: [
+        {
+          name: "Variation",
+          values: variations.map(variation => ({
+            name: variation.productVariation || "Default"
+          }))
+        }
+      ],
       metafields: [
         {
           namespace: "custom",
@@ -280,15 +272,106 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   }
   
   if (json.data?.productCreate?.product) {
-    console.log(`Created product: ${json.data.productCreate.product.title} with ${json.data.productCreate.product.variants.edges.length} variants`);
+    const productId = json.data.productCreate.product.id;
+    const productOptions = json.data.productCreate.product.options;
+    console.log(`Created product: ${json.data.productCreate.product.title} with ID: ${productId}`);
     
-    // Now add monitor_id metafields to each variant
-    await addMonitorIdToVariants(shop, accessToken, json.data.productCreate.product.variants.edges, variations);
+    // Now create variants using productVariantsBulkCreate
+    await createProductVariants(shop, accessToken, productId, productOptions, variations);
     
   } else if (json.data?.productCreate?.userErrors) {
     console.log(`User error creating product: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
   } else {
     console.log("Unknown error creating product:", JSON.stringify(json));
+  }
+}
+
+// Helper function to create product variants using productVariantsBulkCreate
+async function createProductVariants(shop, accessToken, productId, productOptions, variations) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Find the "Variation" option ID
+  const variationOption = productOptions.find(option => option.name === "Variation");
+  if (!variationOption) {
+    console.error("Could not find 'Variation' option in product options");
+    return;
+  }
+  
+  // Create variants array for bulk creation
+  const variants = variations.map(variation => ({
+    price: variation.price != null ? variation.price.toString() : "0",
+    barcode: variation.barcode || "",
+    inventoryPolicy: "DENY",
+    taxable: true,
+    optionValues: [
+      {
+        optionId: variationOption.id,
+        name: variation.productVariation || "Default"
+      }
+    ],
+    metafields: [
+      {
+        namespace: "custom",
+        key: "monitor_id",
+        value: variation.id.toString(),
+        type: "single_line_text_field"
+      },
+      {
+        namespace: "custom", 
+        key: "sku",
+        value: variation.sku || "",
+        type: "single_line_text_field"
+      },
+      {
+        namespace: "custom",
+        key: "weight", 
+        value: (variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0).toString(),
+        type: "single_line_text_field"
+      }
+    ]
+  }));
+
+  const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkCreate(productId: $productId, variants: $variants) {
+      productVariants {
+        id
+        sku
+        title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    productId: productId,
+    variants: variants
+  };
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("Shopify GraphQL errors creating variants:", JSON.stringify(json.errors, null, 2));
+    return;
+  }
+
+  if (json.data?.productVariantsBulkCreate?.productVariants) {
+    console.log(`Created ${json.data.productVariantsBulkCreate.productVariants.length} variants for product ${productId}`);
+  } else if (json.data?.productVariantsBulkCreate?.userErrors) {
+    console.log(`User error creating variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+  } else {
+    console.log("Unknown error creating variants:", JSON.stringify(json));
   }
 }
 
@@ -308,62 +391,119 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     return;
   }
 
-  // Add each new variation as a separate variant
-  for (const variation of newVariations) {
-    const mutation = `mutation productVariantCreate($input: ProductVariantInput!) {
-      productVariantCreate(input: $input) {
-        productVariant {
-          id
-          sku
-          title
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`;
-
-    const variables = {
-      input: {
-        productId: productId,
-        price: variation.price != null ? variation.price.toString() : "0",
-        sku: variation.sku || "",
-        weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0,
-        barcode: variation.barcode || "",
-        inventoryManagement: "shopify",
-        inventoryPolicy: "deny",
-        option1: variation.productVariation || "Default",
-        metafields: [
-          {
-            namespace: "custom",
-            key: "monitor_id",
-            value: variation.id.toString(),
-            type: "single_line_text_field"
-          }
-        ]
-      }
-    };
-
-    const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query: mutation, variables }),
-    });
-
-    const json = await fetchRes.json();
-
-    if (json.errors) {
-      console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
-    } else if (json.data?.productVariantCreate?.productVariant) {
-      console.log(`Added variant: ${json.data.productVariantCreate.productVariant.sku} to product ${productId}`);
-    } else if (json.data?.productVariantCreate?.userErrors) {
-      console.log(`User error adding variant: ${json.data.productVariantCreate.userErrors.map(e => e.message).join(", ")}`);
-    }
+  // Get the product options to find the option IDs we need
+  const productOptions = await getProductOptions(shop, accessToken, productId);
+  const variationOption = productOptions.find(option => option.name === "Variation");
+  
+  if (!variationOption) {
+    console.error("Could not find 'Variation' option in existing product");
+    return;
   }
+
+  // Create variants array for bulk creation
+  const variants = newVariations.map(variation => ({
+    price: variation.price != null ? variation.price.toString() : "0",
+    barcode: variation.barcode || "",
+    inventoryPolicy: "DENY",
+    taxable: true,
+    optionValues: [
+      {
+        optionId: variationOption.id,
+        name: variation.productVariation || "Default"
+      }
+    ],
+    metafields: [
+      {
+        namespace: "custom",
+        key: "monitor_id",
+        value: variation.id.toString(),
+        type: "single_line_text_field"
+      },
+      {
+        namespace: "custom",
+        key: "sku", 
+        value: variation.sku || "",
+        type: "single_line_text_field"
+      },
+      {
+        namespace: "custom",
+        key: "weight",
+        value: (variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0).toString(),
+        type: "single_line_text_field"
+      }
+    ]
+  }));
+
+  const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkCreate(productId: $productId, variants: $variants) {
+      productVariants {
+        id
+        sku
+        title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    productId: productId,
+    variants: variants
+  };
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("Shopify GraphQL errors adding variants:", JSON.stringify(json.errors, null, 2));
+  } else if (json.data?.productVariantsBulkCreate?.productVariants) {
+    console.log(`Added ${json.data.productVariantsBulkCreate.productVariants.length} new variants to product ${productId}`);
+  } else if (json.data?.productVariantsBulkCreate?.userErrors) {
+    console.log(`User error adding variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+  }
+}
+
+// Helper function to get product options
+async function getProductOptions(shop, accessToken, productId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const query = `query {
+    product(id: "${productId}") {
+      options {
+        id
+        name
+        position
+      }
+    }
+  }`;
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("GraphQL errors getting product options:", JSON.stringify(json.errors, null, 2));
+    return [];
+  }
+
+  return json.data?.product?.options || [];
 }
 
 // Helper function to get existing variants with their monitor_ids
@@ -377,7 +517,7 @@ async function getExistingVariants(shop, accessToken, productId) {
           node {
             id
             sku
-            metafields(first: 5, namespace: "custom", keys: ["monitor_id"]) {
+            metafields(first: 5, namespace: "custom") {
               edges {
                 node {
                   key
@@ -419,62 +559,6 @@ async function getExistingVariants(shop, accessToken, productId) {
       monitorId: monitorIdMetafield?.node.value
     };
   });
-}
-
-// Helper function to add monitor_id metafields to variants
-async function addMonitorIdToVariants(shop, accessToken, variantEdges, variations) {
-  const fetch = (await import('node-fetch')).default;
-  
-  // Match variants with variations by index (assuming they're in the same order)
-  for (let i = 0; i < Math.min(variantEdges.length, variations.length); i++) {
-    const variant = variantEdges[i].node;
-    const variation = variations[i];
-    
-    const mutation = `mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
-      metafieldsSet(metafields: $metafields) {
-        metafields {
-          id
-          key
-          value
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`;
-
-    const variables = {
-      metafields: [
-        {
-          ownerId: variant.id,
-          namespace: "custom",
-          key: "monitor_id",
-          value: variation.id.toString(),
-          type: "single_line_text_field"
-        }
-      ]
-    };
-
-    const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query: mutation, variables }),
-    });
-
-    const json = await fetchRes.json();
-
-    if (json.errors) {
-      console.error("GraphQL errors adding monitor_id:", JSON.stringify(json.errors, null, 2));
-    } else if (json.data?.metafieldsSet?.userErrors?.length > 0) {
-      console.log(`User error adding monitor_id: ${json.data.metafieldsSet.userErrors.map(e => e.message).join(", ")}`);
-    } else {
-      console.log(`Added monitor_id ${variation.id} to variant ${variant.sku}`);
-    }
-  }
 }
 
 // Schedule to run every hour
