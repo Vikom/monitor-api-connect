@@ -153,9 +153,26 @@ export async function fetchProductsFromMonitor() {
     if (!Array.isArray(products)) {
       throw new Error("Monitor API returned unexpected data format");
     }
-    return products.map(product => {
+    
+    // For debugging: only return products that have ARTWEBKAT set
+    const filteredProducts = products.filter(product => {
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      return productName?.StringValue && productName.StringValue.trim() !== "";
+    });
+    
+    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBKAT set (from ${products.length} total)`);
+    
+    return filteredProducts.map(product => {
       const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
       const productVariation = product.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
+      
+      // Since we filtered for products with ARTWEBKAT, we know it exists
+      const finalProductName = productName.StringValue;
+      
+      // Use ARTWEBVAR if available, otherwise use PartNumber as variation
+      const finalProductVariation = (productVariation?.StringValue && productVariation.StringValue.trim() !== "")
+        ? productVariation.StringValue
+        : product.PartNumber;
       
       return {
         id: product.Id,
@@ -173,8 +190,8 @@ export async function fetchProductsFromMonitor() {
         // stock: @TODO
         barcode: product.Gs1Code,
         status: product.Status,
-        productName: productName?.StringValue || "",
-        productVariation: productVariation?.StringValue || "",
+        productName: finalProductName,
+        productVariation: finalProductVariation,
       };
     });
   } catch (error) {

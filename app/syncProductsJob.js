@@ -93,7 +93,7 @@ async function syncProducts() {
     let products;
     try {
       products = await fetchProductsFromMonitor();
-      console.log("Fetched products", JSON.stringify(products));
+      console.log(`Fetched ${products.length} products from Monitor API`);
       if (!Array.isArray(products) || products.length === 0) {
         console.log("No products found to sync.");
         return;
@@ -112,14 +112,26 @@ async function syncProducts() {
         continue;
       }
       
+      console.log(`Grouping product: "${product.productName}" with variation: "${product.productVariation}"`);
+      
       if (!productGroups.has(product.productName)) {
         productGroups.set(product.productName, []);
+        console.log(`  -> Created new group for: "${product.productName}"`);
+      } else {
+        console.log(`  -> Added to existing group for: "${product.productName}"`);
       }
       productGroups.get(product.productName).push(product);
     }
 
     const shop = session.shop;
     const accessToken = session.accessToken;
+
+    console.log(`Found ${productGroups.size} unique product groups to process`);
+    
+    // Show grouping summary
+    for (const [productName, variations] of productGroups) {
+      console.log(`Group: "${productName}" has ${variations.length} variations: [${variations.map(v => v.productVariation).join(', ')}]`);
+    }
 
     // Process each product group
     for (const [productName, variations] of productGroups) {
@@ -136,6 +148,8 @@ async function syncProducts() {
         await createNewProductWithVariations(shop, accessToken, productName, variations);
       }
     }
+    
+    console.log(`✅ Product sync completed! Processed ${productGroups.size} product groups.`);
   } catch (err) {
     console.error("Failed to instantiate GraphqlClient:", err);
     throw err;
@@ -210,18 +224,13 @@ async function findExistingProductByName(shop, accessToken, productName) {
 async function createNewProductWithVariations(shop, accessToken, productName, variations) {
   const fetch = (await import('node-fetch')).default;
   
-  // First, create the product with product options (but no variants yet)
+  // First, create the product without any options to avoid creating default variants
   const mutation = `mutation productCreate($product: ProductCreateInput!) { 
     productCreate(product: $product) { 
       product { 
         id 
         title 
         status 
-        options {
-          id
-          name
-          position
-        }
       } 
       userErrors { 
         field 
@@ -236,14 +245,6 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
       descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
       status: "ACTIVE",
       vendor: variations[0].vendor || "Default Vendor",
-      productOptions: [
-        {
-          name: "Variation",
-          values: variations.map(variation => ({
-            name: variation.productVariation || "Default"
-          }))
-        }
-      ],
       metafields: [
         {
           namespace: "custom",
@@ -273,11 +274,10 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   
   if (json.data?.productCreate?.product) {
     const productId = json.data.productCreate.product.id;
-    const productOptions = json.data.productCreate.product.options;
     console.log(`Created product: ${json.data.productCreate.product.title} with ID: ${productId}`);
     
-    // Now create variants using productVariantsBulkCreate
-    await createProductVariants(shop, accessToken, productId, productOptions, variations);
+    // Now create variants using productVariantsBulkCreate (this will automatically create the option)
+    await createProductVariants(shop, accessToken, productId, variations);
     
   } else if (json.data?.productCreate?.userErrors) {
     console.log(`User error creating product: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
@@ -287,15 +287,25 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
 }
 
 // Helper function to create product variants using productVariantsBulkCreate
-async function createProductVariants(shop, accessToken, productId, productOptions, variations) {
+async function createProductVariants(shop, accessToken, productId, variations) {
   const fetch = (await import('node-fetch')).default;
   
-  // Find the "Variation" option ID
-  const variationOption = productOptions.find(option => option.name === "Variation");
-  if (!variationOption) {
-    console.error("Could not find 'Variation' option in product options");
+  console.log(`Creating variants for product ${productId} with ${variations.length} variations`);
+  
+  // First, get the product options to find the option IDs we need
+  const productOptions = await getProductOptions(shop, accessToken, productId);
+  console.log('Product options for variant creation:', JSON.stringify(productOptions, null, 2));
+  
+  // Find the "Title" option (automatically created by Shopify)
+  const titleOption = productOptions.find(option => option.name === "Title");
+  
+  if (!titleOption) {
+    console.error("Could not find 'Title' option in product options");
+    console.error("Available options:", productOptions.map(opt => opt.name));
     return;
   }
+  
+  console.log(`Found title option with ID: ${titleOption.id}`);
   
   // Create variants array for bulk creation
   const variants = variations.map(variation => ({
@@ -305,7 +315,7 @@ async function createProductVariants(shop, accessToken, productId, productOption
     taxable: true,
     optionValues: [
       {
-        optionId: variationOption.id,
+        optionId: titleOption.id,
         name: variation.productVariation || "Default"
       }
     ],
@@ -330,6 +340,8 @@ async function createProductVariants(shop, accessToken, productId, productOption
       }
     ]
   }));
+
+  console.log(`Prepared ${variants.length} variants:`, JSON.stringify(variants, null, 2));
 
   const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
     productVariantsBulkCreate(productId: $productId, variants: $variants) {
@@ -361,15 +373,21 @@ async function createProductVariants(shop, accessToken, productId, productOption
 
   const json = await fetchRes.json();
 
+  console.log('GraphQL response for variant creation:', JSON.stringify(json, null, 2));
+
   if (json.errors) {
     console.error("Shopify GraphQL errors creating variants:", JSON.stringify(json.errors, null, 2));
     return;
   }
 
   if (json.data?.productVariantsBulkCreate?.productVariants) {
-    console.log(`Created ${json.data.productVariantsBulkCreate.productVariants.length} variants for product ${productId}`);
+    console.log(`✅ Created ${json.data.productVariantsBulkCreate.productVariants.length} variants for product ${productId}`);
+    json.data.productVariantsBulkCreate.productVariants.forEach((variant, index) => {
+      console.log(`  Variant ${index + 1}: ${variant.title} (ID: ${variant.id})`);
+    });
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
-    console.log(`User error creating variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+    console.log(`❌ User error creating variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+    console.log('Full user errors:', JSON.stringify(json.data.productVariantsBulkCreate.userErrors, null, 2));
   } else {
     console.log("Unknown error creating variants:", JSON.stringify(json));
   }
