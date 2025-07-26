@@ -147,6 +147,9 @@ class MonitorClient {
 
 const monitorClient = new MonitorClient();
 
+// Export the class for use in other files
+export { MonitorClient };
+
 export async function fetchProductsFromMonitor() {
   try {
     const products = await monitorClient.fetchProducts();

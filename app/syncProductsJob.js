@@ -307,7 +307,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   
   console.log(`Found title option with ID: ${titleOption.id}`);
   
-  // Create variants array for bulk creation
+  // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = variations.map(variation => ({
     price: variation.price != null ? variation.price.toString() : "0",
     barcode: variation.barcode || "",
@@ -324,12 +324,6 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
-        type: "single_line_text_field"
-      },
-      {
-        namespace: "custom", 
-        key: "sku",
-        value: variation.sku || "",
         type: "single_line_text_field"
       },
       {
@@ -382,7 +376,18 @@ async function createProductVariants(shop, accessToken, productId, variations) {
 
   if (json.data?.productVariantsBulkCreate?.productVariants) {
     console.log(`✅ Created ${json.data.productVariantsBulkCreate.productVariants.length} variants for product ${productId}`);
-    json.data.productVariantsBulkCreate.productVariants.forEach((variant, index) => {
+    const createdVariants = json.data.productVariantsBulkCreate.productVariants;
+    
+    // Update each variant with its SKU
+    for (let i = 0; i < createdVariants.length && i < variations.length; i++) {
+      const variant = createdVariants[i];
+      const variation = variations[i];
+      if (variation.sku) {
+        await updateVariantSku(shop, accessToken, variant.id, variation.sku);
+      }
+    }
+    
+    createdVariants.forEach((variant, index) => {
       console.log(`  Variant ${index + 1}: ${variant.title} (ID: ${variant.id})`);
     });
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
@@ -418,7 +423,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     return;
   }
 
-  // Create variants array for bulk creation
+  // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = newVariations.map(variation => ({
     price: variation.price != null ? variation.price.toString() : "0",
     barcode: variation.barcode || "",
@@ -435,12 +440,6 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
-        type: "single_line_text_field"
-      },
-      {
-        namespace: "custom",
-        key: "sku", 
-        value: variation.sku || "",
         type: "single_line_text_field"
       },
       {
@@ -486,6 +485,16 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     console.error("Shopify GraphQL errors adding variants:", JSON.stringify(json.errors, null, 2));
   } else if (json.data?.productVariantsBulkCreate?.productVariants) {
     console.log(`Added ${json.data.productVariantsBulkCreate.productVariants.length} new variants to product ${productId}`);
+    const createdVariants = json.data.productVariantsBulkCreate.productVariants;
+    
+    // Update each variant with its SKU
+    for (let i = 0; i < createdVariants.length && i < newVariations.length; i++) {
+      const variant = createdVariants[i];
+      const variation = newVariations[i];
+      if (variation.sku) {
+        await updateVariantSku(shop, accessToken, variant.id, variation.sku);
+      }
+    }
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
     console.log(`User error adding variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
   }
@@ -577,6 +586,48 @@ async function getExistingVariants(shop, accessToken, productId) {
       monitorId: monitorIdMetafield?.node.value
     };
   });
+}
+
+// Helper function to update variant SKU after creation using REST API
+async function updateVariantSku(shop, accessToken, variantId, sku) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Extract the numeric ID from the GraphQL ID
+  const numericId = variantId.split('/').pop();
+  
+  const url = `https://${shop}/admin/api/2025-01/variants/${numericId}.json`;
+  
+  const body = {
+    variant: {
+      id: parseInt(numericId),
+      sku: sku
+    }
+  };
+
+  const fetchRes = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!fetchRes.ok) {
+    const errorText = await fetchRes.text();
+    console.error(`REST API error updating variant SKU for ${variantId}: ${fetchRes.status} ${errorText}`);
+    return false;
+  }
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error(`REST API errors updating variant SKU for ${variantId}:`, JSON.stringify(json.errors, null, 2));
+    return false;
+  }
+
+  console.log(`    Updated SKU for variant ${variantId} to "${sku}"`);
+  return true;
 }
 
 // Schedule to run every hour
