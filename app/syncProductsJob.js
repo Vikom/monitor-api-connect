@@ -311,8 +311,10 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   const variants = variations.map(variation => ({
     price: variation.price != null ? variation.price.toString() : "0",
     barcode: variation.barcode || "",
-    inventoryPolicy: "DENY",
+    inventoryPolicy: "CONTINUE",
     taxable: true,
+    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
+    weightUnit: "KILOGRAMS",
     optionValues: [
       {
         optionId: titleOption.id,
@@ -324,12 +326,6 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
-        type: "single_line_text_field"
-      },
-      {
-        namespace: "custom",
-        key: "weight", 
-        value: (variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0).toString(),
         type: "single_line_text_field"
       }
     ]
@@ -427,8 +423,10 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   const variants = newVariations.map(variation => ({
     price: variation.price != null ? variation.price.toString() : "0",
     barcode: variation.barcode || "",
-    inventoryPolicy: "DENY",
+    inventoryPolicy: "CONTINUE",
     taxable: true,
+    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
+    weightUnit: "GRAMS",
     optionValues: [
       {
         optionId: variationOption.id,
@@ -440,12 +438,6 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
-        type: "single_line_text_field"
-      },
-      {
-        namespace: "custom",
-        key: "weight",
-        value: (variation.weight != null && !isNaN(Number(variation.weight)) ? Number(variation.weight) : 0).toString(),
         type: "single_line_text_field"
       }
     ]

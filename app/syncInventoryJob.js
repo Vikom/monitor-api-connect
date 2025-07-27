@@ -264,7 +264,7 @@ async function updateShopifyInventoryLevel(shop, accessToken, inventoryItemId, l
 
   const variables = {
     input: {
-      reason: "Monitor API sync", // Required reason field
+      reason: "other", // Use a valid reason from the allowed list
       setQuantities: [
         {
           inventoryItemId: inventoryItemId,
@@ -328,6 +328,105 @@ async function getInventoryItemId(shop, accessToken, variantId) {
   }
 
   return result.data?.productVariant?.inventoryItem?.id;
+}
+
+// Helper function to ensure inventory item is stocked at location
+async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, locationId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // First check if it's already stocked at the location
+  const checkQuery = `query {
+    inventoryItem(id: "${inventoryItemId}") {
+      inventoryLevels(first: 10) {
+        edges {
+          node {
+            location {
+              id
+            }
+            quantities(names: ["available"]) {
+              name
+              quantity
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  const checkRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: checkQuery }),
+  });
+
+  const checkResult = await checkRes.json();
+  
+  if (checkResult.errors) {
+    console.error("Error checking inventory levels:", JSON.stringify(checkResult.errors, null, 2));
+    return false;
+  }
+
+  // Check if already stocked at this location
+  const existingLevel = checkResult.data?.inventoryItem?.inventoryLevels?.edges?.find(
+    edge => edge.node.location.id === locationId
+  );
+
+  if (existingLevel) {
+    console.log(`    Inventory already stocked at location`);
+    return true;
+  }
+
+  // If not stocked, we need to activate it at the location
+  console.log(`    Activating inventory at location...`);
+  
+  const activateQuery = `mutation inventoryActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+      inventoryLevel {
+        id
+        quantities(names: ["available"]) {
+          name
+          quantity
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const activateVars = {
+    inventoryItemId: inventoryItemId,
+    locationId: locationId,
+    available: 0 // Start with 0, we'll update it separately
+  };
+
+  const activateRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: activateQuery, variables: activateVars }),
+  });
+
+  const activateResult = await activateRes.json();
+
+  if (activateResult.errors) {
+    console.error("GraphQL errors activating inventory:", JSON.stringify(activateResult.errors, null, 2));
+    return false;
+  }
+
+  if (activateResult.data?.inventoryActivate?.userErrors?.length > 0) {
+    console.error("User errors activating inventory:", activateResult.data.inventoryActivate.userErrors);
+    return false;
+  }
+
+  console.log(`    Successfully activated inventory at location`);
+  return true;
 }
 
 async function syncInventory() {
@@ -434,6 +533,14 @@ async function syncInventory() {
         const inventoryItemId = await getInventoryItemId(shop, accessToken, product.variantId);
         if (!inventoryItemId) {
           console.log(`  ❌ Could not get inventory item ID for variant ${product.variantId}`);
+          errorCount++;
+          continue;
+        }
+
+        // Ensure inventory item is stocked at location
+        const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
+        if (!isStocked) {
+          console.log(`  ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.id}`);
           errorCount++;
           continue;
         }
