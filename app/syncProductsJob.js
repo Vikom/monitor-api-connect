@@ -308,28 +308,69 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   console.log(`Found title option with ID: ${titleOption.id}`);
   
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = variations.map(variation => ({
-    price: variation.price != null ? variation.price.toString() : "0",
-    barcode: variation.barcode || "",
-    inventoryPolicy: "CONTINUE",
-    taxable: true,
-    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
-    weightUnit: "KILOGRAMS",
-    optionValues: [
-      {
-        optionId: titleOption.id,
-        name: variation.productVariation || "Default"
-      }
-    ],
-    metafields: [
+  const variants = variations.map(variation => {
+    const metafields = [
       {
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
         type: "single_line_text_field"
       }
-    ]
-  }));
+    ];
+
+    // Add custom dimension and volume metafields if they exist
+    if (variation.ExtraFields?.ARTLENGTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "length",
+        value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.ExtraFields?.ARTWIDTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "width",
+        value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.ExtraFields?.ARTDEPTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "depth",
+        value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.VolumePerUnit != null) {
+      metafields.push({
+        namespace: "custom",
+        key: "volume",
+        value: Number(variation.VolumePerUnit).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    return {
+      price: variation.price != null ? variation.price.toString() : "0",
+      barcode: variation.barcode || "",
+      inventoryPolicy: "CONTINUE",
+      taxable: true,
+      weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
+      weightUnit: "KILOGRAMS",
+      optionValues: [
+        {
+          optionId: titleOption.id,
+          name: variation.productVariation || "Default"
+        }
+      ],
+      metafields: metafields
+    };
+  });
 
   console.log(`Prepared ${variants.length} variants:`, JSON.stringify(variants, null, 2));
 
@@ -420,28 +461,69 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   }
 
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = newVariations.map(variation => ({
-    price: variation.price != null ? variation.price.toString() : "0",
-    barcode: variation.barcode || "",
-    inventoryPolicy: "CONTINUE",
-    taxable: true,
-    weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
-    weightUnit: "GRAMS",
-    optionValues: [
-      {
-        optionId: variationOption.id,
-        name: variation.productVariation || "Default"
-      }
-    ],
-    metafields: [
+  const variants = newVariations.map(variation => {
+    const metafields = [
       {
         namespace: "custom",
         key: "monitor_id",
         value: variation.id.toString(),
         type: "single_line_text_field"
       }
-    ]
-  }));
+    ];
+
+    // Add custom dimension and volume metafields if they exist
+    if (variation.ExtraFields?.ARTLENGTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "length",
+        value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.ExtraFields?.ARTWIDTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "width",
+        value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.ExtraFields?.ARTDEPTH) {
+      metafields.push({
+        namespace: "custom",
+        key: "depth",
+        value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    if (variation.VolumePerUnit != null) {
+      metafields.push({
+        namespace: "custom",
+        key: "volume",
+        value: Number(variation.VolumePerUnit).toFixed(2),
+        type: "single_line_text_field"
+      });
+    }
+
+    return {
+      price: variation.price != null ? variation.price.toString() : "0",
+      barcode: variation.barcode || "",
+      inventoryPolicy: "CONTINUE",
+      taxable: true,
+      weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
+      weightUnit: "GRAMS",
+      optionValues: [
+        {
+          optionId: variationOption.id,
+          name: variation.productVariation || "Default"
+        }
+      ],
+      metafields: metafields
+    };
+  });
 
   const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
     productVariantsBulkCreate(productId: $productId, variants: $variants) {
