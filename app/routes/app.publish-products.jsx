@@ -2,15 +2,15 @@ import { useFetcher } from "@remix-run/react";
 import { Page, Card, Button, BlockStack, Text } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { fetchProductsFromThirdParty } from "../utils/monitor";
-import { authenticate } from "../shopify.server";
+import { authenticate } from "../utils/auth.server.js";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  await authenticate(request);
   return null;
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin } = await authenticate(request);
   const products = await fetchProductsFromThirdParty();
   const results = [];
   for (const product of products) {

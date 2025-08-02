@@ -62,6 +62,63 @@ Press P to open the URL to your app. Once you click install, you can start devel
 
 Local development is powered by [the Shopify CLI](https://shopify.dev/docs/apps/tools/cli). It logs into your partners account, connects to an app, provides environment variables, updates remote config, creates a tunnel and provides commands to generate extensions.
 
+## Advanced Store Configuration
+
+This app supports both regular Shopify stores (using OAuth) and Shopify Advanced stores (using direct API access with admin tokens).
+
+### Setting up for Shopify Advanced
+
+If you need to connect to a Shopify Advanced store, follow these steps:
+
+1. **Create a private app in your Advanced store:**
+   - Go to your Shopify Admin
+   - Navigate to Settings > Apps and sales channels > Develop apps
+   - Create a new app and configure the necessary scopes
+   - Generate an Admin API access token
+
+2. **Configure your environment variables:**
+
+   Add the following to your `.env` file:
+
+   ```env
+   ADVANCED_STORE_DOMAIN=your-advanced-store.myshopify.com
+   ADVANCED_STORE_ADMIN_TOKEN=shpat_your_admin_token_here
+   ```
+
+3. **How it works:**
+   - The app automatically detects if a request is coming from the Advanced store domain
+   - For Advanced stores, it bypasses OAuth and uses direct API calls with the admin token
+   - For regular stores, it continues to use the standard OAuth flow
+
+### API Usage
+
+The app now uses a unified authentication system that works with both store types:
+
+```js
+export async function loader({ request }) {
+  const { admin } = await authenticate(request);
+
+  // This works for both OAuth and Advanced stores
+  const response = await admin.graphql(`
+    {
+      products(first: 25) {
+        nodes {
+          title
+          description
+        }
+      }
+    }`);
+
+  const {
+    data: {
+      products: { nodes },
+    },
+  } = await response.json();
+
+  return nodes;
+}
+```
+
 ### Authenticating and querying data
 
 To authenticate and query data you can use the `shopify` const that is exported from `/app/shopify.server.js`:

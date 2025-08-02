@@ -5,6 +5,12 @@ import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
 
+// Get command line arguments to determine which store to sync to
+const args = process.argv.slice(2);
+const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+
+console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
@@ -397,13 +403,16 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath, isF
 async function setFeaturedImage(shop, accessToken, productId, mediaId) {
   const fetch = (await import('node-fetch')).default;
 
-  // Use productUpdate mutation with mediaIds to set the first image as featured
-  const mutation = `mutation productUpdateMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
-    productUpdateMedia(productId: $productId, media: $media) {
-      media {
+  // Use productUpdate mutation to set featured media
+  const mutation = `mutation productUpdate($input: ProductInput!) {
+    productUpdate(input: $input) {
+      product {
         id
+        featuredMedia {
+          id
+        }
       }
-      mediaUserErrors {
+      userErrors {
         field
         message
       }
@@ -411,13 +420,10 @@ async function setFeaturedImage(shop, accessToken, productId, mediaId) {
   }`;
 
   const variables = {
-    productId: productId,
-    media: [
-      {
-        id: mediaId,
-        preview: true  // This sets it as the featured/preview image
-      }
-    ]
+    input: {
+      id: productId,
+      featuredMedia: mediaId
+    }
   };
 
   try {
@@ -437,11 +443,11 @@ async function setFeaturedImage(shop, accessToken, productId, mediaId) {
       return false;
     }
 
-    if (result.data?.productUpdateMedia?.media) {
+    if (result.data?.productUpdate?.product) {
       console.log(`  ✅ Set featured image for product ${productId}`);
       return true;
-    } else if (result.data?.productUpdateMedia?.mediaUserErrors?.length > 0) {
-      console.error("User errors setting featured image:", result.data.productUpdateMedia.mediaUserErrors);
+    } else if (result.data?.productUpdate?.userErrors?.length > 0) {
+      console.error("User errors setting featured image:", result.data.productUpdate.userErrors);
     }
 
     return false;
@@ -452,33 +458,62 @@ async function setFeaturedImage(shop, accessToken, productId, mediaId) {
 }
 
 async function syncImages() {
-  const prisma = (await import("./db.server.js")).default;
-  const session = await prisma.session.findFirst();
-  
-  if (!session) {
-    console.log("No Shopify session found. Cannot sync images.");
-    console.log("Please visit your Shopify app to authenticate first.");
-    return;
+  let shop, accessToken;
+
+  if (useAdvancedStore) {
+    // Use Advanced store configuration
+    shop = process.env.ADVANCED_STORE_DOMAIN;
+    accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+
+    if (!shop || !accessToken) {
+      console.log("❌ Advanced store configuration missing!");
+      console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+      return;
+    }
+
+    console.log(`🔗 Using Advanced store: ${shop}`);
+    
+    // Validate the advanced store session
+    const isValidSession = await validateSession(shop, accessToken);
+    if (!isValidSession) {
+      console.log("❌ Advanced store session is invalid.");
+      console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
+      return;
+    }
+  } else {
+    // Use development store with OAuth (existing logic)
+    const prisma = (await import("./db.server.js")).default;
+    const session = await prisma.session.findFirst();
+    
+    if (!session) {
+      console.log("No Shopify session found. Cannot sync images.");
+      console.log("Please visit your Shopify app to authenticate first.");
+      return;
+    }
+
+    // Check if session has expired
+    if (session.expires && session.expires < new Date()) {
+      console.log("Shopify session has expired. Please re-authenticate your app.");
+      return;
+    }
+
+    // Validate the session by making a test API call
+    const isValidSession = await validateSession(session.shop, session.accessToken);
+    if (!isValidSession) {
+      console.log("❌ Shopify session is invalid or expired.");
+      console.log("To fix this:");
+      console.log("1. Run 'npm run dev' to start the development server");
+      console.log("2. Visit the app in your browser to re-authenticate");
+      console.log("3. Once authenticated, you can run the sync job again");
+      return;
+    }
+
+    shop = session.shop;
+    accessToken = session.accessToken;
+    console.log(`🔗 Using development store: ${shop}`);
   }
 
-  // Check if session has expired
-  if (session.expires && session.expires < new Date()) {
-    console.log("Shopify session has expired. Please re-authenticate your app.");
-    return;
-  }
-
-  // Validate the session by making a test API call
-  const isValidSession = await validateSession(session.shop, session.accessToken);
-  if (!isValidSession) {
-    console.log("❌ Shopify session is invalid or expired.");
-    console.log("To fix this:");
-    console.log("1. Run 'npm run dev' to start the development server");
-    console.log("2. Visit the app in your browser to re-authenticate");
-    console.log("3. Once authenticated, you can run the sync job again");
-    return;
-  }
-
-  console.log("✅ Shopify session is valid. Starting image sync...");
+  console.log("✅ Store session is valid. Starting image sync...");
 
   try {
     // Load image mapping from CSV
@@ -490,7 +525,7 @@ async function syncImages() {
 
     // Get all products from Shopify
     console.log("Fetching products from Shopify...");
-    const products = await getAllShopifyProducts(session.shop, session.accessToken);
+    const products = await getAllShopifyProducts(shop, accessToken);
     console.log(`Found ${products.length} products in Shopify`);
 
     let processedProducts = 0;
@@ -535,8 +570,8 @@ async function syncImages() {
           const isFirst = i === 0; // First image becomes featured image
           
           await uploadImageToProduct(
-            session.shop, 
-            session.accessToken, 
+            shop, 
+            accessToken, 
             product.id, 
             imagePath, 
             isFirst
@@ -566,4 +601,31 @@ async function syncImages() {
   }
 }
 
+// Display usage instructions
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+📋 Images Sync Job Usage:
+
+To sync to development store (OAuth):
+  node app/syncImagesJob.js
+
+To sync to Advanced store:
+  node app/syncImagesJob.js --advanced
+  node app/syncImagesJob.js -a
+
+Configuration:
+  Development store: Uses Prisma session from OAuth flow
+  Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
+
+Make sure your .env file is configured properly before running.
+  `);
+  process.exit(0);
+}
+
+console.log(`
+🚀 Starting Images Sync Job
+📝 Use --help for usage instructions
+`);
+
+// Run the sync
 syncImages();

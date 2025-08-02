@@ -5,6 +5,12 @@ import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
 
+// Get command line arguments to determine which store to sync to
+const args = process.argv.slice(2);
+const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+
+console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
@@ -53,39 +59,69 @@ async function validateSession(shop, accessToken) {
 }
 
 async function syncProducts() {
-  const prisma = (await import("./db.server.js")).default;
-  const session = await prisma.session.findFirst();
-  if (!session) {
-    console.log("No Shopify session found. Cannot sync products.");
-    console.log("Please visit your Shopify app to authenticate first.");
-    return;
+  let shop, accessToken;
+
+  if (useAdvancedStore) {
+    // Use Advanced store configuration
+    shop = process.env.ADVANCED_STORE_DOMAIN;
+    accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+
+    if (!shop || !accessToken) {
+      console.log("❌ Advanced store configuration missing!");
+      console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+      return;
+    }
+
+    console.log(`🔗 Using Advanced store: ${shop}`);
+    
+    // Validate the advanced store session
+    const isValidSession = await validateSession(shop, accessToken);
+    if (!isValidSession) {
+      console.log("❌ Advanced store session is invalid.");
+      console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
+      return;
+    }
+  } else {
+    // Use development store with OAuth (existing logic)
+    const prisma = (await import("./db.server.js")).default;
+    const session = await prisma.session.findFirst();
+    if (!session) {
+      console.log("No Shopify session found. Cannot sync products.");
+      console.log("Please visit your Shopify app to authenticate first.");
+      return;
+    }
+
+    // Check if session has expired
+    if (session.expires && session.expires < new Date()) {
+      console.log("Shopify session has expired. Please re-authenticate your app.");
+      return;
+    }
+
+    // Validate the session by making a test API call
+    const isValidSession = await validateSession(session.shop, session.accessToken);
+    if (!isValidSession) {
+      console.log("❌ Shopify session is invalid or expired.");
+      console.log("To fix this:");
+      console.log("1. Run 'npm run dev' to start the development server");
+      console.log("2. Visit the app in your browser to re-authenticate");
+      console.log("3. Once authenticated, you can run the sync job again");
+      return;
+    }
+
+    shop = session.shop;
+    accessToken = session.accessToken;
+    console.log(`🔗 Using development store: ${shop}`);
   }
 
-  // Check if session has expired
-  if (session.expires && session.expires < new Date()) {
-    console.log("Shopify session has expired. Please re-authenticate your app.");
-    return;
-  }
-
-  // Validate the session by making a test API call
-  const isValidSession = await validateSession(session.shop, session.accessToken);
-  if (!isValidSession) {
-    console.log("❌ Shopify session is invalid or expired.");
-    console.log("To fix this:");
-    console.log("1. Run 'npm run dev' to start the development server");
-    console.log("2. Visit the app in your browser to re-authenticate");
-    console.log("3. Once authenticated, you can run the sync job again");
-    return;
-  }
-
-  console.log("✅ Shopify session is valid. Starting product sync...");
+  console.log("✅ Store session is valid. Starting product sync...");
+  
   // Use the low-level GraphQL client from @shopify/shopify-api
   try {
     /*console.log("About to instantiate GraphqlClient");
     const admin = new shopifyConfig.clients.Graphql({
       session: {
-        shop: session.shop,
-        accessToken: session.accessToken,
+        shop: shop,
+        accessToken: accessToken,
       },
       apiVersion: "2024-01", // or your current ApiVersion
     });
@@ -123,10 +159,14 @@ async function syncProducts() {
       productGroups.get(product.productName).push(product);
     }
 
-    const shop = session.shop;
-    const accessToken = session.accessToken;
-
     console.log(`Found ${productGroups.size} unique product groups to process`);
+    
+    // Get the Online Store sales channel ID for publishing products
+    console.log("Getting Online Store sales channel ID...");
+    const onlineStoreSalesChannelId = await getOnlineStoreSalesChannelId(shop, accessToken);
+    if (!onlineStoreSalesChannelId) {
+      console.warn("⚠️  Could not get Online Store sales channel ID. Products will be created but not published.");
+    }
     
     // Show grouping summary
     for (const [productName, variations] of productGroups) {
@@ -143,9 +183,19 @@ async function syncProducts() {
       if (existingProduct) {
         console.log(`Product "${productName}" already exists, adding new variations if needed`);
         await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+        
+        // Ensure existing product is published to Online Store
+        if (onlineStoreSalesChannelId) {
+          await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
+        }
       } else {
         console.log(`Creating new product: ${productName}`);
-        await createNewProductWithVariations(shop, accessToken, productName, variations);
+        const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
+        
+        // Publish new product to Online Store
+        if (newProductId && onlineStoreSalesChannelId) {
+          await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+        }
       }
     }
     
@@ -221,7 +271,7 @@ async function findExistingProductByName(shop, accessToken, productName) {
 }
 
 // Helper function to create a new product with all its variations
-async function createNewProductWithVariations(shop, accessToken, productName, variations) {
+async function createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId) {
   const fetch = (await import('node-fetch')).default;
   
   // First, create the product without any options to avoid creating default variants
@@ -244,7 +294,7 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
       title: productName,
       descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
       status: "ACTIVE",
-      vendor: variations[0].vendor || "Default Vendor",
+      vendor: variations[0].vendor || "Sonsab",
       metafields: [
         {
           namespace: "custom",
@@ -269,7 +319,7 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   
   if (json.errors) {
     console.error("Shopify GraphQL errors:", JSON.stringify(json.errors, null, 2));
-    return;
+    return null;
   }
   
   if (json.data?.productCreate?.product) {
@@ -279,10 +329,70 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
     // Now create variants using productVariantsBulkCreate (this will automatically create the option)
     await createProductVariants(shop, accessToken, productId, variations);
     
+    return productId;
   } else if (json.data?.productCreate?.userErrors) {
     console.log(`User error creating product: ${json.data.productCreate.userErrors.map(e => e.message).join(", ")}`);
+    return null;
   } else {
     console.log("Unknown error creating product:", JSON.stringify(json));
+    return null;
+  }
+}
+
+// Helper function to get the primary location for inventory tracking
+async function getPrimaryLocation(shop, accessToken) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const query = `query {
+    locations(first: 10) {
+      edges {
+        node {
+          id
+          name
+          isPrimary
+          fulfillsOnlineOrders
+        }
+      }
+    }
+  }`;
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("GraphQL errors getting locations:", JSON.stringify(json.errors, null, 2));
+    return null;
+  }
+
+  const locations = json.data?.locations?.edges?.map(edge => edge.node) || [];
+  
+  // Find the primary location first
+  let primaryLocation = locations.find(location => location.isPrimary);
+  
+  // If no primary location, find one that fulfills online orders
+  if (!primaryLocation) {
+    primaryLocation = locations.find(location => location.fulfillsOnlineOrders);
+  }
+  
+  // If still nothing, use the first location
+  if (!primaryLocation && locations.length > 0) {
+    primaryLocation = locations[0];
+  }
+
+  if (primaryLocation) {
+    console.log(`Using location: ${primaryLocation.name} (ID: ${primaryLocation.id})`);
+    return primaryLocation;
+  } else {
+    console.error("No suitable location found for inventory tracking");
+    return null;
   }
 }
 
@@ -296,16 +406,25 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   const productOptions = await getProductOptions(shop, accessToken, productId);
   console.log('Product options for variant creation:', JSON.stringify(productOptions, null, 2));
   
-  // Find the "Title" option (automatically created by Shopify)
-  const titleOption = productOptions.find(option => option.name === "Title");
+  // Find a suitable option for the variants (prefer "Variation" or "Title")
+  let variantOption = productOptions.find(option => option.name === "Variation") || 
+                     productOptions.find(option => option.name === "Title");
   
-  if (!titleOption) {
-    console.error("Could not find 'Title' option in product options");
-    console.error("Available options:", productOptions.map(opt => opt.name));
-    return;
+  // If no suitable option exists, we need to create one
+  if (!variantOption) {
+    console.log("No suitable option found, creating 'Variation' option...");
+    variantOption = await createProductOption(shop, accessToken, productId, "Variation");
+    if (!variantOption) {
+      console.error("Failed to create product option");
+      return;
+    }
   }
   
-  console.log(`Found title option with ID: ${titleOption.id}`);
+  console.log(`Found/created option with ID: ${variantOption.id}, name: ${variantOption.name}`);
+  
+  // Get the primary location for inventory tracking
+  console.log("Getting primary location for inventory tracking...");
+  const primaryLocation = await getPrimaryLocation(shop, accessToken);
   
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = variations.map(variation => {
@@ -355,21 +474,31 @@ async function createProductVariants(shop, accessToken, productId, variations) {
       });
     }
 
-    return {
+    const variantData = {
       price: variation.price != null ? variation.price.toString() : "0",
       barcode: variation.barcode || "",
       inventoryPolicy: "CONTINUE",
       taxable: true,
-      weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
-      weightUnit: "KILOGRAMS",
       optionValues: [
         {
-          optionId: titleOption.id,
+          optionId: variantOption.id,
           name: variation.productVariation || "Default"
         }
       ],
       metafields: metafields
     };
+
+    // Add inventory quantities if we have a primary location
+    if (primaryLocation) {
+      variantData.inventoryQuantities = [
+        {
+          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+          locationId: primaryLocation.id
+        }
+      ];
+    }
+
+    return variantData;
   });
 
   console.log(`Prepared ${variants.length} variants:`, JSON.stringify(variants, null, 2));
@@ -415,13 +544,18 @@ async function createProductVariants(shop, accessToken, productId, variations) {
     console.log(`✅ Created ${json.data.productVariantsBulkCreate.productVariants.length} variants for product ${productId}`);
     const createdVariants = json.data.productVariantsBulkCreate.productVariants;
     
-    // Update each variant with its SKU
+    // Update each variant with its SKU, weight, and inventory management
     for (let i = 0; i < createdVariants.length && i < variations.length; i++) {
       const variant = createdVariants[i];
       const variation = variations[i];
+      
+      // Update SKU
       if (variation.sku) {
         await updateVariantSku(shop, accessToken, variant.id, variation.sku);
       }
+      
+      // Update inventory management and weight
+      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, primaryLocation);
     }
     
     createdVariants.forEach((variant, index) => {
@@ -453,12 +587,23 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
 
   // Get the product options to find the option IDs we need
   const productOptions = await getProductOptions(shop, accessToken, productId);
-  const variationOption = productOptions.find(option => option.name === "Variation");
   
-  if (!variationOption) {
-    console.error("Could not find 'Variation' option in existing product");
-    return;
+  // Find a suitable option for the variants (prefer "Variation" or "Title")
+  let variantOption = productOptions.find(option => option.name === "Variation") || 
+                     productOptions.find(option => option.name === "Title");
+  
+  if (!variantOption) {
+    console.log("No suitable option found, creating 'Variation' option...");
+    variantOption = await createProductOption(shop, accessToken, productId, "Variation");
+    if (!variantOption) {
+      console.error("Failed to create product option");
+      return;
+    }
   }
+
+  // Get the primary location for inventory tracking
+  console.log("Getting primary location for inventory tracking...");
+  const primaryLocation = await getPrimaryLocation(shop, accessToken);
 
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = newVariations.map(variation => {
@@ -508,21 +653,31 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
       });
     }
 
-    return {
+    const variantData = {
       price: variation.price != null ? variation.price.toString() : "0",
       barcode: variation.barcode || "",
       inventoryPolicy: "CONTINUE",
       taxable: true,
-      weight: variation.weight != null && !isNaN(Number(variation.weight)) ? Math.round(Number(variation.weight) * 100) / 100 : 0,
-      weightUnit: "GRAMS",
       optionValues: [
         {
-          optionId: variationOption.id,
+          optionId: variantOption.id,
           name: variation.productVariation || "Default"
         }
       ],
       metafields: metafields
     };
+
+    // Add inventory quantities if we have a primary location
+    if (primaryLocation) {
+      variantData.inventoryQuantities = [
+        {
+          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+          locationId: primaryLocation.id
+        }
+      ];
+    }
+
+    return variantData;
   });
 
   const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -561,16 +716,80 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     console.log(`Added ${json.data.productVariantsBulkCreate.productVariants.length} new variants to product ${productId}`);
     const createdVariants = json.data.productVariantsBulkCreate.productVariants;
     
-    // Update each variant with its SKU
+    // Update each variant with its SKU, weight, and inventory management
     for (let i = 0; i < createdVariants.length && i < newVariations.length; i++) {
       const variant = createdVariants[i];
       const variation = newVariations[i];
+      
+      // Update SKU
       if (variation.sku) {
         await updateVariantSku(shop, accessToken, variant.id, variation.sku);
       }
+      
+      // Update inventory management and weight
+      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, primaryLocation);
     }
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
     console.log(`User error adding variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+  }
+}
+
+// Helper function to create a product option
+async function createProductOption(shop, accessToken, productId, optionName) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const mutation = `mutation productOptionCreate($productId: ID!, $option: OptionCreateInput!) {
+    productOptionCreate(productId: $productId, option: $option) {
+      productOption {
+        id
+        name
+        position
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    productId: productId,
+    option: {
+      name: optionName,
+      values: [
+        {
+          name: "Default"
+        }
+      ]
+    }
+  };
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("GraphQL errors creating product option:", JSON.stringify(json.errors, null, 2));
+    return null;
+  }
+
+  if (json.data?.productOptionCreate?.productOption) {
+    const option = json.data.productOptionCreate.productOption;
+    console.log(`Created product option: ${option.name} with ID: ${option.id}`);
+    return option;
+  } else if (json.data?.productOptionCreate?.userErrors) {
+    console.log(`User error creating product option: ${json.data.productOptionCreate.userErrors.map(e => e.message).join(", ")}`);
+    return null;
+  } else {
+    console.log("Unknown error creating product option:", JSON.stringify(json));
+    return null;
   }
 }
 
@@ -704,11 +923,272 @@ async function updateVariantSku(shop, accessToken, variantId, sku) {
   return true;
 }
 
+// Helper function to update variant inventory management and weight using REST API
+async function updateVariantInventoryAndWeight(shop, accessToken, variantId, variation, primaryLocation) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Extract the numeric ID from the GraphQL ID
+  const numericId = variantId.split('/').pop();
+  
+  const url = `https://${shop}/admin/api/2025-01/variants/${numericId}.json`;
+  
+  const updateData = {
+    variant: {
+      id: parseInt(numericId),
+      inventory_management: "shopify", // Enable inventory tracking
+    }
+  };
+
+  // Add weight if available
+  if (variation.weight != null && !isNaN(Number(variation.weight))) {
+    updateData.variant.weight = Math.round(Number(variation.weight) * 100) / 100;
+    updateData.variant.weight_unit = "kg";
+  }
+
+  const fetchRes = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify(updateData),
+  });
+
+  if (!fetchRes.ok) {
+    const errorText = await fetchRes.text();
+    console.error(`REST API error updating variant inventory/weight for ${variantId}: ${fetchRes.status} ${errorText}`);
+    return false;
+  }
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error(`REST API errors updating variant inventory/weight for ${variantId}:`, JSON.stringify(json.errors, null, 2));
+    return false;
+  }
+
+  console.log(`    Updated inventory management and weight for variant ${variantId}`);
+  
+  // Note: Inventory tracking is enabled via inventory_management: "shopify"
+  // The inventory will be automatically available for tracking at locations
+  // Use the inventory sync job to set actual quantities
+  
+  return true;
+}
+
+// Helper function to ensure inventory tracking at location
+async function ensureInventoryTracking(shop, accessToken, inventoryItemId, locationId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // First, activate inventory at the location using GraphQL
+  const mutation = `mutation inventoryActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+      inventoryLevel {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    inventoryItemId: `gid://shopify/InventoryItem/${inventoryItemId}`,
+    locationId: locationId,
+    available: 0
+  };
+
+  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const json = await fetchRes.json();
+
+  if (json.errors) {
+    console.error("GraphQL errors activating inventory:", JSON.stringify(json.errors, null, 2));
+    return false;
+  }
+
+  if (json.data?.inventoryActivate?.userErrors?.length > 0) {
+    // Inventory might already be active, which is fine
+    const errors = json.data.inventoryActivate.userErrors;
+    const alreadyActiveError = errors.find(err => 
+      err.message.includes('already active') || 
+      err.message.includes('already stocked') ||
+      err.message.includes('already tracked')
+    );
+    
+    if (!alreadyActiveError) {
+      console.error("User errors activating inventory:", errors);
+      return false;
+    } else {
+      console.log(`    Inventory already active for item ${inventoryItemId} at location`);
+      return true;
+    }
+  }
+
+  console.log(`    Activated inventory tracking for item ${inventoryItemId} at location`);
+  return true;
+}
+
+// Helper function to get the Online Store sales channel ID
+async function getOnlineStoreSalesChannelId(shop, accessToken) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const query = `query {
+    publications(first: 10) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+    }
+  }`;
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error("GraphQL errors getting sales channels:", JSON.stringify(result.errors, null, 2));
+      return null;
+    }
+
+    // Look for "Online Store" publication
+    const publications = result.data?.publications?.edges || [];
+    const onlineStore = publications.find(pub => 
+      pub.node.name === "Online Store" || pub.node.name === "Online store"
+    );
+
+    if (onlineStore) {
+      console.log(`Found Online Store sales channel with ID: ${onlineStore.node.id}`);
+      return onlineStore.node.id;
+    } else {
+      console.log("Available sales channels:", publications.map(p => p.node.name));
+      console.error("Could not find Online Store sales channel");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting sales channels:", error);
+    return null;
+  }
+}
+
+// Helper function to publish product to Online Store
+async function publishProductToOnlineStore(shop, accessToken, productId, salesChannelId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const mutation = `mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
+    publishablePublish(id: $id, input: $input) {
+      publishable {
+        publicationCount
+      }
+      shop {
+        publicationCount
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    id: productId,
+    input: [
+      {
+        publicationId: salesChannelId
+      }
+    ]
+  };
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      // Check if it's an access denied error for publications
+      const accessDeniedError = result.errors.find(err => 
+        err.extensions?.code === "ACCESS_DENIED" && 
+        (err.message.includes("write_publications") || err.message.includes("publishablePublish"))
+      );
+      
+      if (accessDeniedError) {
+        console.log(`  ⚠️  Cannot publish product ${productId} - Advanced store token missing write_publications scope`);
+        return false;
+      }
+      
+      console.error("GraphQL errors publishing product:", JSON.stringify(result.errors, null, 2));
+      return false;
+    }
+
+    if (result.data?.publishablePublish?.userErrors?.length > 0) {
+      console.error("User errors publishing product:", result.data.publishablePublish.userErrors);
+      return false;
+    }
+
+    console.log(`  ✅ Published product ${productId} to Online Store`);
+    return true;
+  } catch (error) {
+    console.error("Error publishing product:", error);
+    return false;
+  }
+}
+
 // Schedule to run every hour
 /*cron.schedule("0 * * * *", () => {
   console.log("[CRON] Syncing products to Shopify...");
   syncProducts();
 });*/
 
-// Run once on startup as well
+// Display usage instructions
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+📋 Product Sync Job Usage:
+
+To sync to development store (OAuth):
+  node app/syncProductsJob.js
+
+To sync to Advanced store:
+  node app/syncProductsJob.js --advanced
+  node app/syncProductsJob.js -a
+
+Configuration:
+  Development store: Uses Prisma session from OAuth flow
+  Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
+
+Make sure your .env file is configured properly before running.
+  `);
+  process.exit(0);
+}
+
+console.log(`
+🚀 Starting Product Sync Job
+📝 Use --help for usage instructions
+`);
+
+// Run the sync
 syncProducts();
