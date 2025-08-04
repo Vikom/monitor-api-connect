@@ -2,6 +2,7 @@ import "@shopify/shopify-api/adapters/node";
 // import cron from "node-cron"; // Uncomment when enabling cron scheduling
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { fetchStockTransactionsFromMonitor } from "./utils/monitor.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to
@@ -58,70 +59,7 @@ async function validateSession(shop, accessToken) {
   }
 }
 
-// Helper function to fetch stock transactions from Monitor API
-async function fetchStockTransactionsFromMonitor(partId) {
-  const monitorUrl = process.env.MONITOR_URL;
-  const monitorCompany = process.env.MONITOR_COMPANY;
-  
-  // Import the monitor client to get session
-  const { MonitorClient } = await import("./utils/monitor.js");
-  const monitorClient = new MonitorClient();
-  
-  try {
-    const sessionId = await monitorClient.getSessionId();
-    
-    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/StockTransactions`;
-    url += `?$filter=PartId eq '${partId}'`;
-    url += '&$orderby=LoggingTimeStamp desc';
-    url += '&$top=1'; // Only get the most recent transaction to get current balance
-    
-    const fetch = (await import('node-fetch')).default;
-    const https = (await import('https')).default;
-    const agent = new https.Agent({ rejectUnauthorized: false });
-    
-    let res = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-        "X-Monitor-SessionId": sessionId,
-      },
-      agent,
-    });
-    
-    if (res.status !== 200) {
-      const errorBody = await res.text();
-      console.error(`Monitor API fetchStockTransactions first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
-      // Try to re-login and retry once
-      await monitorClient.login();
-      const newSessionId = await monitorClient.getSessionId();
-      res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": newSessionId,
-        },
-        agent,
-      });
-      if (res.status !== 200) {
-        const retryErrorBody = await res.text();
-        console.error(`Monitor API fetchStockTransactions retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
-        throw new Error("Monitor API fetchStockTransactions failed after re-login");
-      }
-    }
-    
-    const transactions = await res.json();
-    if (!Array.isArray(transactions)) {
-      throw new Error("Monitor API returned unexpected data format for stock transactions");
-    }
-    
-    return transactions;
-  } catch (error) {
-    console.error(`Error fetching stock transactions for part ${partId}:`, error);
-    throw error;
-  }
-}
+
 
 // Helper function to get all Shopify locations with their monitor_id metafields
 async function getShopifyLocations(shop, accessToken) {

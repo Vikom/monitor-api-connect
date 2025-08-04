@@ -203,20 +203,72 @@ export async function fetchProductsFromMonitor() {
   }
 }
 
-export async function fetchUsersFromMonitor() {
-  // Dummy user data for testing
+export async function fetchCustomersFromMonitor() {
+  // Dummy customer data for testing
   return [
     {
-      email: "alice@example.com",
-      firstName: "Alice",
-      lastName: "Smith",
-      phone: "+1234567890"
-    },
-    {
-      email: "bob@example.com",
-      firstName: "Bob",
-      lastName: "Johnson",
-      phone: "+1987654321"
+      email: "vikom82@gmail.com",
+      firstName: "Viktor",
+      lastName: "Miranda",
+      phone: "+46701234567"
     }
   ];
+}
+
+export async function fetchUsersFromMonitor() {
+  // Wrapper for backward compatibility - now calls fetchCustomersFromMonitor
+  return await fetchCustomersFromMonitor();
+}
+
+export async function fetchStockTransactionsFromMonitor(partId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/StockTransactions`;
+    url += `?$filter=PartId eq '${partId}'`;
+    url += '&$orderby=LoggingTimeStamp desc';
+    url += '&$top=1'; // Only get the most recent transaction to get current balance
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchStockTransactions first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchStockTransactions retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchStockTransactions failed after re-login");
+      }
+    }
+    
+    const transactions = await res.json();
+    if (!Array.isArray(transactions)) {
+      throw new Error("Monitor API returned unexpected data format for stock transactions");
+    }
+    
+    return transactions;
+  } catch (error) {
+    console.error(`Error fetching stock transactions for part ${partId}:`, error);
+    throw error;
+  }
 }

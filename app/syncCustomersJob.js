@@ -1,7 +1,8 @@
 import "@shopify/shopify-api/adapters/node";
-import cron from "node-cron";
+// import cron from "node-cron"; // Uncomment when enabling cron scheduling
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { fetchCustomersFromMonitor } from "./utils/monitor.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to
@@ -56,7 +57,7 @@ async function validateSession(shop, accessToken) {
   }
 }
 
-async function syncUsers() {
+async function syncCustomers() {
   let shop, accessToken;
 
   if (useAdvancedStore) {
@@ -84,7 +85,7 @@ async function syncUsers() {
     const prisma = (await import("./db.server.js")).default;
     const session = await prisma.session.findFirst();
     if (!session) {
-      console.log("No Shopify session found. Cannot sync users.");
+      console.log("No Shopify session found. Cannot sync customers.");
       return;
     }
     // Log session details for debugging
@@ -93,7 +94,7 @@ async function syncUsers() {
       accessToken: session.accessToken ? "[REDACTED]" : null
     });
     if (!session.accessToken || !session.shop) {
-      console.error("Shopify session is missing accessToken or shop. Cannot sync users.");
+      console.error("Shopify session is missing accessToken or shop. Cannot sync customers.");
       return;
     }
 
@@ -113,40 +114,46 @@ async function syncUsers() {
     console.log(`🔗 Using development store: ${shop}`);
   }
 
-  console.log("✅ Store session is valid. Starting users sync...");
+  console.log("✅ Store session is valid. Starting customers sync...");
 
-  let users;
+  let customers;
   try {
-    const { fetchUsersFromMonitor } = await import("./utils/monitor.js");
-    users = await fetchUsersFromMonitor();
-    console.log("Fetched users", JSON.stringify(users), null, 2);
-    if (!Array.isArray(users) || users.length === 0) {
-      console.log("No users found to sync.");
+    customers = await fetchCustomersFromMonitor();
+    console.log("Fetched customers", JSON.stringify(customers, null, 2));
+    if (!Array.isArray(customers) || customers.length === 0) {
+      console.log("No customers found to sync.");
       return;
     }
   } catch (err) {
-    console.error("Error fetching users", err);
+    console.error("Error fetching customers", err);
     return;
   }
+  
   const fetch = (await import('node-fetch')).default;
 
-  for (const user of users) {
-    if (!user.email || user.email.trim() === "") {
-      console.warn("Skipping user with blank email:", user);
+  for (const customer of customers) {
+    if (!customer.email || customer.email.trim() === "") {
+      console.warn("Skipping customer with blank email:", customer);
       continue;
     }
+    
+    console.log(`Processing customer: ${customer.email}`);
+    
     // Check if customer exists by email
     const checkQuery = `query {
-      customers(first: 1, query: "email:${user.email}") {
+      customers(first: 1, query: "email:${customer.email}") {
         edges {
           node {
             id
             email
+            firstName
+            lastName
           }
         }
       }
     }`;
-    const checkRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+    
+    const checkRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,12 +161,20 @@ async function syncUsers() {
       },
       body: JSON.stringify({ query: checkQuery }),
     });
+    
     const checkJson = await checkRes.json();
-    const exists = checkJson.data && checkJson.data.customers && checkJson.data.customers.edges.length > 0;
-    if (exists) {
-      console.log(`Customer with email ${user.email} already exists, skipping.`);
+    
+    if (checkJson.errors) {
+      console.error("GraphQL errors checking customer:", JSON.stringify(checkJson.errors, null, 2));
       continue;
     }
+    
+    const exists = checkJson.data && checkJson.data.customers && checkJson.data.customers.edges.length > 0;
+    if (exists) {
+      console.log(`Customer with email ${customer.email} already exists, skipping.`);
+      continue;
+    }
+    
     // Create customer mutation
     const mutation = `mutation customerCreate($input: CustomerInput!) {
       customerCreate(input: $input) {
@@ -168,6 +183,7 @@ async function syncUsers() {
           email
           firstName
           lastName
+          phone
         }
         userErrors {
           field
@@ -175,16 +191,18 @@ async function syncUsers() {
         }
       }
     }`;
+    
     const variables = {
       input: {
-        email: user.email,
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        phone: user.phone || undefined,
+        email: customer.email,
+        firstName: customer.firstName || "",
+        lastName: customer.lastName || "",
+        phone: customer.phone || undefined,
         // Add more fields as needed
       },
     };
-    const createRes = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+    
+    const createRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -192,37 +210,46 @@ async function syncUsers() {
       },
       body: JSON.stringify({ query: mutation, variables }),
     });
+    
     const createJson = await createRes.json();
+    
     if (createJson.errors) {
       console.error("Shopify GraphQL errors:", JSON.stringify(createJson.errors, null, 2));
+      continue;
     }
+    
     if (createJson.data && createJson.data.customerCreate && createJson.data.customerCreate.customer) {
-      console.log(`Synced customer: ${createJson.data.customerCreate.customer.email}`);
+      const createdCustomer = createJson.data.customerCreate.customer;
+      console.log(`✅ Successfully created customer: ${createdCustomer.email} (ID: ${createdCustomer.id})`);
+      console.log(`   Name: ${createdCustomer.firstName} ${createdCustomer.lastName}`);
+      if (createdCustomer.phone) {
+        console.log(`   Phone: ${createdCustomer.phone}`);
+      }
     } else if (createJson.data && createJson.data.customerCreate && createJson.data.customerCreate.userErrors) {
-      console.log(`User error: ${createJson.data.customerCreate.userErrors.map(e => e.message).join(", ")}`);
+      console.log(`❌ User error creating customer: ${createJson.data.customerCreate.userErrors.map(e => e.message).join(", ")}`);
     } else {
-      console.log("Unknown error:", JSON.stringify(createJson));
+      console.log("❌ Unknown error:", JSON.stringify(createJson, null, 2));
     }
   }
 }
 
-// Schedule to run every hour
+// Schedule to run every hour (commented out for testing)
 /*cron.schedule("0 * * * *", () => {
-  console.log("[CRON] Syncing users to Shopify...");
-  syncUsers();
+  console.log("[CRON] Syncing customers to Shopify...");
+  syncCustomers();
 });*/
 
 // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-📋 Users Sync Job Usage:
+📋 Customers Sync Job Usage:
 
 To sync to development store (OAuth):
-  node app/syncUsersJob.js
+  node app/syncCustomersJob.js
 
 To sync to Advanced store:
-  node app/syncUsersJob.js --advanced
-  node app/syncUsersJob.js -a
+  node app/syncCustomersJob.js --advanced
+  node app/syncCustomersJob.js -a
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow
@@ -234,9 +261,9 @@ Make sure your .env file is configured properly before running.
 }
 
 console.log(`
-🚀 Starting Users Sync Job
+🚀 Starting Customers Sync Job
 📝 Use --help for usage instructions
 `);
 
 // Run the sync
-syncUsers();
+syncCustomers();
