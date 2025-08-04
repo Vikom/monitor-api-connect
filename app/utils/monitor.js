@@ -204,15 +204,105 @@ export async function fetchProductsFromMonitor() {
 }
 
 export async function fetchCustomersFromMonitor() {
-  // Dummy customer data for testing
-  return [
-    {
-      email: "vikom82@gmail.com",
-      firstName: "Viktor",
-      lastName: "Miranda",
-      phone: "+46701234567"
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    let allCustomers = [];
+    let skip = 0;
+    const pageSize = 100;
+    let keepFetching = true;
+    
+    while (keepFetching) {
+      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
+      url += `?$top=${pageSize}`;
+      url += `&$skip=${skip}`;
+      url += '&$expand=ExtraFields,References';
+      
+      let res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": sessionId,
+        },
+        agent,
+      });
+      
+      if (res.status !== 200) {
+        const errorBody = await res.text();
+        console.error(`Monitor API fetchCustomers first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+        // Try to re-login and retry once
+        await monitorClient.login();
+        const newSessionId = await monitorClient.getSessionId();
+        res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": newSessionId,
+          },
+          agent,
+        });
+        if (res.status !== 200) {
+          const retryErrorBody = await res.text();
+          console.error(`Monitor API fetchCustomers retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+          throw new Error("Monitor API fetchCustomers failed after re-login");
+        }
+      }
+      
+      const customers = await res.json();
+      if (!Array.isArray(customers)) {
+        throw new Error("Monitor API returned unexpected data format for customers");
+      }
+      
+      allCustomers = allCustomers.concat(customers);
+      
+      if (customers.length < pageSize) {
+        keepFetching = false;
+      } else {
+        skip += pageSize;
+      }
     }
-  ];
+    
+    // Transform Monitor customers/references into Shopify customer format
+    const shopifyCustomers = [];
+    
+    for (const monitorCustomer of allCustomers) {
+      // Each Monitor customer can have multiple references (persons)
+      if (Array.isArray(monitorCustomer.References)) {
+        for (const reference of monitorCustomer.References) {
+          // Only process references that have an email address
+          if (reference.EmailAddress && reference.EmailAddress.trim() !== "") {
+            // Parse the full name into first and last name
+            const fullName = reference.Name || "";
+            const nameParts = fullName.trim().split(/\s+/);
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            
+            shopifyCustomers.push({
+              email: reference.EmailAddress.trim(),
+              firstName: firstName,
+              lastName: lastName,
+              phone: reference.CellPhoneNumber || reference.PhoneNumber || undefined,
+              // Custom metafields for tracking
+              monitorId: reference.Id, // Reference (person) ID from Monitor
+              company: monitorCustomer.Name, // Company name from Monitor customer
+              // Additional data for potential future use
+              note: reference.Note || undefined,
+              monitorCustomerId: monitorCustomer.Id, // Customer (company) ID from Monitor
+              customerCode: monitorCustomer.Code,
+            });
+          }
+        }
+      }
+    }
+    
+    console.log(`Processed ${allCustomers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
+    
+    return shopifyCustomers;
+  } catch (error) {
+    console.error("Error fetching customers from Monitor:", error);
+    throw error;
+  }
 }
 
 export async function fetchUsersFromMonitor() {

@@ -184,6 +184,14 @@ async function syncCustomers() {
           firstName
           lastName
           phone
+          metafields(first: 10, namespace: "custom") {
+            edges {
+              node {
+                key
+                value
+              }
+            }
+          }
         }
         userErrors {
           field
@@ -198,7 +206,21 @@ async function syncCustomers() {
         firstName: customer.firstName || "",
         lastName: customer.lastName || "",
         phone: customer.phone || undefined,
-        // Add more fields as needed
+        note: customer.note || undefined,
+        metafields: [
+          {
+            namespace: "custom",
+            key: "monitor_id",
+            value: customer.monitorId.toString(),
+            type: "single_line_text_field"
+          },
+          {
+            namespace: "custom",
+            key: "company",
+            value: customer.company,
+            type: "single_line_text_field"
+          }
+        ]
       },
     };
     
@@ -224,6 +246,15 @@ async function syncCustomers() {
       console.log(`   Name: ${createdCustomer.firstName} ${createdCustomer.lastName}`);
       if (createdCustomer.phone) {
         console.log(`   Phone: ${createdCustomer.phone}`);
+      }
+      
+      // Log metafields if they were created
+      const metafields = createdCustomer.metafields?.edges || [];
+      if (metafields.length > 0) {
+        console.log(`   Metafields:`);
+        metafields.forEach(edge => {
+          console.log(`     ${edge.node.key}: ${edge.node.value}`);
+        });
       }
     } else if (createJson.data && createJson.data.customerCreate && createJson.data.customerCreate.userErrors) {
       console.log(`❌ User error creating customer: ${createJson.data.customerCreate.userErrors.map(e => e.message).join(", ")}`);
