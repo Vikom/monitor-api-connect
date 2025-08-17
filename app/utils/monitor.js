@@ -89,9 +89,9 @@ class MonitorClient {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$select=Id,PartNumber,Description,ExtraDescription,ExtraFields,PartCodeId,StandardPrice,PartCodeId,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status';
+      url += '&$select=Id,PartNumber,Description,ExtraDescription,ExtraFields,PartCodeId,StandardPrice,PartCodeId,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
       url += '&$filter=Status eq 4';
-      url += '&$expand=ExtraFields';
+      url += '&$expand=ExtraFields,ProductGroup';
       let res = await fetch(url, {
         headers: {
           Accept: "application/json",
@@ -176,6 +176,32 @@ export async function fetchProductsFromMonitor() {
       const finalProductVariation = (productVariation?.StringValue && productVariation.StringValue.trim() !== "")
         ? productVariation.StringValue
         : product.PartNumber;
+
+      // Convert ExtraFields array to an object for easier access in sync job
+      const extraFieldsObj = {};
+      if (Array.isArray(product.ExtraFields)) {
+        product.ExtraFields.forEach(field => {
+          if (field.Identifier) {
+            // Use the appropriate value based on the field type
+            let value = null;
+            if (field.DecimalValue !== null && field.DecimalValue !== undefined) {
+              value = field.DecimalValue;
+            } else if (field.StringValue !== null && field.StringValue !== undefined) {
+              value = field.StringValue;
+            } else if (field.IntegerValue !== null && field.IntegerValue !== undefined) {
+              value = field.IntegerValue;
+            } else if (field.SelectedOptionId !== null && field.SelectedOptionId !== undefined) {
+              value = field.SelectedOptionId;
+            } else if (field.SelectedOptionIds !== null && field.SelectedOptionIds !== undefined) {
+              value = field.SelectedOptionIds;
+            }
+            
+            if (value !== null) {
+              extraFieldsObj[field.Identifier] = value;
+            }
+          }
+        });
+      }
       
       return {
         id: product.Id,
@@ -195,6 +221,11 @@ export async function fetchProductsFromMonitor() {
         status: product.Status,
         productName: finalProductName,
         productVariation: finalProductVariation,
+        // Map ProductGroup for Shopify collection
+        productGroupId: product.ProductGroup?.Id || null,
+        productGroupDescription: product.ProductGroup?.Description || null,
+        // Convert ExtraFields array to object for easier access
+        ExtraFields: extraFieldsObj,
       };
     });
   } catch (error) {

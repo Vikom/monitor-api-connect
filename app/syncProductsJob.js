@@ -177,12 +177,27 @@ async function syncProducts() {
     for (const [productName, variations] of productGroups) {
       console.log(`Processing product: ${productName} with ${variations.length} variations`);
       
+      // Get the collection for this product group
+      const productGroupId = variations[0]?.productGroupId;
+      const productGroupDescription = variations[0]?.productGroupDescription;
+      let collectionId = null;
+      
+      if (productGroupId && productGroupDescription) {
+        console.log(`  🏷️  Finding collection for ProductGroup: "${productGroupDescription}" (ID: ${productGroupId})`);
+        collectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
+      }
+      
       // Check if product already exists in Shopify by productName
       const existingProduct = await findExistingProductByName(shop, accessToken, productName);
       
       if (existingProduct) {
         console.log(`Product "${productName}" already exists, adding new variations if needed`);
         await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+        
+        // Add product to collection if we have one
+        if (collectionId) {
+          await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
+        }
         
         // Ensure existing product is published to Online Store
         if (onlineStoreSalesChannelId) {
@@ -192,9 +207,16 @@ async function syncProducts() {
         console.log(`Creating new product: ${productName}`);
         const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
         
-        // Publish new product to Online Store
-        if (newProductId && onlineStoreSalesChannelId) {
-          await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+        if (newProductId) {
+          // Add product to collection if we have one
+          if (collectionId) {
+            await addProductToCollection(shop, accessToken, newProductId, collectionId);
+          }
+          
+          // Publish new product to Online Store
+          if (onlineStoreSalesChannelId) {
+            await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+          }
         }
       }
     }
@@ -301,7 +323,13 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
           key: "product_name",
           value: productName,
           type: "single_line_text_field"
-        }
+        },
+        ...(variations[0].productGroupId ? [{
+          namespace: "custom",
+          key: "monitor_product_group_id",
+          value: variations[0].productGroupId,
+          type: "single_line_text_field"
+        }] : [])
       ],
     },
   };
@@ -443,7 +471,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         namespace: "custom",
         key: "length",
         value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -452,7 +480,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         namespace: "custom",
         key: "width",
         value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -461,7 +489,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         namespace: "custom",
         key: "depth",
         value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -471,6 +499,15 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         key: "volume",
         value: Number(variation.VolumePerUnit).toFixed(2),
         type: "single_line_text_field"
+      });
+    }
+
+    if (variation.PurchaseQuantityPerPackage != null) {
+      metafields.push({
+        namespace: "custom",
+        key: "quantity_package",
+        value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
+        type: "number_decimal"
       });
     }
 
@@ -622,7 +659,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "length",
         value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -631,7 +668,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "width",
         value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -640,7 +677,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "depth",
         value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
       });
     }
 
@@ -649,7 +686,16 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         namespace: "custom",
         key: "volume",
         value: Number(variation.VolumePerUnit).toFixed(2),
-        type: "single_line_text_field"
+        type: "number_decimal"
+      });
+    }
+
+    if (variation.PurchaseQuantityPerPackage != null) {
+      metafields.push({
+        namespace: "custom",
+        key: "quantity_package",
+        value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
+        type: "number_decimal"
       });
     }
 
@@ -1156,6 +1202,181 @@ async function publishProductToOnlineStore(shop, accessToken, productId, salesCh
     console.error("Error publishing product:", error);
     return false;
   }
+}
+
+// Helper function to find existing collection with monitor_id metafield
+async function findExistingCollection(shop, accessToken, monitorId, collectionTitle) {
+  // Try to find existing collection with the monitor_id metafield
+  const existingCollection = await findExistingCollectionByMonitorId(shop, accessToken, monitorId);
+  if (existingCollection) {
+    console.log(`    ✅ Found existing collection: "${existingCollection.title}" (ID: ${existingCollection.id})`);
+    return existingCollection.id;
+  }
+
+  console.log(`    ⚠️  No existing collection found for ProductGroup "${collectionTitle}" (Monitor ID: ${monitorId})`);
+  return null;
+}
+
+// Helper function to find existing collection by monitor_id metafield
+async function findExistingCollectionByMonitorId(shop, accessToken, monitorId) {
+  const fetch = (await import('node-fetch')).default;
+  let endCursor = null;
+  let hasNextPage = true;
+  
+  while (hasNextPage) {
+    const query = `query {
+      collections(first: 50${endCursor ? `, after: "${endCursor}"` : ""}) {
+        edges {
+          cursor
+          node {
+            id
+            title
+            metafields(first: 5, namespace: "custom") {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }`;
+    
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query }),
+    });
+    
+    const result = await response.json();
+    
+    if (result.errors) {
+      console.error("GraphQL errors searching for collections:", JSON.stringify(result.errors, null, 2));
+      break;
+    }
+    
+    if (result.data?.collections?.edges) {
+      for (const edge of result.data.collections.edges) {
+        const collection = edge.node;
+        const monitorIdMetafield = collection.metafields.edges.find(
+          mf => mf.node.key === "monitor_id" && mf.node.value === monitorId
+        );
+        
+        if (monitorIdMetafield) {
+          return {
+            id: collection.id,
+            title: collection.title
+          };
+        }
+      }
+    }
+    
+    hasNextPage = result.data?.collections?.pageInfo?.hasNextPage || false;
+    endCursor = result.data?.collections?.pageInfo?.endCursor;
+  }
+  
+  return null;
+}
+
+// Helper function to add a product to a collection
+async function addProductToCollection(shop, accessToken, productId, collectionId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // First check if product is already in the collection
+  const isAlreadyInCollection = await checkProductInCollection(shop, accessToken, productId, collectionId);
+  if (isAlreadyInCollection) {
+    console.log(`    ✅ Product ${productId} already in collection ${collectionId}`);
+    return true;
+  }
+  
+  const mutation = `mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+    collectionAddProducts(id: $id, productIds: $productIds) {
+      collection {
+        id
+        title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+  
+  const variables = {
+    id: collectionId,
+    productIds: [productId]
+  };
+  
+  const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+  
+  const result = await response.json();
+  
+  if (result.errors) {
+    console.error("GraphQL errors adding product to collection:", JSON.stringify(result.errors, null, 2));
+    return false;
+  }
+  
+  if (result.data?.collectionAddProducts?.collection) {
+    console.log(`    ✅ Added product ${productId} to collection "${result.data.collectionAddProducts.collection.title}"`);
+    return true;
+  } else if (result.data?.collectionAddProducts?.userErrors?.length > 0) {
+    console.error("User errors adding product to collection:", JSON.stringify(result.data.collectionAddProducts.userErrors, null, 2));
+    return false;
+  } else {
+    console.error("Unexpected response adding product to collection:", JSON.stringify(result, null, 2));
+    return false;
+  }
+}
+
+// Helper function to check if a product is already in a collection
+async function checkProductInCollection(shop, accessToken, productId, collectionId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const query = `query {
+    collection(id: "${collectionId}") {
+      products(first: 250, query: "id:${productId}") {
+        edges {
+          node {
+            id
+          }
+        }
+      }
+    }
+  }`;
+  
+  const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query }),
+  });
+  
+  const result = await response.json();
+  
+  if (result.errors) {
+    console.error("GraphQL errors checking product in collection:", JSON.stringify(result.errors, null, 2));
+    return false;
+  }
+  
+  return result.data?.collection?.products?.edges?.length > 0;
 }
 
 // Schedule to run every hour
