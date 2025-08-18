@@ -1,6 +1,6 @@
 import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
-import { fetchProductsFromMonitor } from "./utils/monitor.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor } from "./utils/monitor.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
@@ -56,6 +56,88 @@ async function validateSession(shop, accessToken) {
     console.error("Error validating session:", error);
     return false;
   }
+}
+
+// Helper function to generate metafields for a variation, including ARTFSC data
+async function generateMetafieldsForVariation(variation) {
+  const metafields = [
+    {
+      namespace: "custom",
+      key: "monitor_id",
+      value: variation.id.toString(),
+      type: "single_line_text_field"
+    }
+  ];
+
+  // Add custom dimension and volume metafields if they exist
+  if (variation.ExtraFields?.ARTLENGTH) {
+    metafields.push({
+      namespace: "custom",
+      key: "length",
+      value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
+      type: "number_decimal"
+    });
+  }
+
+  if (variation.ExtraFields?.ARTWIDTH) {
+    metafields.push({
+      namespace: "custom",
+      key: "width",
+      value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
+      type: "number_decimal"
+    });
+  }
+
+  if (variation.ExtraFields?.ARTDEPTH) {
+    metafields.push({
+      namespace: "custom",
+      key: "depth",
+      value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
+      type: "number_decimal"
+    });
+  }
+
+  if (variation.VolumePerUnit != null) {
+    metafields.push({
+      namespace: "custom",
+      key: "volume",
+      value: Number(variation.VolumePerUnit).toFixed(2),
+      type: "single_line_text_field"
+    });
+  }
+
+  if (variation.PurchaseQuantityPerPackage != null) {
+    metafields.push({
+      namespace: "custom",
+      key: "quantity_package",
+      value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
+      type: "number_decimal"
+    });
+  }
+
+  // Fetch ARTFSC data if the variation has the ARTFSC field
+  if (variation.hasARTFSC) {
+    try {
+      console.log(`Fetching ARTFSC data for product ${variation.id}...`);
+      const artfscDescription = await fetchARTFSCFromMonitor(variation.id);
+      if (artfscDescription) {
+        console.log(`Found ARTFSC: ${artfscDescription} for product ${variation.id}`);
+        metafields.push({
+          namespace: "custom",
+          key: "fsc_pefc",
+          value: artfscDescription,
+          type: "single_line_text_field"
+        });
+      } else {
+        console.log(`No ARTFSC description found for product ${variation.id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch ARTFSC for product ${variation.id}:`, error);
+      // Continue without the ARTFSC metafield rather than failing the entire sync
+    }
+  }
+
+  return metafields;
 }
 
 async function syncProducts() {
@@ -455,61 +537,8 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   const primaryLocation = await getPrimaryLocation(shop, accessToken);
   
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = variations.map(variation => {
-    const metafields = [
-      {
-        namespace: "custom",
-        key: "monitor_id",
-        value: variation.id.toString(),
-        type: "single_line_text_field"
-      }
-    ];
-
-    // Add custom dimension and volume metafields if they exist
-    if (variation.ExtraFields?.ARTLENGTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "length",
-        value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.ExtraFields?.ARTWIDTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "width",
-        value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.ExtraFields?.ARTDEPTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "depth",
-        value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.VolumePerUnit != null) {
-      metafields.push({
-        namespace: "custom",
-        key: "volume",
-        value: Number(variation.VolumePerUnit).toFixed(2),
-        type: "single_line_text_field"
-      });
-    }
-
-    if (variation.PurchaseQuantityPerPackage != null) {
-      metafields.push({
-        namespace: "custom",
-        key: "quantity_package",
-        value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
-        type: "number_decimal"
-      });
-    }
+  const variants = await Promise.all(variations.map(async (variation) => {
+    const metafields = await generateMetafieldsForVariation(variation);
 
     const variantData = {
       price: variation.price != null ? variation.price.toString() : "0",
@@ -536,7 +565,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
     }
 
     return variantData;
-  });
+  }));
 
   console.log(`Prepared ${variants.length} variants:`, JSON.stringify(variants, null, 2));
 
@@ -643,61 +672,8 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   const primaryLocation = await getPrimaryLocation(shop, accessToken);
 
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = newVariations.map(variation => {
-    const metafields = [
-      {
-        namespace: "custom",
-        key: "monitor_id",
-        value: variation.id.toString(),
-        type: "single_line_text_field"
-      }
-    ];
-
-    // Add custom dimension and volume metafields if they exist
-    if (variation.ExtraFields?.ARTLENGTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "length",
-        value: Number(variation.ExtraFields.ARTLENGTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.ExtraFields?.ARTWIDTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "width",
-        value: Number(variation.ExtraFields.ARTWIDTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.ExtraFields?.ARTDEPTH) {
-      metafields.push({
-        namespace: "custom",
-        key: "depth",
-        value: Number(variation.ExtraFields.ARTDEPTH).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.VolumePerUnit != null) {
-      metafields.push({
-        namespace: "custom",
-        key: "volume",
-        value: Number(variation.VolumePerUnit).toFixed(2),
-        type: "number_decimal"
-      });
-    }
-
-    if (variation.PurchaseQuantityPerPackage != null) {
-      metafields.push({
-        namespace: "custom",
-        key: "quantity_package",
-        value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
-        type: "number_decimal"
-      });
-    }
+  const variants = await Promise.all(newVariations.map(async (variation) => {
+    const metafields = await generateMetafieldsForVariation(variation);
 
     const variantData = {
       price: variation.price != null ? variation.price.toString() : "0",
@@ -724,7 +700,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     }
 
     return variantData;
-  });
+  }));
 
   const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
     productVariantsBulkCreate(productId: $productId, variants: $variants) {

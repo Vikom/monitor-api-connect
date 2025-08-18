@@ -226,6 +226,8 @@ export async function fetchProductsFromMonitor() {
         productGroupDescription: product.ProductGroup?.Description || null,
         // Convert ExtraFields array to object for easier access
         ExtraFields: extraFieldsObj,
+        // Flag to indicate if this product has ARTFSC (for async fetching)
+        hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
       };
     });
   } catch (error) {
@@ -390,6 +392,63 @@ export async function fetchStockTransactionsFromMonitor(partId) {
     return transactions;
   } catch (error) {
     console.error(`Error fetching stock transactions for part ${partId}:`, error);
+    throw error;
+  }
+}
+
+export async function fetchARTFSCFromMonitor(productId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/ExtraFields`;
+    url += `?$filter=ParentId eq '${productId}' and Identifier eq 'ARTFSC'`;
+    url += '&$expand=SelectedOption';
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchARTFSC first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchARTFSC retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchARTFSC failed after re-login");
+      }
+    }
+    
+    const artfscData = await res.json();
+    if (!Array.isArray(artfscData)) {
+      throw new Error("Monitor API returned unexpected data format for ARTFSC");
+    }
+    
+    // Return the SelectedOption.Description if available
+    if (artfscData.length > 0 && artfscData[0].SelectedOption?.Description) {
+      return artfscData[0].SelectedOption.Description;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error fetching ARTFSC for product ${productId}:`, error);
     throw error;
   }
 }
