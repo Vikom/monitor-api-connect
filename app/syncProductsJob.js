@@ -259,14 +259,28 @@ async function syncProducts() {
     for (const [productName, variations] of productGroups) {
       console.log(`Processing product: ${productName} with ${variations.length} variations`);
       
-      // Get the collection for this product group
+      // Get collections for both ProductGroup and PartCode
       const productGroupId = variations[0]?.productGroupId;
       const productGroupDescription = variations[0]?.productGroupDescription;
-      let collectionId = null;
+      const partCodeId = variations[0]?.partCodeId;
+      const partCodeDescription = variations[0]?.partCodeDescription;
+      
+      const collectionIds = [];
       
       if (productGroupId && productGroupDescription) {
         console.log(`  🏷️  Finding collection for ProductGroup: "${productGroupDescription}" (ID: ${productGroupId})`);
-        collectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
+        const productGroupCollectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
+        if (productGroupCollectionId) {
+          collectionIds.push(productGroupCollectionId);
+        }
+      }
+      
+      if (partCodeId && partCodeDescription) {
+        console.log(`  🏷️  Finding collection for PartCode: "${partCodeDescription}" (ID: ${partCodeId})`);
+        const partCodeCollectionId = await findExistingCollection(shop, accessToken, partCodeId, partCodeDescription);
+        if (partCodeCollectionId) {
+          collectionIds.push(partCodeCollectionId);
+        }
       }
       
       // Check if product already exists in Shopify by productName
@@ -276,8 +290,8 @@ async function syncProducts() {
         console.log(`Product "${productName}" already exists, adding new variations if needed`);
         await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
         
-        // Add product to collection if we have one
-        if (collectionId) {
+        // Add product to all collections
+        for (const collectionId of collectionIds) {
           await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
         }
         
@@ -290,8 +304,8 @@ async function syncProducts() {
         const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
         
         if (newProductId) {
-          // Add product to collection if we have one
-          if (collectionId) {
+          // Add product to all collections
+          for (const collectionId of collectionIds) {
             await addProductToCollection(shop, accessToken, newProductId, collectionId);
           }
           
@@ -410,6 +424,12 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
           namespace: "custom",
           key: "monitor_product_group_id",
           value: variations[0].productGroupId,
+          type: "single_line_text_field"
+        }] : []),
+        ...(variations[0].partCodeId ? [{
+          namespace: "custom",
+          key: "monitor_part_code_id",
+          value: variations[0].partCodeId,
           type: "single_line_text_field"
         }] : [])
       ],
@@ -1189,7 +1209,7 @@ async function findExistingCollection(shop, accessToken, monitorId, collectionTi
     return existingCollection.id;
   }
 
-  console.log(`    ⚠️  No existing collection found for ProductGroup "${collectionTitle}" (Monitor ID: ${monitorId})`);
+  console.log(`    ⚠️  No existing collection found for "${collectionTitle}" (Monitor ID: ${monitorId})`);
   return null;
 }
 

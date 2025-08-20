@@ -89,9 +89,9 @@ class MonitorClient {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$select=Id,PartNumber,Description,ExtraDescription,ExtraFields,PartCodeId,StandardPrice,PartCodeId,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
+      url += '&$select=Id,PartNumber,Description,ExtraDescription,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
       url += '&$filter=Status eq 4';
-      url += '&$expand=ExtraFields,ProductGroup';
+      url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
         headers: {
           Accept: "application/json",
@@ -221,9 +221,11 @@ export async function fetchProductsFromMonitor() {
         status: product.Status,
         productName: finalProductName,
         productVariation: finalProductVariation,
-        // Map ProductGroup for Shopify collection
+        // Map both ProductGroup and PartCode for Shopify collections
         productGroupId: product.ProductGroup?.Id || null,
         productGroupDescription: product.ProductGroup?.Description || null,
+        partCodeId: product.PartCode?.Id || null,
+        partCodeDescription: product.PartCode?.Description || null,
         // Convert ExtraFields array to object for easier access
         ExtraFields: extraFieldsObj,
         // Flag to indicate if this product has ARTFSC (for async fetching)
