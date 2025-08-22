@@ -89,7 +89,7 @@ class MonitorClient {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$select=Id,PartNumber,Description,ExtraDescription,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
+      url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
       url += '&$filter=Status eq 4';
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
@@ -208,7 +208,7 @@ export async function fetchProductsFromMonitor() {
         name: product.PartNumber,
         sku: product.PartNumber,
         description: product.Description || "",
-        extraDescription: product.ExtraDescription || "",
+        // extraDescription: product.ExtraDescription || "",
         // vendor: @TODO Needed?
         price: product.StandardPrice,
         weight: product.WeightPerUnit,
@@ -451,6 +451,68 @@ export async function fetchARTFSCFromMonitor(productId) {
     return null;
   } catch (error) {
     console.error(`Error fetching ARTFSC for product ${productId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create a customer order in Monitor
+ * @param {Object} orderData - The order data to send to Monitor
+ * @returns {Promise<number|null>} The created order ID or null if failed
+ */
+export async function createOrderInMonitor(orderData) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/Create`;
+    
+    let res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      body: JSON.stringify(orderData),
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API createOrder first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        body: JSON.stringify(orderData),
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API createOrder retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API createOrder failed after re-login");
+      }
+    }
+    
+    const result = await res.json();
+    
+    // Monitor API returns EntityCommandResponse with RootEntityId as the created order ID
+    if (result.RootEntityId) {
+      return result.RootEntityId;
+    } else {
+      console.error("Monitor API createOrder returned unexpected response:", JSON.stringify(result, null, 2));
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error creating order in Monitor:`, error);
     throw error;
   }
 }

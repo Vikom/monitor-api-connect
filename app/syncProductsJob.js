@@ -410,7 +410,7 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   const variables = {
     product: {
       title: productName,
-      descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
+      // descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
       status: "ACTIVE",
       vendor: variations[0].vendor || "Sonsab",
       metafields: [
