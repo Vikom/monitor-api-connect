@@ -1,7 +1,8 @@
 FROM node:18-alpine
 RUN apk add --no-cache openssl
 
-EXPOSE 3000
+# Railway injects PORT at runtime, so we don't need to expose a specific port
+EXPOSE $PORT
 
 WORKDIR /app
 

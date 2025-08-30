@@ -43,6 +43,7 @@ export default defineConfig({
     cors: {
       preflightContinue: true,
     },
+    host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost",
     port: Number(process.env.PORT || 3000),
     hmr: hmrConfig,
     fs: {

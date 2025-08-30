@@ -165,7 +165,8 @@ export async function fetchProductsFromMonitor() {
     
     console.log(`Filtered to ${filteredProducts.length} products with ARTWEBKAT set (from ${products.length} total)`);
     
-    return filteredProducts.map(product => {
+    // Process products with pricing logic
+    const productsWithPricing = await Promise.all(filteredProducts.map(async product => {
       const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
       const productVariation = product.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
       
@@ -202,21 +203,31 @@ export async function fetchProductsFromMonitor() {
           }
         });
       }
+
+      // Check if this product is in the outlet product group (1229581166640460381)
+      const isOutletProduct = product.ProductGroupId === "1229581166640460381";
+      let outletPrice = null;
+      
+      if (isOutletProduct) {
+        console.log(`Fetching outlet price for product ${product.PartNumber} (ID: ${product.Id})`);
+        outletPrice = await fetchOutletPriceFromMonitor(product.Id);
+        if (outletPrice) {
+          console.log(`Found outlet price ${outletPrice} for product ${product.PartNumber}`);
+        }
+      }
       
       return {
         id: product.Id,
         name: product.PartNumber,
         sku: product.PartNumber,
         description: product.Description || "",
-        // extraDescription: product.ExtraDescription || "",
-        // vendor: @TODO Needed?
-        price: product.StandardPrice,
+        // Use outlet price if available, otherwise use standard price
+        price: outletPrice || product.StandardPrice,
         weight: product.WeightPerUnit,
         length: product.Length,
         width: product.Width,
         height: product.Height,
         category: product.CategoryString,
-        // stock: @TODO
         barcode: product.Gs1Code,
         status: product.Status,
         productName: finalProductName,
@@ -230,8 +241,14 @@ export async function fetchProductsFromMonitor() {
         ExtraFields: extraFieldsObj,
         // Flag to indicate if this product has ARTFSC (for async fetching)
         hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
+        // Pricing metadata
+        isOutletProduct: isOutletProduct,
+        hasOutletPrice: outletPrice !== null,
+        originalStandardPrice: product.StandardPrice,
       };
-    });
+    }));
+    
+    return productsWithPricing;
   } catch (error) {
     console.error("Error fetching products from Monitor:", error);
     throw error;
@@ -452,6 +469,227 @@ export async function fetchARTFSCFromMonitor(productId) {
   } catch (error) {
     console.error(`Error fetching ARTFSC for product ${productId}:`, error);
     throw error;
+  }
+}
+
+/**
+ * Fetch outlet price for a specific part
+ * @param {string} partId - The part ID to fetch outlet price for
+ * @returns {Promise<number|null>} The outlet price or null if not found
+ */
+export async function fetchOutletPriceFromMonitor(partId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '1159811711098750858'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchOutletPrice first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchOutletPrice retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return null; // Don't throw error, just return null for no outlet price
+      }
+    }
+    
+    const prices = await res.json();
+    if (!Array.isArray(prices)) {
+      throw new Error("Monitor API returned unexpected data format for outlet prices");
+    }
+    
+    return prices.length > 0 ? prices[0].Price : null;
+  } catch (error) {
+    console.error(`Error fetching outlet price for part ${partId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch customer-specific price for a part
+ * @param {string} customerId - The Monitor customer ID
+ * @param {string} partId - The part ID
+ * @returns {Promise<number|null>} The customer price or null if not found
+ */
+export async function fetchCustomerPriceFromMonitor(customerId, partId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+    url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchCustomerPrice first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchCustomerPrice retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return null;
+      }
+    }
+    
+    const customerLinks = await res.json();
+    if (!Array.isArray(customerLinks)) {
+      throw new Error("Monitor API returned unexpected data format for customer part links");
+    }
+    
+    return customerLinks.length > 0 ? customerLinks[0].Price : null;
+  } catch (error) {
+    console.error(`Error fetching customer price for customer ${customerId} and part ${partId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch price from customer's price list
+ * @param {string} priceListId - The price list ID
+ * @param {string} partId - The part ID
+ * @returns {Promise<number|null>} The price list price or null if not found
+ */
+export async function fetchPriceListPriceFromMonitor(priceListId, partId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '${priceListId}'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchPriceListPrice first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchPriceListPrice retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return null;
+      }
+    }
+    
+    const prices = await res.json();
+    if (!Array.isArray(prices)) {
+      throw new Error("Monitor API returned unexpected data format for price list prices");
+    }
+    
+    return prices.length > 0 ? prices[0].Price : null;
+  } catch (error) {
+    console.error(`Error fetching price list price for part ${partId} and price list ${priceListId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch customer details including PriceListId
+ * @param {string} customerId - The Monitor customer ID
+ * @returns {Promise<Object|null>} The customer data or null if not found
+ */
+export async function fetchCustomerFromMonitor(customerId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers/${customerId}`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchCustomer first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchCustomer retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return null;
+      }
+    }
+    
+    const customer = await res.json();
+    return customer;
+  } catch (error) {
+    console.error(`Error fetching customer ${customerId}:`, error);
+    return null;
   }
 }
 

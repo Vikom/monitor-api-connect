@@ -1,0 +1,23 @@
+# Railway ignore file - similar to .dockerignore
+node_modules
+.git
+.env.local
+.env.*.local
+.DS_Store
+*.log
+coverage/
+.nyc_output/
+.cache/
+dist/
+build/client/
+
+# Development files
+test-*.js
+check-session.js
+clear-*.js
+
+# Images sync folder (unless needed in production)
+images-sync/
+
+# Local database
+prisma/dev.sqlite
