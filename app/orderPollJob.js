@@ -35,7 +35,7 @@ async function pollForNewOrders() {
             createdAt
             totalPrice
             fulfillmentStatus
-            financialStatus
+            displayFinancialStatus
             customer {
               id
               firstName
@@ -105,7 +105,7 @@ async function pollForNewOrders() {
           lineItems: order.lineItems.edges.map(edge => edge.node),
           createdAt: order.createdAt,
           fulfillmentStatus: order.fulfillmentStatus,
-          financialStatus: order.financialStatus
+          financialStatus: order.displayFinancialStatus
         });
         
         console.log(`  ✅ Order ${order.name} created in Monitor`);
