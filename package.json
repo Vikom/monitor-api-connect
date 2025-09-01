@@ -15,6 +15,7 @@
     "start:worker": "node ./app/syncProductsJob.js --advanced",
     "start:all": "concurrently \"npm run start:web\" \"npm run start:worker\"",
     "manual-sync": "node ./app/syncProductsJob.js --advanced",
+    "setup-webhook": "node setup-webhook.js",
     "docker-start": "npm run setup && npm run start",
     "setup": "prisma generate && prisma migrate deploy",
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
