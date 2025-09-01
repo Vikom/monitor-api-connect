@@ -2,6 +2,7 @@ import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
 import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor } from "./utils/monitor.js";
 import { pollForNewOrders } from "./orderPollJob.js";
+import { syncInventory } from "./syncInventoryJob.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
@@ -1444,6 +1445,38 @@ cron.schedule("*/15 * * * *", () => {
   pollForNewOrders().catch((error) => {
     console.error("[ORDER-POLL] ❌ Order polling failed:", error);
   });
+});
+
+// Schedule inventory sync every 30 minutes
+cron.schedule("*/30 * * * *", () => {
+  console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+  
+  // Check if advanced store is configured
+  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+  
+  if (!advancedStoreDomain || !advancedStoreToken) {
+    console.log("❌ [INVENTORY-SYNC] Advanced store configuration missing - skipping scheduled sync");
+    return;
+  }
+  
+  console.log(`[INVENTORY-SYNC] Running inventory sync for Advanced store: ${advancedStoreDomain}`);
+  
+  // Set global flag to use advanced store for this cron run
+  const originalUseAdvancedStore = global.useAdvancedStore;
+  global.useAdvancedStore = true;
+  
+  syncInventory()
+    .then(() => {
+      console.log("[INVENTORY-SYNC] ✅ Scheduled inventory sync completed successfully");
+    })
+    .catch((error) => {
+      console.error("[INVENTORY-SYNC] ❌ Scheduled inventory sync failed:", error);
+    })
+    .finally(() => {
+      // Restore original flag
+      global.useAdvancedStore = originalUseAdvancedStore;
+    });
 });
 
 // Display usage instructions

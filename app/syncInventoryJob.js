@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-// import cron from "node-cron"; // Uncomment when enabling cron scheduling
+// import cron from "node-cron"; // Now handled by main worker process
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { fetchStockTransactionsFromMonitor } from "./utils/monitor.js";
@@ -373,7 +373,7 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
   return true;
 }
 
-async function syncInventory() {
+export async function syncInventory() {
   let shop, accessToken;
 
   if (useAdvancedStore) {
@@ -548,8 +548,8 @@ async function syncInventory() {
   }
 }
 
-// Schedule to run every 15 minutes (commented out for testing)
-// cron.schedule("*/15 * * * *", () => {
+// Schedule to run every 30 minutes - now handled by main worker process
+// cron.schedule("*/30 * * * *", () => {
 //   console.log("[CRON] Syncing inventory from Monitor to Shopify...");
 //   syncInventory();
 // });
