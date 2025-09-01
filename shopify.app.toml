@@ -3,7 +3,7 @@
 client_id = "ec80c1f054d92b6181e9b4fc3cb682d3"
 name = "monitor-api-connect"
 handle = "monitor-api-connect"
-application_url = "https://mariah-myanmar-let-distributor.trycloudflare.com"
+application_url = "https://monitor-api-connect-production.up.railway.app"
 embedded = true
 
 [build]
@@ -31,9 +31,9 @@ scopes = "read_orders,read_products,read_customers,write_products,write_customer
 
 [auth]
 redirect_urls = [
-  "https://mariah-myanmar-let-distributor.trycloudflare.com/auth/callback",
-  "https://mariah-myanmar-let-distributor.trycloudflare.com/auth/shopify/callback",
-  "https://mariah-myanmar-let-distributor.trycloudflare.com/api/auth/callback"
+  "https://monitor-api-connect-production.up.railway.app/auth/callback",
+  "https://monitor-api-connect-production.up.railway.app/auth/shopify/callback",
+  "https://monitor-api-connect-production.up.railway.app/api/auth/callback"
 ]
 
 [pos]

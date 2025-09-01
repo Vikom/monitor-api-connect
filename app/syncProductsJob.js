@@ -1,6 +1,7 @@
 import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
 import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor } from "./utils/monitor.js";
+import { pollForNewOrders } from "./orderPollJob.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
@@ -1435,6 +1436,14 @@ cron.schedule("0 * * * *", () => {
       // Restore original flag
       global.useAdvancedStore = originalUseAdvancedStore;
     });
+});
+
+// Schedule order polling every 15 minutes - alternative to webhooks
+cron.schedule("*/15 * * * *", () => {
+  console.log("[ORDER-POLL] Checking for new orders...");
+  pollForNewOrders().catch((error) => {
+    console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+  });
 });
 
 // Display usage instructions
