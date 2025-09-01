@@ -1,6 +1,6 @@
 import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
-import { fetchProductsFromMonitor, fetchARTFSCFromMonitor } from "./utils/monitor.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor } from "./utils/monitor.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 dotenv.config();
@@ -8,6 +8,9 @@ dotenv.config();
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+
+// Store this globally for cron access
+global.useAdvancedStore = useAdvancedStore;
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
 
@@ -140,10 +143,13 @@ async function generateMetafieldsForVariation(variation) {
   return metafields;
 }
 
-async function syncProducts() {
+async function syncProducts(isIncrementalSync = false) {
   let shop, accessToken;
+  
+  // Use global variable if set (from cron), otherwise use the original variable
+  const currentUseAdvancedStore = global.useAdvancedStore !== undefined ? global.useAdvancedStore : useAdvancedStore;
 
-  if (useAdvancedStore) {
+  if (currentUseAdvancedStore) {
     // Use Advanced store configuration
     shop = process.env.ADVANCED_STORE_DOMAIN;
     accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -197,6 +203,12 @@ async function syncProducts() {
 
   console.log("✅ Store session is valid. Starting product sync...");
   
+  if (isIncrementalSync) {
+    console.log("🔄 Running incremental sync (changes only)...");
+  } else {
+    console.log("🔄 Running full sync (all products)...");
+  }
+  
   // Use the low-level GraphQL client from @shopify/shopify-api
   try {
     /*console.log("About to instantiate GraphqlClient");
@@ -210,8 +222,25 @@ async function syncProducts() {
     console.log("GraphqlClient instantiated successfully");*/
     let products;
     try {
-      products = await fetchProductsFromMonitor();
-      console.log(`Fetched ${products.length} products from Monitor API`);
+      if (isIncrementalSync) {
+        // Fetch only changed products
+        console.log("Fetching entity change logs from Monitor...");
+        const changedProductIds = await fetchEntityChangeLogsFromMonitor();
+        
+        if (changedProductIds.length === 0) {
+          console.log("✅ No product changes found in the last 48 hours. Sync complete.");
+          return;
+        }
+        
+        console.log(`Found ${changedProductIds.length} products with changes. Fetching product details...`);
+        products = await fetchProductsByIdsFromMonitor(changedProductIds);
+        console.log(`Fetched ${products.length} changed products from Monitor API`);
+      } else {
+        // Fetch all products (existing behavior)
+        products = await fetchProductsFromMonitor();
+        console.log(`Fetched ${products.length} products from Monitor API`);
+      }
+      
       if (!Array.isArray(products) || products.length === 0) {
         console.log("No products found to sync.");
         return;
@@ -1375,23 +1404,54 @@ async function checkProductInCollection(shop, accessToken, productId, collection
   return result.data?.collection?.products?.edges?.length > 0;
 }
 
-// Schedule to run every hour
-/*cron.schedule("0 * * * *", () => {
-  console.log("[CRON] Syncing products to Shopify...");
-  syncProducts();
-});*/
+// Schedule to run every hour - only for advanced store with incremental sync
+cron.schedule("0 * * * *", () => {
+  console.log("[CRON] Running scheduled incremental product sync...");
+  
+  // Check if advanced store is configured
+  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+  
+  if (!advancedStoreDomain || !advancedStoreToken) {
+    console.log("❌ [CRON] Advanced store configuration missing - skipping scheduled sync");
+    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+    return;
+  }
+  
+  console.log(`[CRON] Running incremental sync for Advanced store: ${advancedStoreDomain}`);
+  
+  // Set global flag to use advanced store for this cron run
+  const originalUseAdvancedStore = global.useAdvancedStore;
+  global.useAdvancedStore = true;
+  
+  syncProducts(true) // true = incremental sync
+    .then(() => {
+      console.log("[CRON] ✅ Scheduled incremental sync completed successfully");
+    })
+    .catch((error) => {
+      console.error("[CRON] ❌ Scheduled incremental sync failed:", error);
+    })
+    .finally(() => {
+      // Restore original flag
+      global.useAdvancedStore = originalUseAdvancedStore;
+    });
+});
 
 // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
 📋 Product Sync Job Usage:
 
-To sync to development store (OAuth):
+To sync ALL products to development store (OAuth):
   node app/syncProductsJob.js
 
-To sync to Advanced store:
+To sync ALL products to Advanced store:
   node app/syncProductsJob.js --advanced
   node app/syncProductsJob.js -a
+
+🕐 Scheduled Sync:
+  The job runs automatically every hour for the Advanced store with incremental sync
+  (only syncs products that have changed in the last 48 hours)
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow
@@ -1405,7 +1465,20 @@ Make sure your .env file is configured properly before running.
 console.log(`
 🚀 Starting Product Sync Job
 📝 Use --help for usage instructions
+⏰ Scheduled incremental sync runs every hour for Advanced store
 `);
 
-// Run the sync
-syncProducts();
+// Check if this is running as a worker process (with --advanced flag)
+const isWorkerMode = useAdvancedStore;
+
+if (isWorkerMode) {
+  // In worker mode, just set up the cron schedule and keep the process alive
+  console.log("🔄 Running in worker mode - cron schedule is active");
+  console.log("⏰ Next incremental sync will run at the top of the next hour");
+  
+  // Keep the process alive by not calling syncProducts() immediately
+  // The cron job will handle the scheduling
+} else {
+  // Run the sync immediately (full sync by default) - for manual execution
+  syncProducts();
+}

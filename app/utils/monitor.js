@@ -143,6 +143,77 @@ class MonitorClient {
       return active && active.SelectedOptionId === "1062902127922128278";
     });
   }
+
+  /**
+   * Fetch specific products by their IDs
+   * @param {Array<string>} productIds - Array of product IDs to fetch
+   * @returns {Promise<Array>} Array of products
+   */
+  async fetchProductsByIds(productIds) {
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return [];
+    }
+
+    const sessionId = await this.getSessionId();
+    console.log(`Fetching ${productIds.length} specific products by ID...`);
+    
+    // Build filter for specific IDs - OData $filter with multiple IDs
+    const idFilter = productIds.map(id => `Id eq '${id}'`).join(' or ');
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
+    url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
+    url += `&$filter=(${idFilter}) and Status eq 4`;
+    url += '&$expand=ExtraFields,ProductGroup,PartCode';
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchProductsByIds first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await this.login();
+      const newSessionId = await this.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchProductsByIds retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchProductsByIds failed after re-login");
+      }
+    }
+    
+    const products = await res.json();
+    if (!Array.isArray(products)) {
+      throw new Error("Monitor API returned unexpected data format");
+    }
+    
+    console.log(`Successfully fetched ${products.length} products by ID`);
+    
+    // Only return products with ARTWEBAKTIV.SelectedOptionId === "1062902127922128278"
+    return products.filter(product => {
+      if (!Array.isArray(product.ExtraFields)) return false;
+      const active = product.ExtraFields.find(f => f.Identifier === "ARTWEBAKTIV");
+      const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBKAT");
+      const productVariation = product.ExtraFields.find(f => f.Identifier === "ARTWEBVAR");
+      if (productName) console.log(`Product ${product.PartNumber}: ${productName.StringValue}, Variant: ${productVariation ? productVariation.StringValue : "N/A"}`);
+      return active && active.SelectedOptionId === "1062902127922128278";
+    });
+  }
 }
 
 const monitorClient = new MonitorClient();
@@ -251,6 +322,116 @@ export async function fetchProductsFromMonitor() {
     return productsWithPricing;
   } catch (error) {
     console.error("Error fetching products from Monitor:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch specific products from Monitor by their IDs with pricing logic
+ * @param {Array<string>} productIds - Array of product IDs to fetch
+ * @returns {Promise<Array>} Array of processed products with pricing
+ */
+export async function fetchProductsByIdsFromMonitor(productIds) {
+  try {
+    const products = await monitorClient.fetchProductsByIds(productIds);
+    if (!Array.isArray(products)) {
+      throw new Error("Monitor API returned unexpected data format");
+    }
+    
+    // For debugging: only return products that have ARTWEBKAT set
+    const filteredProducts = products.filter(product => {
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      return productName?.StringValue && productName.StringValue.trim() !== "";
+    });
+    
+    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBKAT set (from ${products.length} total)`);
+    
+    // Process products with pricing logic (same as fetchProductsFromMonitor)
+    const productsWithPricing = await Promise.all(filteredProducts.map(async product => {
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      const productVariation = product.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
+      
+      // Since we filtered for products with ARTWEBKAT, we know it exists
+      const finalProductName = productName.StringValue;
+      
+      // Use ARTWEBVAR if available, otherwise use PartNumber as variation
+      const finalProductVariation = (productVariation?.StringValue && productVariation.StringValue.trim() !== "")
+        ? productVariation.StringValue
+        : product.PartNumber;
+
+      // Convert ExtraFields array to an object for easier access in sync job
+      const extraFieldsObj = {};
+      if (Array.isArray(product.ExtraFields)) {
+        product.ExtraFields.forEach(field => {
+          if (field.Identifier) {
+            // Use the appropriate value based on the field type
+            let value = null;
+            if (field.DecimalValue !== null && field.DecimalValue !== undefined) {
+              value = field.DecimalValue;
+            } else if (field.StringValue !== null && field.StringValue !== undefined) {
+              value = field.StringValue;
+            } else if (field.IntegerValue !== null && field.IntegerValue !== undefined) {
+              value = field.IntegerValue;
+            } else if (field.SelectedOptionId !== null && field.SelectedOptionId !== undefined) {
+              value = field.SelectedOptionId;
+            } else if (field.SelectedOptionIds !== null && field.SelectedOptionIds !== undefined) {
+              value = field.SelectedOptionIds;
+            }
+            
+            if (value !== null) {
+              extraFieldsObj[field.Identifier] = value;
+            }
+          }
+        });
+      }
+
+      // Check if this product is in the outlet product group (1229581166640460381)
+      const isOutletProduct = product.ProductGroupId === "1229581166640460381";
+      let outletPrice = null;
+      
+      if (isOutletProduct) {
+        console.log(`Fetching outlet price for product ${product.PartNumber} (ID: ${product.Id})`);
+        outletPrice = await fetchOutletPriceFromMonitor(product.Id);
+        if (outletPrice) {
+          console.log(`Found outlet price ${outletPrice} for product ${product.PartNumber}`);
+        }
+      }
+      
+      return {
+        id: product.Id,
+        name: product.PartNumber,
+        sku: product.PartNumber,
+        description: product.Description || "",
+        // Use outlet price if available, otherwise use standard price
+        price: outletPrice || product.StandardPrice,
+        weight: product.WeightPerUnit,
+        length: product.Length,
+        width: product.Width,
+        height: product.Height,
+        category: product.CategoryString,
+        barcode: product.Gs1Code,
+        status: product.Status,
+        productName: finalProductName,
+        productVariation: finalProductVariation,
+        // Map both ProductGroup and PartCode for Shopify collections
+        productGroupId: product.ProductGroup?.Id || null,
+        productGroupDescription: product.ProductGroup?.Description || null,
+        partCodeId: product.PartCode?.Id || null,
+        partCodeDescription: product.PartCode?.Description || null,
+        // Convert ExtraFields array to object for easier access
+        ExtraFields: extraFieldsObj,
+        // Flag to indicate if this product has ARTFSC (for async fetching)
+        hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
+        // Pricing metadata
+        isOutletProduct: isOutletProduct,
+        hasOutletPrice: outletPrice !== null,
+        originalStandardPrice: product.StandardPrice,
+      };
+    }));
+    
+    return productsWithPricing;
+  } catch (error) {
+    console.error("Error fetching products by IDs from Monitor:", error);
     throw error;
   }
 }
@@ -525,6 +706,75 @@ export async function fetchOutletPriceFromMonitor(partId) {
   } catch (error) {
     console.error(`Error fetching outlet price for part ${partId}:`, error);
     return null;
+  }
+}
+
+/**
+ * Fetch entity change logs from Monitor for the last 48 hours
+ * @returns {Promise<Array>} Array of change log entries for products
+ */
+export async function fetchEntityChangeLogsFromMonitor() {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    // Calculate date 48 hours ago in ISO format
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
+    url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and EntityTypeId eq '322cf0ac-10de-45ee-a792-f0944329d198'`;
+    // Remove $orderby since it's causing SQL errors
+    
+    console.log(`Fetching entity change logs since: ${dateFilter}`);
+    console.log(`Change logs URL: ${url}`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchEntityChangeLogs first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchEntityChangeLogs retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchEntityChangeLogs failed after re-login");
+      }
+    }
+    
+    const changeLogs = await res.json();
+    if (!Array.isArray(changeLogs)) {
+      throw new Error("Monitor API returned unexpected data format for entity change logs");
+    }
+    
+    console.log(`Found ${changeLogs.length} entity changes in the last 48 hours`);
+    
+    // Extract unique entity IDs (product IDs) from the change logs
+    const uniqueEntityIds = [...new Set(changeLogs.map(log => log.EntityId))];
+    console.log(`Unique products with changes: ${uniqueEntityIds.length}`);
+    
+    return uniqueEntityIds;
+  } catch (error) {
+    console.error(`Error fetching entity change logs:`, error);
+    throw error;
   }
 }
 
