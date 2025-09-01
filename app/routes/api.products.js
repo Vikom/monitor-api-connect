@@ -1,10 +1,10 @@
 // app/routes/api.products.js
 import { json } from "@remix-run/node";
-import { fetchProductsFromThirdParty } from "../utils/monitor";
+import { fetchProductsFromMonitor } from "../utils/monitor";
 
 export const loader = async () => {
   try {
-    const products = await fetchProductsFromThirdParty();
+    const products = await fetchProductsFromMonitor();
     return json({ products });
   } catch (error) {
     return json({ error: error.message }, { status: 500 });

@@ -1,7 +1,7 @@
 import { useFetcher } from "@remix-run/react";
 import { Page, Card, Button, BlockStack, Text } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { fetchProductsFromThirdParty } from "../utils/monitor";
+import { fetchProductsFromMonitor } from "../utils/monitor";
 import { authenticate } from "../utils/auth.server.js";
 
 export const loader = async ({ request }) => {
@@ -11,7 +11,7 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const { admin } = await authenticate(request);
-  const products = await fetchProductsFromThirdParty();
+  const products = await fetchProductsFromMonitor();
   const results = [];
   for (const product of products) {
     // Create product in Shopify using GraphQL Admin API
