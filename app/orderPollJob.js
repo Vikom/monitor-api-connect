@@ -34,7 +34,7 @@ async function pollForNewOrders() {
             email
             createdAt
             totalPrice
-            fulfillmentStatus
+            displayFulfillmentStatus
             displayFinancialStatus
             customer {
               id
@@ -104,7 +104,7 @@ async function pollForNewOrders() {
           customer: order.customer,
           lineItems: order.lineItems.edges.map(edge => edge.node),
           createdAt: order.createdAt,
-          fulfillmentStatus: order.fulfillmentStatus,
+          fulfillmentStatus: order.displayFulfillmentStatus,
           financialStatus: order.displayFinancialStatus
         });
         
