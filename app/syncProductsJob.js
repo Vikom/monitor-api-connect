@@ -5,6 +5,7 @@ import { pollForNewOrders } from "./orderPollJob.js";
 import { syncInventory } from "./syncInventoryJob.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
+import fetch from "node-fetch";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to
@@ -15,6 +16,23 @@ const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
 global.useAdvancedStore = useAdvancedStore;
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+
+// Function to log Railway's outbound IP for Monitor API whitelisting
+async function logRailwayIP() {
+  try {
+    console.log('🔍 Checking Railway outbound IP for Monitor API whitelisting...');
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    console.log(`🌐 RAILWAY OUTBOUND IP: ${data.ip}`);
+    console.log(`📋 ADD THIS IP TO MONITOR WHITELIST: ${data.ip}`);
+    console.log('================================');
+  } catch (error) {
+    console.log('❌ Could not determine outbound IP:', error.message);
+  }
+}
+
+// Log IP at startup
+logRailwayIP();
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -1409,6 +1427,7 @@ async function checkProductInCollection(shop, accessToken, productId, collection
 // Schedule to run every hour - only for advanced store with incremental sync
 cron.schedule("0 * * * *", () => {
   console.log("[CRON] Running scheduled incremental product sync...");
+  logRailwayIP(); // Log IP for debugging
   
   // Check if advanced store is configured
   const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
