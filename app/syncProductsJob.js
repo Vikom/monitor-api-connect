@@ -20,11 +20,10 @@ console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Develop
 // Function to log Railway's outbound IP for Monitor API whitelisting
 async function logRailwayIP() {
   try {
-    console.log('🔍 Checking Railway outbound IP for Monitor API whitelisting...');
+    console.log('Checking Railway outbound IP for Monitor API whitelisting...');
     const response = await fetch('https://api.ipify.org?format=json');
     const data = await response.json();
-    console.log(`🌐 RAILWAY OUTBOUND IP: ${data.ip}`);
-    console.log(`📋 ADD THIS IP TO MONITOR WHITELIST: ${data.ip}`);
+    console.log(`RAILWAY OUTBOUND IP: ${data.ip}`);
     console.log('================================');
   } catch (error) {
     console.log('❌ Could not determine outbound IP:', error.message);
