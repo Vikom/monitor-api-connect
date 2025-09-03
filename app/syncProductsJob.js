@@ -517,18 +517,26 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
   }
 }
 
-// Helper function to get the primary location for inventory tracking
-async function getPrimaryLocation(shop, accessToken) {
+// Helper function to get all Shopify locations with their monitor_id metafields
+async function getAllLocationsForInventory(shop, accessToken) {
   const fetch = (await import('node-fetch')).default;
   
   const query = `query {
-    locations(first: 10) {
+    locations(first: 50) {
       edges {
         node {
           id
           name
           isPrimary
           fulfillsOnlineOrders
+          metafields(first: 10, namespace: "custom") {
+            edges {
+              node {
+                key
+                value
+              }
+            }
+          }
         }
       }
     }
@@ -547,31 +555,49 @@ async function getPrimaryLocation(shop, accessToken) {
 
   if (json.errors) {
     console.error("GraphQL errors getting locations:", JSON.stringify(json.errors, null, 2));
-    return null;
+    return { allLocations: [], mappedLocations: [] };
   }
 
-  const locations = json.data?.locations?.edges?.map(edge => edge.node) || [];
+  const allLocations = json.data?.locations?.edges?.map(edge => edge.node) || [];
   
-  // Find the primary location first
-  let primaryLocation = locations.find(location => location.isPrimary);
+  // Separate locations with monitor_id mapping from those without
+  const mappedLocations = [];
+  const unmappedLocations = [];
   
-  // If no primary location, find one that fulfills online orders
-  if (!primaryLocation) {
-    primaryLocation = locations.find(location => location.fulfillsOnlineOrders);
-  }
+  allLocations.forEach(location => {
+    const monitorIdMetafield = location.metafields.edges.find(mf => mf.node.key === "monitor_id");
+    if (monitorIdMetafield) {
+      mappedLocations.push({
+        ...location,
+        monitorId: monitorIdMetafield.node.value
+      });
+    } else {
+      unmappedLocations.push(location);
+    }
+  });
+
+  console.log(`Found ${mappedLocations.length} locations with Monitor mapping and ${unmappedLocations.length} without`);
   
-  // If still nothing, use the first location
-  if (!primaryLocation && locations.length > 0) {
-    primaryLocation = locations[0];
+  if (mappedLocations.length > 0) {
+    console.log("Locations with Monitor mapping:");
+    mappedLocations.forEach(loc => {
+      console.log(`  - ${loc.name} (Monitor ID: ${loc.monitorId})`);
+    });
   }
 
-  if (primaryLocation) {
-    console.log(`Using location: ${primaryLocation.name} (ID: ${primaryLocation.id})`);
-    return primaryLocation;
-  } else {
-    console.error("No suitable location found for inventory tracking");
-    return null;
+  // If no mapped locations, fall back to primary location for basic inventory tracking
+  if (mappedLocations.length === 0 && unmappedLocations.length > 0) {
+    let fallbackLocation = unmappedLocations.find(loc => loc.isPrimary) ||
+                          unmappedLocations.find(loc => loc.fulfillsOnlineOrders) ||
+                          unmappedLocations[0];
+    
+    if (fallbackLocation) {
+      console.log(`⚠️  No Monitor-mapped locations found. Using fallback location: ${fallbackLocation.name}`);
+      return { allLocations, mappedLocations: [], fallbackLocation };
+    }
   }
+
+  return { allLocations, mappedLocations, fallbackLocation: null };
 }
 
 // Helper function to create product variants using productVariantsBulkCreate
@@ -600,9 +626,23 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   
   console.log(`Found/created option with ID: ${variantOption.id}, name: ${variantOption.name}`);
   
-  // Get the primary location for inventory tracking
-  console.log("Getting primary location for inventory tracking...");
-  const primaryLocation = await getPrimaryLocation(shop, accessToken);
+  // Get all locations for inventory tracking
+  console.log("Getting locations for inventory tracking...");
+  const { mappedLocations, fallbackLocation } = await getAllLocationsForInventory(shop, accessToken);
+  
+  // Determine which locations to use for initial inventory setup
+  let inventoryLocations = [];
+  if (mappedLocations.length > 0) {
+    // Use mapped locations (these will be properly synced by inventory job)
+    inventoryLocations = mappedLocations;
+    console.log(`Will set up inventory tracking at ${mappedLocations.length} Monitor-mapped locations`);
+  } else if (fallbackLocation) {
+    // Use fallback location for basic inventory tracking
+    inventoryLocations = [fallbackLocation];
+    console.log(`Will set up inventory tracking at fallback location: ${fallbackLocation.name}`);
+  } else {
+    console.warn("⚠️  No locations available for inventory tracking. Variants will be created without inventory management.");
+  }
   
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = await Promise.all(variations.map(async (variation) => {
@@ -622,14 +662,12 @@ async function createProductVariants(shop, accessToken, productId, variations) {
       metafields: metafields
     };
 
-    // Add inventory quantities if we have a primary location
-    if (primaryLocation) {
-      variantData.inventoryQuantities = [
-        {
-          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
-          locationId: primaryLocation.id
-        }
-      ];
+    // Add inventory quantities for all available locations
+    if (inventoryLocations.length > 0) {
+      variantData.inventoryQuantities = inventoryLocations.map(location => ({
+        availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+        locationId: location.id
+      }));
     }
 
     return variantData;
@@ -688,8 +726,9 @@ async function createProductVariants(shop, accessToken, productId, variations) {
         await updateVariantSku(shop, accessToken, variant.id, variation.sku);
       }
       
-      // Update inventory management and weight
-      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, primaryLocation);
+      // Update inventory management and weight (pass first available location for weight update)
+      const locationForUpdate = inventoryLocations.length > 0 ? inventoryLocations[0] : null;
+      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, locationForUpdate);
     }
     
     createdVariants.forEach((variant, index) => {
@@ -735,9 +774,17 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     }
   }
 
-  // Get the primary location for inventory tracking
-  console.log("Getting primary location for inventory tracking...");
-  const primaryLocation = await getPrimaryLocation(shop, accessToken);
+  // Get all locations for inventory tracking
+  console.log("Getting locations for inventory tracking...");
+  const { mappedLocations, fallbackLocation } = await getAllLocationsForInventory(shop, accessToken);
+  
+  // Determine which locations to use for initial inventory setup
+  let inventoryLocations = [];
+  if (mappedLocations.length > 0) {
+    inventoryLocations = mappedLocations;
+  } else if (fallbackLocation) {
+    inventoryLocations = [fallbackLocation];
+  }
 
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
   const variants = await Promise.all(newVariations.map(async (variation) => {
@@ -757,14 +804,12 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
       metafields: metafields
     };
 
-    // Add inventory quantities if we have a primary location
-    if (primaryLocation) {
-      variantData.inventoryQuantities = [
-        {
-          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
-          locationId: primaryLocation.id
-        }
-      ];
+    // Add inventory quantities for all available locations
+    if (inventoryLocations.length > 0) {
+      variantData.inventoryQuantities = inventoryLocations.map(location => ({
+        availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+        locationId: location.id
+      }));
     }
 
     return variantData;
@@ -816,8 +861,9 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
         await updateVariantSku(shop, accessToken, variant.id, variation.sku);
       }
       
-      // Update inventory management and weight
-      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, primaryLocation);
+      // Update inventory management and weight (pass first available location for weight update)
+      const locationForUpdate = inventoryLocations.length > 0 ? inventoryLocations[0] : null;
+      await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, locationForUpdate);
     }
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
     console.log(`User error adding variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
@@ -1063,67 +1109,6 @@ async function updateVariantInventoryAndWeight(shop, accessToken, variantId, var
   // The inventory will be automatically available for tracking at locations
   // Use the inventory sync job to set actual quantities
   
-  return true;
-}
-
-// Helper function to ensure inventory tracking at location
-async function ensureInventoryTracking(shop, accessToken, inventoryItemId, locationId) {
-  const fetch = (await import('node-fetch')).default;
-  
-  // First, activate inventory at the location using GraphQL
-  const mutation = `mutation inventoryActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
-    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
-      inventoryLevel {
-        id
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }`;
-
-  const variables = {
-    inventoryItemId: `gid://shopify/InventoryItem/${inventoryItemId}`,
-    locationId: locationId,
-    available: 0
-  };
-
-  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken,
-    },
-    body: JSON.stringify({ query: mutation, variables }),
-  });
-
-  const json = await fetchRes.json();
-
-  if (json.errors) {
-    console.error("GraphQL errors activating inventory:", JSON.stringify(json.errors, null, 2));
-    return false;
-  }
-
-  if (json.data?.inventoryActivate?.userErrors?.length > 0) {
-    // Inventory might already be active, which is fine
-    const errors = json.data.inventoryActivate.userErrors;
-    const alreadyActiveError = errors.find(err => 
-      err.message.includes('already active') || 
-      err.message.includes('already stocked') ||
-      err.message.includes('already tracked')
-    );
-    
-    if (!alreadyActiveError) {
-      console.error("User errors activating inventory:", errors);
-      return false;
-    } else {
-      console.log(`    Inventory already active for item ${inventoryItemId} at location`);
-      return true;
-    }
-  }
-
-  console.log(`    Activated inventory tracking for item ${inventoryItemId} at location`);
   return true;
 }
 
