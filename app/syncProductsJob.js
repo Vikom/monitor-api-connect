@@ -1409,7 +1409,7 @@ async function checkProductInCollection(shop, accessToken, productId, collection
 }
 
 // Schedule to run every hour - only for advanced store with incremental sync
-cron.schedule("0 * * * *", () => {
+/*cron.schedule("0 * * * *", () => {
   console.log("[CRON] Running scheduled incremental product sync...");
   logRailwayIP(); // Log IP for debugging
   
@@ -1440,10 +1440,10 @@ cron.schedule("0 * * * *", () => {
       // Restore original flag
       global.useAdvancedStore = originalUseAdvancedStore;
     });
-});
+});*/
 
-// Schedule order polling every 15 minutes - alternative to webhooks
-cron.schedule("*/15 * * * *", () => {
+// Schedule order polling every 5 minutes - alternative to webhooks
+cron.schedule("*/5 * * * *", () => {
   console.log("[ORDER-POLL] Checking for new orders...");
   pollForNewOrders().catch((error) => {
     console.error("[ORDER-POLL] ❌ Order polling failed:", error);
@@ -1453,7 +1453,7 @@ cron.schedule("*/15 * * * *", () => {
 // Schedule inventory sync every 30 minutes
 cron.schedule("*/30 * * * *", () => {
   console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  
+  /*
   // Check if advanced store is configured
   const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
   const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -1479,7 +1479,7 @@ cron.schedule("*/30 * * * *", () => {
     .finally(() => {
       // Restore original flag
       global.useAdvancedStore = originalUseAdvancedStore;
-    });
+    });*/
 });
 
 // Display usage instructions
