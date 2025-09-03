@@ -581,4 +581,4 @@ console.log(`
 `);
 
 // Run the sync
-syncInventory();
+// syncInventory();
