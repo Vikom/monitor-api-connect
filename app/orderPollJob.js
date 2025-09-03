@@ -123,7 +123,7 @@ async function pollForNewOrders() {
 
         // Create order in Monitor system
         const monitorOrderData = {
-          CustomerId: parseInt(monitorCustomerId),
+          CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
           OrderNumber: order.name,
           OrderTypeId: 4, // As specified in requirements
           Rows: orderRows,
@@ -156,7 +156,7 @@ cron.schedule("*/15 * * * *", () => {
 });
 
 // For testing - uncomment to run immediately
-pollForNewOrders();
+// pollForNewOrders();
 
 console.log("🔄 Order polling service started - checking every 15 minutes");
 
@@ -259,7 +259,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         continue;
       }
 
-      const monitorPartId = parseInt(monitorIdMetafield.node.value);
+      const monitorPartId = monitorIdMetafield.node.value; // Keep as string to avoid precision loss
       
       // Create order row - need to calculate price per unit
       const unitPrice = parseFloat(lineItem.variant?.price || 0);

@@ -52,7 +52,7 @@ export const action = async ({ request }) => {
 
     // Create order in Monitor
     const monitorOrderData = {
-      CustomerId: parseInt(monitorCustomerId),
+      CustomerId: monitorCustomerId, // Keep as string to avoid precision loss with large numbers
       OrderNumber: order.order_number ? order.order_number.toString() : null,
       OrderTypeId: 4, // As specified in requirements
       Rows: orderRows,
@@ -175,7 +175,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         continue;
       }
 
-      const monitorPartId = parseInt(monitorIdMetafield.node.value);
+      const monitorPartId = monitorIdMetafield.node.value; // Keep as string to avoid precision loss
       
       // Create order row
       rows.push({
