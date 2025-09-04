@@ -6,7 +6,7 @@ This document explains how the hierarchical pricing system works with your Shopi
 
 The pricing system implements a 3-tier hierarchy for **logged-in customers only**:
 
-1. **Outlet Products**: Products in the outlet product group (ID: `1229581166640460381`) get special outlet prices from price list `1159811711098750858`
+1. **Outlet Products**: Products in the outlet product group (ID: `1229581166640460381`) get special outlet prices from price list `1289997006982727753`
 2. **Customer-Specific Pricing**: Individual customer prices for specific products
 3. **Price List Pricing**: Customer's assigned price list pricing
 4. **Standard Pricing**: Fallback to product's standard price
@@ -144,7 +144,7 @@ MONITOR_COMPANY=your-company-code
 ### Hard-coded Constants
 
 - **Outlet Product Group ID**: `1229581166640460381`
-- **Outlet Price List ID**: `1159811711098750858`
+- **Outlet Price List ID**: `1289997006982727753`
 
 ## Pricing Flow Diagram
 

@@ -663,7 +663,7 @@ export async function fetchOutletPriceFromMonitor(partId) {
     const sessionId = await monitorClient.getSessionId();
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
-    url += `?$filter=PartId eq '${partId}' and PriceListId eq '1159811711098750858'`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '1289997006982727753'`;
     
     let res = await fetch(url, {
       headers: {
