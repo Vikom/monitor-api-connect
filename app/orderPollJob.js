@@ -125,7 +125,8 @@ async function pollForNewOrders() {
         const monitorOrderData = {
           CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
           OrderNumber: order.name,
-          OrderTypeId: 4, // As specified in requirements
+          // OrderTypeId: 4, // As specified in requirements
+          OrderTypeId: '980267526921268926',
           Rows: orderRows,
           IsStockOrder: false
         };
@@ -266,7 +267,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       
       rows.push({
         PartId: monitorPartId,
-        Quantity: lineItem.quantity,
+        OrderedQuantity: lineItem.quantity,
         UnitPrice: unitPrice,
         // Description: lineItem.title, // Optional: add product title as description
       });
