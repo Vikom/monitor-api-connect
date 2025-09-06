@@ -132,7 +132,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
   console.log('Attempting to update price for:', { variantId, customerId });
-  await updatePriceDisplay(variantId, '.price', customerId);
+  await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
 });
 
 // On variant change
@@ -143,7 +143,7 @@ document.addEventListener('variant:change', async (event) => {
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
   console.log('Variant changed:', { variantId, customerId });
-  await updatePriceDisplay(variantId, '.price', customerId);
+  await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
 });
 
 // Alternative event listener for themes that don't use 'variant:change'
@@ -153,7 +153,7 @@ document.addEventListener('change', async (event) => {
     const customerId = `gid://shopify/Customer/${window.customer.id}`;
     
     console.log('Variant selector changed:', { variantId, customerId });
-    await updatePriceDisplay(variantId, '.price', customerId);
+    await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
   }
 });
 </script>
@@ -211,11 +211,10 @@ document.addEventListener('change', async (event) => {
 
 ### Price shows as "0" 
 
-1. **Check price selector**: The default `.price` selector might not match your theme. Common alternatives:
-   - `.product__price`
-   - `.price__current` 
-   - `[data-price]`
-   - `.money`
+1. **Check price selector**: The default `.f-price-item--regular` selector should work with Hyper theme. Alternative selectors to try:
+   - `.f-price-item--sale` (for sale prices)
+   - `.f-price-item` (general price items)
+   - `[data-unit-price]` (for unit prices)
 
 2. **Debug price element**: Add this to see what elements are found:
 ```javascript
@@ -233,6 +232,11 @@ curl -X POST https://your-app-url/api/pricing \
 ```
 
 ### Common Theme Adjustments
+
+#### For Hyper theme (your theme):
+```liquid
+await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+```
 
 #### For Dawn theme:
 ```liquid
