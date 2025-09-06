@@ -1,5 +1,4 @@
 import { json } from "@remix-run/node";
-import { getDynamicPrice } from "../utils/pricing.js";
 
 // Helper function to add CORS headers
 function corsHeaders() {
@@ -59,8 +58,6 @@ export async function action({ request }) {
     }
 
     // Create a simple GraphQL client for the shop
-    const shopUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
-    
     // We need to use the shop's access token - for now return a mock response
     // In a production setup, you'd store shop access tokens and use them here
     
@@ -70,6 +67,7 @@ export async function action({ request }) {
       metadata: {
         variantId,
         customerId,
+        shop,
         message: "Mock pricing response - CORS working",
         priceSource: "mock"
       }
