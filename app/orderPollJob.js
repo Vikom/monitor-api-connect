@@ -124,9 +124,11 @@ async function pollForNewOrders() {
         // Create order in Monitor system
         const monitorOrderData = {
           CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
-          OrderNumber: order.name,
+          // OrderNumber: order.name,
+          BusinessContactOrderNumber: order.name,
           // OrderTypeId: 4, // As specified in requirements
           OrderTypeId: '980267526921268926',
+          Preliminary: true,
           Rows: orderRows,
           IsStockOrder: false
         };

@@ -79,11 +79,15 @@ function loadImageMapping() {
         const partNumber = columns[0].trim(); // Artikelnummer (SKU)
         const category = columns[3].trim(); // Artikelkategori (potential image name)
         
-        // Try to find matching image file
-        const imageFileName = findImageFile(category);
-        if (imageFileName) {
-          mapping.set(partNumber, imageFileName);
-          console.log(`Mapped SKU ${partNumber} -> ${imageFileName}`);
+        // Try to find matching image file, with fallback to SKU-based lookup
+        const imageResult = findImageFile(category, partNumber);
+        if (imageResult) {
+          mapping.set(partNumber, imageResult);
+          if (typeof imageResult === 'string') {
+            console.log(`Mapped SKU ${partNumber} -> ${imageResult}`);
+          } else {
+            console.log(`Mapped SKU ${partNumber} -> ${imageResult.fileName} (fallback)`);
+          }
         }
       }
     }
@@ -96,8 +100,8 @@ function loadImageMapping() {
   }
 }
 
-// Helper function to find image file based on category
-function findImageFile(category) {
+// Helper function to find image file based on category, with fallback to SKU-based lookup
+function findImageFile(category, variantSku = null) {
   if (!category) return null;
 
   try {
@@ -122,6 +126,22 @@ function findImageFile(category) {
       const fileName = file.replace('.webp', '').toLowerCase();
       if (fileName.includes(lowerCategory) || lowerCategory.includes(fileName)) {
         return file;
+      }
+    }
+
+    // Fallback: If variantSku is provided, look for [variantSku].jpg in produktbilder directory
+    if (variantSku) {
+      const produktbilderDir = path.join(process.cwd(), "images-sync", "produktbilder");
+      try {
+        const produktbilderFiles = fs.readdirSync(produktbilderDir);
+        const skuImageFile = `${variantSku}.jpg`;
+        
+        if (produktbilderFiles.includes(skuImageFile)) {
+          // Return a special marker to indicate this is from produktbilder
+          return { type: 'produktbilder', fileName: skuImageFile };
+        }
+      } catch (fallbackError) {
+        console.log(`Could not access produktbilder directory: ${fallbackError.message}`);
       }
     }
 
@@ -550,10 +570,23 @@ async function syncImages() {
         const variant = variantEdge.node;
         if (variant.sku && !variantSkus.has(variant.sku)) {
           variantSkus.add(variant.sku);
-          const imageFileName = imageMapping.get(variant.sku);
-          if (imageFileName) {
-            const imagePath = path.join(IMAGES_DIR, imageFileName);
-            if (fs.existsSync(imagePath) && !imagesToUpload.includes(imagePath)) {
+          const imageResult = imageMapping.get(variant.sku);
+          if (imageResult) {
+            let imagePath;
+            let imageFileName;
+            
+            if (typeof imageResult === 'string') {
+              // Regular image from formatted-72dpi directory
+              imagePath = path.join(IMAGES_DIR, imageResult);
+              imageFileName = imageResult;
+            } else if (imageResult.type === 'produktbilder') {
+              // Fallback image from produktbilder directory
+              const produktbilderDir = path.join(process.cwd(), "images-sync", "produktbilder");
+              imagePath = path.join(produktbilderDir, imageResult.fileName);
+              imageFileName = imageResult.fileName;
+            }
+            
+            if (imagePath && fs.existsSync(imagePath) && !imagesToUpload.includes(imagePath)) {
               imagesToUpload.push(imagePath);
               console.log(`  Found image for SKU ${variant.sku}: ${imageFileName}`);
             }

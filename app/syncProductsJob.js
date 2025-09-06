@@ -11,11 +11,15 @@ dotenv.config();
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const isManualRun = args.includes('--manual') || args.includes('-m');
 
 // Store this globally for cron access
 global.useAdvancedStore = useAdvancedStore;
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+if (isManualRun) {
+  console.log(`🔧 Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
+}
 
 // Function to log Railway's outbound IP for Monitor API whitelisting
 async function logRailwayIP() {
@@ -269,7 +273,7 @@ async function syncProducts(isIncrementalSync = false) {
       return;
     }
     
-    // Group products by productName (ARTWEBKAT)
+    // Group products by productName (ARTWEBNAME)
     const productGroups = new Map();
     
     for (const product of products) {
@@ -1379,7 +1383,7 @@ async function checkProductInCollection(shop, accessToken, productId, collection
   
   const query = `query {
     collection(id: "${collectionId}") {
-      products(first: 250, query: "id:${productId}") {
+      products(first: 250) {
         edges {
           node {
             id
@@ -1405,7 +1409,9 @@ async function checkProductInCollection(shop, accessToken, productId, collection
     return false;
   }
   
-  return result.data?.collection?.products?.edges?.length > 0;
+  // Check if the specific product ID is in the collection
+  const products = result.data?.collection?.products?.edges || [];
+  return products.some(edge => edge.node.id === productId);
 }
 
 // Schedule to run every hour - only for advanced store with incremental sync
@@ -1442,45 +1448,52 @@ async function checkProductInCollection(shop, accessToken, productId, collection
     });
 });*/
 
-// Schedule order polling every 5 minutes - alternative to webhooks
-cron.schedule("*/5 * * * *", () => {
-  console.log("[ORDER-POLL] Checking for new orders...");
-  pollForNewOrders().catch((error) => {
-    console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+// Function to set up cron jobs - only called in worker mode
+function setupCronJobs() {
+  // Schedule order polling every 5 minutes - alternative to webhooks
+  cron.schedule("*/5 * * * *", () => {
+    console.log("[ORDER-POLL] Checking for new orders...");
+    pollForNewOrders().catch((error) => {
+      console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+    });
   });
-});
 
-// Schedule inventory sync every 30 minutes
-cron.schedule("*/30 * * * *", () => {
-  console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  /*
-  // Check if advanced store is configured
-  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
-  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+  // Schedule inventory sync every 30 minutes
+  cron.schedule("*/30 * * * *", () => {
+    console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+    /*
+    // Check if advanced store is configured
+    const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+    const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+    
+    if (!advancedStoreDomain || !advancedStoreToken) {
+      console.log("❌ [INVENTORY-SYNC] Advanced store configuration missing - skipping scheduled sync");
+      return;
+    }
+    
+    console.log(`[INVENTORY-SYNC] Running inventory sync for Advanced store: ${advancedStoreDomain}`);
+    
+    // Set global flag to use advanced store for this cron run
+    const originalUseAdvancedStore = global.useAdvancedStore;
+    global.useAdvancedStore = true;
+    
+    syncInventory()
+      .then(() => {
+        console.log("[INVENTORY-SYNC] ✅ Scheduled inventory sync completed successfully");
+      })
+      .catch((error) => {
+        console.error("[INVENTORY-SYNC] ❌ Scheduled inventory sync failed:", error);
+      })
+      .finally(() => {
+        // Restore original flag
+        global.useAdvancedStore = originalUseAdvancedStore;
+      });*/
+  });
   
-  if (!advancedStoreDomain || !advancedStoreToken) {
-    console.log("❌ [INVENTORY-SYNC] Advanced store configuration missing - skipping scheduled sync");
-    return;
-  }
-  
-  console.log(`[INVENTORY-SYNC] Running inventory sync for Advanced store: ${advancedStoreDomain}`);
-  
-  // Set global flag to use advanced store for this cron run
-  const originalUseAdvancedStore = global.useAdvancedStore;
-  global.useAdvancedStore = true;
-  
-  syncInventory()
-    .then(() => {
-      console.log("[INVENTORY-SYNC] ✅ Scheduled inventory sync completed successfully");
-    })
-    .catch((error) => {
-      console.error("[INVENTORY-SYNC] ❌ Scheduled inventory sync failed:", error);
-    })
-    .finally(() => {
-      // Restore original flag
-      global.useAdvancedStore = originalUseAdvancedStore;
-    });*/
-});
+  console.log("📅 Cron jobs scheduled:");
+  console.log("  - Order polling: every 5 minutes");
+  console.log("  - Inventory sync: every 30 minutes");
+}
 
 // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
@@ -1491,8 +1504,11 @@ To sync ALL products to development store (OAuth):
   node app/syncProductsJob.js
 
 To sync ALL products to Advanced store:
+  node app/syncProductsJob.js --advanced --manual
+  node app/syncProductsJob.js -a -m
+
+To run worker mode (Advanced store with scheduled incremental sync):
   node app/syncProductsJob.js --advanced
-  node app/syncProductsJob.js -a
 
 🕐 Scheduled Sync:
   The job runs automatically every hour for the Advanced store with incremental sync
@@ -1513,17 +1529,24 @@ console.log(`
 ⏰ Scheduled incremental sync runs every hour for Advanced store
 `);
 
-// Check if this is running as a worker process (with --advanced flag)
-const isWorkerMode = useAdvancedStore;
+// Check if this is running as a worker process (with --advanced flag but not manual)
+const isWorkerMode = useAdvancedStore && !isManualRun;
 
 if (isWorkerMode) {
-  // In worker mode, just set up the cron schedule and keep the process alive
+  // In worker mode, set up cron schedules and keep the process alive
   console.log("🔄 Running in worker mode - cron schedule is active");
   console.log("⏰ Next incremental sync will run at the top of the next hour");
+  console.log("💡 To run a manual full sync, use: node app/syncProductsJob.js --advanced --manual");
+  
+  // Set up cron jobs for worker mode
+  setupCronJobs();
   
   // Keep the process alive by not calling syncProducts() immediately
   // The cron job will handle the scheduling
 } else {
   // Run the sync immediately (full sync by default) - for manual execution
+  const syncType = isManualRun ? "manual full sync" : "full sync";
+  console.log(`🚀 Running ${syncType}...`);
+  console.log("⚠️  Cron jobs (order polling, inventory sync) will not be started in manual mode");
   syncProducts();
 }

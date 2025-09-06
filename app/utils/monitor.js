@@ -137,7 +137,7 @@ class MonitorClient {
     return allProducts.filter(product => {
       if (!Array.isArray(product.ExtraFields)) return false;
       const active = product.ExtraFields.find(f => f.Identifier === "ARTWEBAKTIV");
-      const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBNAME");
       const productVariation = product.ExtraFields.find(f => f.Identifier === "ARTWEBVAR");
       if (productName) console.log(`Product ${product.PartNumber}: ${productName.StringValue}, Variant: ${productVariation ? productVariation.StringValue : "N/A"}`);
       return active && active.SelectedOptionId === "1062902127922128278";
@@ -208,7 +208,7 @@ class MonitorClient {
     return products.filter(product => {
       if (!Array.isArray(product.ExtraFields)) return false;
       const active = product.ExtraFields.find(f => f.Identifier === "ARTWEBAKTIV");
-      const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBNAME");
       const productVariation = product.ExtraFields.find(f => f.Identifier === "ARTWEBVAR");
       if (productName) console.log(`Product ${product.PartNumber}: ${productName.StringValue}, Variant: ${productVariation ? productVariation.StringValue : "N/A"}`);
       return active && active.SelectedOptionId === "1062902127922128278";
@@ -228,20 +228,20 @@ export async function fetchProductsFromMonitor() {
       throw new Error("Monitor API returned unexpected data format");
     }
     
-    // For debugging: only return products that have ARTWEBKAT set
+    // For debugging: only return products that have ARTWEBNAME set
     const filteredProducts = products.filter(product => {
-      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBNAME");
       return productName?.StringValue && productName.StringValue.trim() !== "";
     });
     
-    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBKAT set (from ${products.length} total)`);
+    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBNAME set (from ${products.length} total)`);
     
     // Process products with pricing logic
     const productsWithPricing = await Promise.all(filteredProducts.map(async product => {
-      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBNAME");
       const productVariation = product.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
       
-      // Since we filtered for products with ARTWEBKAT, we know it exists
+      // Since we filtered for products with ARTWEBNAME, we know it exists
       const finalProductName = productName.StringValue;
       
       // Use ARTWEBVAR if available, otherwise use PartNumber as variation
@@ -277,23 +277,26 @@ export async function fetchProductsFromMonitor() {
 
       // Check if this product is in the outlet product group (1229581166640460381)
       const isOutletProduct = product.ProductGroupId === "1229581166640460381";
-      let outletPrice = null;
+      let productPrice = null;
       
       if (isOutletProduct) {
         console.log(`Fetching outlet price for product ${product.PartNumber} (ID: ${product.Id})`);
-        outletPrice = await fetchOutletPriceFromMonitor(product.Id);
+        const outletPrice = await fetchOutletPriceFromMonitor(product.Id);
         if (outletPrice) {
           console.log(`Found outlet price ${outletPrice} for product ${product.PartNumber}`);
+          productPrice = outletPrice;
         }
+        // If no outlet price found, productPrice remains null even for outlet products
       }
+      // For non-outlet products, productPrice remains null to force dynamic pricing
       
       return {
         id: product.Id,
         name: product.PartNumber,
         sku: product.PartNumber,
         description: product.Description || "",
-        // Use outlet price if available, otherwise use standard price
-        price: outletPrice || product.StandardPrice,
+        // Only set price for outlet products with valid outlet price, otherwise null
+        price: productPrice,
         weight: product.WeightPerUnit,
         length: product.Length,
         width: product.Width,
@@ -314,7 +317,7 @@ export async function fetchProductsFromMonitor() {
         hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
         // Pricing metadata
         isOutletProduct: isOutletProduct,
-        hasOutletPrice: outletPrice !== null,
+        hasOutletPrice: productPrice !== null,
         originalStandardPrice: product.StandardPrice,
       };
     }));
@@ -338,20 +341,20 @@ export async function fetchProductsByIdsFromMonitor(productIds) {
       throw new Error("Monitor API returned unexpected data format");
     }
     
-    // For debugging: only return products that have ARTWEBKAT set
+    // For debugging: only return products that have ARTWEBNAME set
     const filteredProducts = products.filter(product => {
-      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBNAME");
       return productName?.StringValue && productName.StringValue.trim() !== "";
     });
     
-    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBKAT set (from ${products.length} total)`);
+    console.log(`Filtered to ${filteredProducts.length} products with ARTWEBNAME set (from ${products.length} total)`);
     
     // Process products with pricing logic (same as fetchProductsFromMonitor)
     const productsWithPricing = await Promise.all(filteredProducts.map(async product => {
-      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBKAT");
+      const productName = product.ExtraFields?.find(f => f.Identifier === "ARTWEBNAME");
       const productVariation = product.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
       
-      // Since we filtered for products with ARTWEBKAT, we know it exists
+      // Since we filtered for products with ARTWEBNAME, we know it exists
       const finalProductName = productName.StringValue;
       
       // Use ARTWEBVAR if available, otherwise use PartNumber as variation
@@ -387,23 +390,26 @@ export async function fetchProductsByIdsFromMonitor(productIds) {
 
       // Check if this product is in the outlet product group (1229581166640460381)
       const isOutletProduct = product.ProductGroupId === "1229581166640460381";
-      let outletPrice = null;
+      let productPrice = null;
       
       if (isOutletProduct) {
         console.log(`Fetching outlet price for product ${product.PartNumber} (ID: ${product.Id})`);
-        outletPrice = await fetchOutletPriceFromMonitor(product.Id);
+        const outletPrice = await fetchOutletPriceFromMonitor(product.Id);
         if (outletPrice) {
           console.log(`Found outlet price ${outletPrice} for product ${product.PartNumber}`);
+          productPrice = outletPrice;
         }
+        // If no outlet price found, productPrice remains null even for outlet products
       }
+      // For non-outlet products, productPrice remains null to force dynamic pricing
       
       return {
         id: product.Id,
         name: product.PartNumber,
         sku: product.PartNumber,
         description: product.Description || "",
-        // Use outlet price if available, otherwise use standard price
-        price: outletPrice || product.StandardPrice,
+        // Only set price for outlet products with valid outlet price, otherwise null
+        price: productPrice,
         weight: product.WeightPerUnit,
         length: product.Length,
         width: product.Width,
@@ -424,7 +430,7 @@ export async function fetchProductsByIdsFromMonitor(productIds) {
         hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
         // Pricing metadata
         isOutletProduct: isOutletProduct,
-        hasOutletPrice: outletPrice !== null,
+        hasOutletPrice: productPrice !== null,
         originalStandardPrice: product.StandardPrice,
       };
     }));
