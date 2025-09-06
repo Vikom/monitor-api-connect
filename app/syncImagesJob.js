@@ -8,8 +8,10 @@ dotenv.config();
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const useKakelMode = args.includes('--kakel');
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+console.log(`📁 Mode: ${useKakelMode ? 'Kakel (images-sonsab-2.csv)' : 'Standard (images-sonsab.csv)'}`);
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -24,8 +26,12 @@ const shopifyConfig = shopifyApi({
 if (!global.Shopify) global.Shopify = {};
 global.Shopify.config = shopifyConfig.config;
 
-const IMAGES_DIR = path.join(process.cwd(), "images-sync", "formatted-72dpi");
-const CSV_PATH = path.join(process.cwd(), "images-sync", "images-sonsab.csv");
+const IMAGES_DIR = useKakelMode 
+  ? path.join(process.cwd(), "images-sync", "produktbilder")
+  : path.join(process.cwd(), "images-sync", "formatted-72dpi");
+const CSV_PATH = useKakelMode
+  ? path.join(process.cwd(), "images-sync", "images-sonsab-2.csv")
+  : path.join(process.cwd(), "images-sync", "images-sonsab.csv");
 
 // Helper function to validate if a session is still valid
 async function validateSession(shop, accessToken) {
@@ -75,18 +81,36 @@ function loadImageMapping() {
       if (!line) continue;
 
       const columns = line.split(';');
-      if (columns.length >= 4) {
-        const partNumber = columns[0].trim(); // Artikelnummer (SKU)
-        const category = columns[3].trim(); // Artikelkategori (potential image name)
-        
-        // Try to find matching image file, with fallback to SKU-based lookup
-        const imageResult = findImageFile(category, partNumber);
-        if (imageResult) {
-          mapping.set(partNumber, imageResult);
-          if (typeof imageResult === 'string') {
-            console.log(`Mapped SKU ${partNumber} -> ${imageResult}`);
-          } else {
-            console.log(`Mapped SKU ${partNumber} -> ${imageResult.fileName} (fallback)`);
+      
+      if (useKakelMode) {
+        // Kakel mode: CSV format is Artikelnummer;Artikelbenämning;Artikeltyp
+        if (columns.length >= 1) {
+          const artikelnummer = columns[0].trim(); // Artikelnummer (SKU)
+          
+          // Look for image file as [Artikelnummer].jpg in produktbilder directory
+          const imageFile = `${artikelnummer}.jpg`;
+          const imagePath = path.join(IMAGES_DIR, imageFile);
+          
+          if (fs.existsSync(imagePath)) {
+            mapping.set(artikelnummer, imageFile);
+            console.log(`Mapped SKU ${artikelnummer} -> ${imageFile}`);
+          }
+        }
+      } else {
+        // Standard mode: Original logic
+        if (columns.length >= 4) {
+          const partNumber = columns[0].trim(); // Artikelnummer (SKU)
+          const category = columns[3].trim(); // Artikelkategori (potential image name)
+          
+          // Try to find matching image file, with fallback to SKU-based lookup
+          const imageResult = findImageFile(category, partNumber);
+          if (imageResult) {
+            mapping.set(partNumber, imageResult);
+            if (typeof imageResult === 'string') {
+              console.log(`Mapped SKU ${partNumber} -> ${imageResult}`);
+            } else {
+              console.log(`Mapped SKU ${partNumber} -> ${imageResult.fileName} (fallback)`);
+            }
           }
         }
       }
@@ -249,11 +273,15 @@ async function createStagedUpload(shop, accessToken, fileName) {
     }
   }`;
 
+  // Determine MIME type based on file extension
+  const isJpg = fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg');
+  const mimeType = isJpg ? "image/jpeg" : "image/webp";
+
   const variables = {
     input: [
       {
         filename: fileName,
-        mimeType: "image/webp",
+        mimeType: mimeType,
         httpMethod: "POST",
         resource: "IMAGE"
       }
@@ -305,9 +333,13 @@ async function uploadFileToStaged(stagedTarget, imagePath) {
     
     // Add the file
     const imageBuffer = fs.readFileSync(imagePath);
+    const fileName = path.basename(imagePath);
+    const isJpg = fileName.toLowerCase().endsWith('.jpg') || fileName.toLowerCase().endsWith('.jpeg');
+    const contentType = isJpg ? 'image/jpeg' : 'image/webp';
+    
     formData.append('file', imageBuffer, {
-      filename: path.basename(imagePath),
-      contentType: 'image/webp'
+      filename: fileName,
+      contentType: contentType
     });
 
     const response = await fetch(stagedTarget.url, {
@@ -375,7 +407,7 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath, isF
       productId: productId,
       media: [
         {
-          alt: fileName.replace('.webp', ''),
+          alt: fileName.replace(/\.(webp|jpg|jpeg)$/i, ''),
           mediaContentType: "IMAGE",
           originalSource: resourceUrl
         }
@@ -575,15 +607,22 @@ async function syncImages() {
             let imagePath;
             let imageFileName;
             
-            if (typeof imageResult === 'string') {
-              // Regular image from formatted-72dpi directory
+            if (useKakelMode) {
+              // Kakel mode: direct mapping to JPG files in produktbilder directory
               imagePath = path.join(IMAGES_DIR, imageResult);
               imageFileName = imageResult;
-            } else if (imageResult.type === 'produktbilder') {
-              // Fallback image from produktbilder directory
-              const produktbilderDir = path.join(process.cwd(), "images-sync", "produktbilder");
-              imagePath = path.join(produktbilderDir, imageResult.fileName);
-              imageFileName = imageResult.fileName;
+            } else {
+              // Standard mode: handle both direct and fallback mappings
+              if (typeof imageResult === 'string') {
+                // Regular image from formatted-72dpi directory
+                imagePath = path.join(IMAGES_DIR, imageResult);
+                imageFileName = imageResult;
+              } else if (imageResult.type === 'produktbilder') {
+                // Fallback image from produktbilder directory
+                const produktbilderDir = path.join(process.cwd(), "images-sync", "produktbilder");
+                imagePath = path.join(produktbilderDir, imageResult.fileName);
+                imageFileName = imageResult.fileName;
+              }
             }
             
             if (imagePath && fs.existsSync(imagePath) && !imagesToUpload.includes(imagePath)) {
@@ -641,10 +680,17 @@ if (args.includes('--help') || args.includes('-h')) {
 
 To sync to development store (OAuth):
   node app/syncImagesJob.js
+  node app/syncImagesJob.js --kakel    (use images-sonsab-2.csv and produktbilder directory)
 
 To sync to Advanced store:
   node app/syncImagesJob.js --advanced
+  node app/syncImagesJob.js --advanced --kakel
   node app/syncImagesJob.js -a
+  node app/syncImagesJob.js -a --kakel
+
+Flags:
+  --kakel         Use images-sonsab-2.csv and look for [Artikelnummer].jpg in produktbilder directory
+  --advanced, -a  Use Advanced store configuration
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow
