@@ -9,7 +9,6 @@ The pricing system implements a 3-tier hierarchy for **logged-in customers only*
 1. **Outlet Products**: Products in the outlet product group (ID: `1229581166640460381`) get special outlet prices from price list `1289997006982727753`
 2. **Customer-Specific Pricing**: Individual customer prices for specific products
 3. **Price List Pricing**: Customer's assigned price list pricing
-4. **Standard Pricing**: Fallback to product's standard price
 
 **Important**: All customers must be logged in. No anonymous/guest pricing is supported.
 
@@ -83,19 +82,44 @@ const price = await getDynamicPrice(variantMonitorId, customerMonitorId, fallbac
 
 Include the pricing client in your theme:
 
-```html
-<script src="/pricing-client.js"></script>
+```liquid
+{% if customer %}
 <script>
+  window.customer = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+  // Set your app URL for pricing API calls
+  window.pricingApiUrl = "{{ shop.permanent_domain | append: '.myshopify.com' }}";
+</script>
+{% endif %}
+
+<!-- Pricing Integration - Non-blocking script loading -->
+<script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
+<script>
+// Debug customer login status
+console.log('Customer object:', window.customer);
+console.log('Customer ID:', window.customer?.id);
+
 // Update product page price - customer must be logged in
 window.addEventListener('DOMContentLoaded', async () => {
+  // Wait for pricing-client.js to load
+  while (typeof updatePriceDisplay === 'undefined') {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
   if (!window.customer?.id) {
     console.log('Customer not logged in - no pricing available');
+    console.log('Available customer data:', window.customer);
     return;
   }
   
-  const variantId = 'gid://shopify/ProductVariant/123456789';
+  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
+  console.log('Attempting to update price for:', { variantId, customerId });
   await updatePriceDisplay(variantId, '.price', customerId);
 });
 
@@ -106,7 +130,19 @@ document.addEventListener('variant:change', async (event) => {
   const variantId = event.detail.variantId;
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
+  console.log('Variant changed:', { variantId, customerId });
   await updatePriceDisplay(variantId, '.price', customerId);
+});
+
+// Alternative event listener for themes that don't use 'variant:change'
+document.addEventListener('change', async (event) => {
+  if (event.target.name === 'id' && window.customer?.id) {
+    const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
+    const customerId = `gid://shopify/Customer/${window.customer.id}`;
+    
+    console.log('Variant selector changed:', { variantId, customerId });
+    await updatePriceDisplay(variantId, '.price', customerId);
+  }
 });
 </script>
 ```
@@ -117,6 +153,87 @@ document.addEventListener('variant:change', async (event) => {
 
 - **Namespace**: `custom`
 - **Key**: `monitor_id`
+
+## Troubleshooting
+
+### "Customer not logged in" message
+
+1. **Customer object undefined**: If `window.customer` shows as `undefined`, your theme doesn't automatically load the customer object. This is common with many themes including Hyper.
+
+2. **Solution - Add customer object to theme**: Add this to your theme's layout file (`theme.liquid`) in the `<head>` section:
+
+```liquid
+{% if customer %}
+<script>
+  window.customer = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+</script>
+{% endif %}
+```
+
+3. **Alternative solution for product pages**: If you only need it on product pages, add to your `main-product.liquid`:
+
+```liquid
+{% if customer %}
+<script>
+  window.customer = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+</script>
+{% endif %}
+<!-- Then your pricing script... -->
+<script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
+<script>
+// Rest of your pricing code...
+</script>
+```
+
+4. **Verify login status**: Ensure you're testing while logged into a customer account, not just the admin/staff account.
+
+### Price shows as "0" 
+
+1. **Check price selector**: The default `.price` selector might not match your theme. Common alternatives:
+   - `.product__price`
+   - `.price__current` 
+   - `[data-price]`
+   - `.money`
+
+2. **Debug price element**: Add this to see what elements are found:
+```javascript
+const priceElements = document.querySelectorAll('[class*="price"], [data-price], .money');
+console.log('Found price elements:', priceElements);
+```
+
+3. **Check Monitor ID metafield**: Ensure your product variants have the `custom.monitor_id` metafield set.
+
+4. **Test API directly**: Test the pricing endpoint manually:
+```bash
+curl -X POST https://your-app-url/api/pricing \
+  -H "Content-Type: application/json" \
+  -d '{"variantId":"gid://shopify/ProductVariant/123","customerId":"gid://shopify/Customer/456"}'
+```
+
+### Common Theme Adjustments
+
+#### For Dawn theme:
+```liquid
+await updatePriceDisplay(variantId, '.price__current', customerId);
+```
+
+#### For Debut theme:
+```liquid  
+await updatePriceDisplay(variantId, '.product-single__price', customerId);
+```
+
+#### For custom themes:
+Inspect your theme's price element and adjust the selector accordingly.
 - **Value**: Monitor Part ID
 
 ### Customers

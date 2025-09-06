@@ -10,13 +10,16 @@
  * @param {string} customerId - Shopify customer ID (required)
  * @returns {Promise<{price: number, metadata?: object}>}
  */
-export async function getCustomerPrice(variantId, customerId) {
+async function getCustomerPrice(variantId, customerId) {
   if (!customerId) {
     throw new Error('Customer ID is required - no anonymous pricing allowed');
   }
 
   try {
-    const response = await fetch('/api/pricing', {
+    // Use the app URL if available, otherwise fallback to relative path
+    const apiUrl = window.pricingApiUrl ? `https://${window.pricingApiUrl}/api/pricing` : '/api/pricing';
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -45,7 +48,7 @@ export async function getCustomerPrice(variantId, customerId) {
  * @param {string} priceSelector - CSS selector for price element
  * @param {string} customerId - Shopify customer ID (required)
  */
-export async function updatePriceDisplay(variantId, priceSelector, customerId) {
+async function updatePriceDisplay(variantId, priceSelector, customerId) {
   if (!customerId) {
     console.error('Customer ID is required for price display');
     return;
@@ -65,6 +68,8 @@ export async function updatePriceDisplay(variantId, priceSelector, customerId) {
         priceElement.setAttribute('data-dynamic-price', 'true');
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
+    } else {
+      console.log('Price element not found or no price data:', { priceElement, priceData });
     }
   } catch (error) {
     console.error('Error updating price display:', error);
@@ -111,3 +116,8 @@ function formatPrice(price) {
  *   await updatePriceDisplay(variantId, '.price', customerId);
  * });
  */
+
+// Make functions available globally for Shopify themes
+window.getCustomerPrice = getCustomerPrice;
+window.updatePriceDisplay = updatePriceDisplay;
+window.formatPrice = formatPrice;

@@ -2,23 +2,78 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { getDynamicPrice } from "../utils/pricing.js";
 
+// Helper function to add CORS headers
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*", // Allow all origins for now
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+// Handle OPTIONS request for CORS preflight
+export async function loader({ request }) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  }
+  return json({ error: "Method not allowed" }, { 
+    status: 405,
+    headers: corsHeaders()
+  });
+}
+
 export async function action({ request }) {
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return json({ error: "Method not allowed" }, { 
+      status: 405,
+      headers: corsHeaders()
+    });
   }
 
   try {
-    const { admin } = await authenticate.admin(request);
+    // For CORS requests from themes, we need a different authentication approach
+    // The theme should send the shop domain in the request
     const body = await request.json();
-    const { variantId, customerId } = body;
+    const { variantId, customerId, shop } = body;
+
+    // For now, we'll authenticate using the shop parameter
+    // In production, you might want to use a more secure method
+    let admin;
+    if (shop) {
+      // Try to get admin for the specific shop
+      try {
+        const { admin: shopAdmin } = await authenticate.admin(request);
+        admin = shopAdmin;
+      } catch (authError) {
+        // If direct auth fails, we might need to handle this differently
+        console.log("Direct auth failed, attempting alternative...");
+        // For now, return an error - we'll need to implement proper CORS auth
+        return json({ error: "Authentication required from theme context" }, { 
+          status: 401,
+          headers: corsHeaders()
+        });
+      }
+    } else {
+      const { admin: shopAdmin } = await authenticate.admin(request);
+      admin = shopAdmin;
+    }
 
     // All users must be logged in - customerId is required
     if (!customerId) {
-      return json({ error: "Customer ID is required - no anonymous pricing allowed" }, { status: 400 });
+      return json({ error: "Customer ID is required - no anonymous pricing allowed" }, { 
+        status: 400,
+        headers: corsHeaders()
+      });
     }
 
     if (!variantId) {
-      return json({ error: "Variant ID is required" }, { status: 400 });
+      return json({ error: "Variant ID is required" }, { 
+        status: 400,
+        headers: corsHeaders()
+      });
     }
 
     // Get variant details including metafields and price
@@ -46,7 +101,10 @@ export async function action({ request }) {
     const variant = variantData.data?.productVariant;
 
     if (!variant) {
-      return json({ error: "Variant not found" }, { status: 404 });
+      return json({ error: "Variant not found" }, { 
+        status: 404,
+        headers: corsHeaders()
+      });
     }
 
     // Find Monitor ID metafield
@@ -56,7 +114,9 @@ export async function action({ request }) {
 
     if (!monitorIdMetafield) {
       // No Monitor ID, return standard price (outlet pricing already handled in sync)
-      return json({ price: parseFloat(variant.price) });
+      return json({ price: parseFloat(variant.price) }, {
+        headers: corsHeaders()
+      });
     }
 
     const variantMonitorId = monitorIdMetafield.node.value;
@@ -86,7 +146,10 @@ export async function action({ request }) {
     const customer = customerData.data?.customer;
 
     if (!customer) {
-      return json({ error: "Customer not found" }, { status: 404 });
+      return json({ error: "Customer not found" }, { 
+        status: 404,
+        headers: corsHeaders()
+      });
     }
 
     // Find customer's Monitor ID metafield
@@ -99,6 +162,8 @@ export async function action({ request }) {
       return json({ 
         price: standardPrice,
         message: "Customer has no Monitor ID - using standard price"
+      }, {
+        headers: corsHeaders()
       });
     }
 
@@ -115,10 +180,15 @@ export async function action({ request }) {
         standardPrice,
         priceSource: dynamicPrice === standardPrice ? "standard" : "dynamic"
       }
+    }, {
+      headers: corsHeaders()
     });
 
   } catch (error) {
     console.error("Pricing API error:", error);
-    return json({ error: "Internal server error" }, { status: 500 });
+    return json({ error: "Internal server error" }, { 
+      status: 500,
+      headers: corsHeaders()
+    });
   }
 }
