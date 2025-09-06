@@ -16,8 +16,10 @@ async function getCustomerPrice(variantId, customerId) {
   }
 
   try {
-    // Use the app URL if available, otherwise fallback to relative path
-    const apiUrl = window.pricingApiUrl ? `https://${window.pricingApiUrl}/api/pricing` : '/api/pricing';
+    // Use the public pricing endpoint to avoid authentication issues
+    const apiUrl = window.pricingApiUrl ? 
+      `https://${window.pricingApiUrl}/api/pricing-public` : 
+      '/api/pricing-public';
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -26,7 +28,8 @@ async function getCustomerPrice(variantId, customerId) {
       },
       body: JSON.stringify({
         variantId,
-        customerId
+        customerId,
+        shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', '')
       })
     });
 

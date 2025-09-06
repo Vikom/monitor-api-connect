@@ -67,7 +67,19 @@ const price = await getDynamicPrice(variantMonitorId, customerMonitorId, fallbac
 
 ### API Endpoint
 
-**POST** `/api/pricing`
+**POST** `/api/pricing-public` (for theme integration)
+
+#### Price Request (Customer Required)
+
+```javascript
+{
+  "variantId": "gid://shopify/ProductVariant/123456789",
+  "customerId": "gid://shopify/Customer/987654321", // required
+  "shop": "your-shop-name" // required for CORS requests
+}
+```
+
+**POST** `/api/pricing` (for internal app use)
 
 #### Price Request (Customer Required)
 
