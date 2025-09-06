@@ -1415,7 +1415,7 @@ async function checkProductInCollection(shop, accessToken, productId, collection
 }
 
 // Schedule to run every hour - only for advanced store with incremental sync
-cron.schedule("0 * * * *", () => {
+/*cron.schedule("0 * * * *", () => {
   console.log("[CRON] Running scheduled incremental product sync...");
   logRailwayIP(); // Log IP for debugging
   
@@ -1446,7 +1446,7 @@ cron.schedule("0 * * * *", () => {
       // Restore original flag
       global.useAdvancedStore = originalUseAdvancedStore;
     });
-});
+});*/
 
 // Function to set up cron jobs - only called in worker mode
 function setupCronJobs() {
@@ -1461,7 +1461,7 @@ function setupCronJobs() {
   // Schedule inventory sync every 30 minutes
   cron.schedule("*/30 * * * *", () => {
     console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-
+    /*
     // Check if advanced store is configured
     const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
     const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -1487,9 +1487,10 @@ function setupCronJobs() {
       .finally(() => {
         // Restore original flag
         global.useAdvancedStore = originalUseAdvancedStore;
-      });
+      });*/
   });
-
+  
+  console.log("📅 Cron jobs scheduled:");
   console.log("  - Order polling: every 5 minutes");
   console.log("  - Inventory sync: every 30 minutes");
 }
