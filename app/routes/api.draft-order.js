@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
+import { authenticate } from "../shopify.server.js";
 
 // Create draft order with dynamic pricing
 export async function action({ request }) {
