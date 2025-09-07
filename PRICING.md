@@ -111,14 +111,14 @@ Include the pricing client in your theme:
   window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
   
   // Check if product is in outlet collection using a more reliable method
-  {% assign isInOutlet = false %}
+  {% assign is_in_outlet = false %}
   {% for collection in product.collections %}
     {% if collection.handle == 'outlet' %}
-      {% assign isInOutlet = true %}
+      {% assign is_in_outlet = true %}
       {% break %}
     {% endif %}
   {% endfor %}
-  window.isOutletProduct = {{ isInOutlet }};
+  window.isOutletProduct = {{ is_in_outlet }};
   
   // Debug outlet detection
   console.log('=== OUTLET DETECTION DEBUG ===');
@@ -131,7 +131,7 @@ Include the pricing client in your theme:
       "{{ collection.handle }}"{% unless forloop.last %},{% endunless %}
     {% endfor %}
   ]);
-  console.log('Outlet collection check result:', {{ isInOutlet }});
+  console.log('Outlet collection check result:', {{ is_in_outlet }});
   console.log('=== END OUTLET DEBUG ===');
 </script>
 {% endif %}
