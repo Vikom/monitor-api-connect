@@ -29,7 +29,9 @@ async function getCustomerPrice(variantId, customerId) {
       body: JSON.stringify({
         variantId,
         customerId,
-        shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', '')
+        shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
+        monitorId: window.currentVariantMonitorId || null,
+        isOutletProduct: window.isOutletProduct || false
       })
     });
 

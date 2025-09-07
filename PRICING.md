@@ -105,6 +105,10 @@ Include the pricing client in your theme:
   };
   // Set your app URL for pricing API calls
   window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
+  
+  // Set product information for pricing
+  window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
+  window.isOutletProduct = {% if collections['outlet'] contains product %}true{% else %}false{% endif %};
 </script>
 {% endif %}
 

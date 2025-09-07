@@ -176,7 +176,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    const { variantId, customerId, shop } = body;
+    const { variantId, customerId, shop, monitorId, isOutletProduct } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -201,52 +201,33 @@ export async function action({ request }) {
     }
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
+    console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}`);
 
-    // First, we need to get the Monitor part ID from the variant's metafield
-    // For now, we'll simulate this - in production you'd need to query Shopify's API
-    // to get the variant's monitor_id metafield
-    
-    // Extract variant ID from the GraphQL ID
-    const variantIdMatch = variantId.match(/ProductVariant\/(\d+)/);
-    if (!variantIdMatch) {
-      return json({ error: "Invalid variant ID format" }, { 
-        status: 400,
-        headers: corsHeaders()
-      });
-    }
-    
-    const numericVariantId = variantIdMatch[1];
-    console.log(`Extracted numeric variant ID: ${numericVariantId}`);
-    
-    // TODO: In a real implementation, you would:
-    // 1. Query Shopify's GraphQL API to get the variant's metafield 'custom.monitor_id'
-    // 2. Use that monitor_id to check if it's an outlet product and get the price
-    
-    // For now, let's use a test Monitor part ID
-    // You can replace this with an actual Monitor part ID from your system
-    const testMonitorPartId = "1229581166640460382"; // Replace with a real part ID
-    
-    console.log(`Using test Monitor part ID: ${testMonitorPartId}`);
-    
-    // Check if this is an outlet product
-    const isOutlet = await isOutletProduct(testMonitorPartId);
-    console.log(`Is outlet product: ${isOutlet}`);
-    
     let price = 299.99; // Default test price
     let priceSource = "test";
     
-    if (isOutlet) {
-      console.log(`Product is in outlet group, fetching outlet price...`);
-      const outletPrice = await fetchOutletPrice(testMonitorPartId);
+    // If this is an outlet product and we have a monitor ID, try to fetch outlet price
+    if (isOutletProduct && monitorId) {
+      console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
+      const outletPrice = await fetchOutletPrice(monitorId);
+      
       if (outletPrice) {
         price = outletPrice;
         priceSource = "outlet";
         console.log(`Found outlet price: ${outletPrice}`);
       } else {
-        console.log(`No outlet price found, using test price`);
+        // No outlet price found, set to 100.00 as requested
+        price = 100.00;
+        priceSource = "outlet-fallback";
+        console.log(`No outlet price found, using fallback price: 100.00`);
       }
+    } else if (isOutletProduct && !monitorId) {
+      // Outlet product but no monitor ID - use fallback
+      price = 100.00;
+      priceSource = "outlet-fallback";
+      console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
     } else {
-      console.log(`Product not in outlet group, using test price`);
+      console.log(`Not an outlet product, using test price: ${price}`);
     }
     
     return json({ 
@@ -255,10 +236,10 @@ export async function action({ request }) {
         variantId,
         customerId,
         shop,
-        monitorPartId: testMonitorPartId,
-        isOutletProduct: isOutlet,
+        monitorPartId: monitorId || null,
+        isOutletProduct: isOutletProduct || false,
         priceSource: priceSource,
-        message: `${priceSource === 'outlet' ? 'Real outlet pricing' : 'Test pricing'} - CORS working`
+        message: `${priceSource === 'outlet' ? 'Real outlet pricing' : priceSource === 'outlet-fallback' ? 'Outlet fallback pricing' : 'Test pricing'} - CORS working`
       }
     }, {
       headers: corsHeaders()
