@@ -326,9 +326,59 @@ await updatePriceDisplay(variantId, '.product-single__price', customerId);
 
 #### For custom themes:
 Inspect your theme's price element and adjust the selector accordingly.
+
+### Cart Pricing Troubleshooting
+
+If cart shows "0 kr" despite correct product pricing:
+
+1. **Check cart-pricing.js is loaded**:
+
+```liquid
+{{ 'cart-pricing.js' | asset_url | script_tag }}
+```
+
+1. **Verify cart elements are detected**:
+
+- Open browser console
+- Look for cart debugging messages  
+- Check if cart items are found
+
+1. **Test manual cart update**:
+
+```javascript
+// In browser console
+window.dpCart.testCartUpdate();
+```
+
+1. **Common cart selectors by theme**:
+
+- **Hyper**: `.cart-item`, `.f-price-item--regular`
+- **Dawn**: `.cart-item`, `.price`
+- **Debut**: `.cart__item`, `.cart__price`
+
+1. **If cart still shows 0 kr**:
+
+- Use Cart Transform API (Shopify Plus only)
+- Use Draft Orders (all plans)
+- Both implemented in app routes
+
+1. **Debug cart element detection**:
+
+```javascript
+// Check if cart items found
+document.querySelectorAll('[data-variant-id]');
+document.querySelectorAll('.cart-item');
+```
+
+### Metafields
+
+#### Products
+
+- **Namespace**: `custom`
+- **Key**: `monitor_id`
 - **Value**: Monitor Part ID
 
-### Customers
+#### Customers
 
 - **Namespace**: `custom`
 - **Key**: `monitor_id`
