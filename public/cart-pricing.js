@@ -255,108 +255,157 @@ class DynamicPricingCart {
     console.log('Dynamic Price:', dynamicPrice);
     console.log('Price Source:', priceSource);
     
-    // Find cart item elements and update displayed price
-    // Try multiple selectors for different themes
-    const possibleSelectors = [
-      `[data-variant-id="${variantId}"]`,
-      `.cart-item[data-variant-id="${variantId}"]`,
-      `.cart-item`,
-      `[data-id="${variantId}"]`,
-      `.line-item`,
-      `.cart__item`,
-      `.f-cart-item`,
-      `.cartitem`
-    ];
+    // Find the specific cart item by variant ID
+    const specificCartItem = document.querySelector(`[data-variant-id="${variantId}"]`);
     
-    let cartItems = [];
-    for (const selector of possibleSelectors) {
-      const elements = document.querySelectorAll(selector);
-      if (elements.length > 0) {
-        console.log(`Found ${elements.length} elements with selector: ${selector}`);
-        cartItems = [...cartItems, ...elements];
-      }
-    }
-    
-    console.log(`Total cart items found: ${cartItems.length}`);
-    
-    if (cartItems.length === 0) {
-      console.log('No cart items found, trying to find any price elements in cart');
-      // If no specific cart items found, try to find price elements in cart area
-      const cartSelectors = ['.cart', '.cart-drawer', '.mini-cart', '.f-cart', '#cart', '[data-cart]'];
-      for (const cartSelector of cartSelectors) {
-        const cartArea = document.querySelector(cartSelector);
-        if (cartArea) {
-          console.log(`Found cart area with selector: ${cartSelector}`);
-          const priceElements = cartArea.querySelectorAll('.money, [class*="price"], .f-price, [data-price]');
-          console.log(`Found ${priceElements.length} price elements in cart area`);
+    if (specificCartItem) {
+      console.log(`Found specific cart item for variant ${variantId}:`, specificCartItem);
+      
+      // Look for price elements within this specific cart item only
+      const priceElements = specificCartItem.querySelectorAll('.money, [class*="price"], .cart-item__price, .f-price, [data-price]');
+      console.log(`Found ${priceElements.length} price elements in specific cart item`);
+      
+      priceElements.forEach((priceElement, priceIndex) => {
+        console.log(`Price element ${priceIndex} in specific item:`, priceElement.textContent.trim(), priceElement);
+        
+        // Skip if already processed for this specific variant and price
+        const updateKey = `${variantId}-${dynamicPrice}`;
+        if (priceElement.getAttribute('data-dynamic-price-updated') === updateKey) {
+          console.log(`Price element ${priceIndex} already updated for this variant/price, skipping`);
+          return;
+        }
+        
+        if (priceElement.textContent.includes('kr') || priceElement.textContent.includes('SEK') || priceElement.textContent.includes('0')) {
+          const formattedPrice = window.formatPrice(dynamicPrice);
+          const originalPrice = priceElement.textContent;
           
-          priceElements.forEach((priceElement, index) => {
-            console.log(`Price element ${index}:`, priceElement.textContent.trim(), priceElement);
+          console.log(`Updating price element from "${originalPrice}" to "${formattedPrice}"`);
+          
+          // Simply update the text content without adding styling
+          priceElement.textContent = formattedPrice;
+          
+          // Mark as updated with variant-specific key to prevent duplicate processing
+          priceElement.setAttribute('data-dynamic-price-updated', updateKey);
+          
+          // Add subtle tooltip only
+          priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
+                                 priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
+        }
+      });
+      
+      // Store the dynamic price in the cart item data attribute for reference
+      specificCartItem.setAttribute('data-dynamic-price', dynamicPrice);
+      specificCartItem.setAttribute('data-price-source', priceSource || 'dynamic');
+      
+    } else {
+      console.log(`No specific cart item found for variant ${variantId}, trying fallback approach`);
+      
+      // Fallback: Find cart item elements and update displayed price
+      // Try multiple selectors for different themes
+      const possibleSelectors = [
+        `.cart-item`,
+        `[data-id="${variantId}"]`,
+        `.line-item`,
+        `.cart__item`,
+        `.f-cart-item`,
+        `.cartitem`
+      ];
+      
+      let cartItems = [];
+      for (const selector of possibleSelectors) {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          console.log(`Found ${elements.length} elements with selector: ${selector}`);
+          cartItems = [...cartItems, ...elements];
+        }
+      }
+      
+      console.log(`Total cart items found: ${cartItems.length}`);
+      
+      if (cartItems.length === 0) {
+        console.log('No cart items found, trying to find any price elements in cart');
+        // If no specific cart items found, try to find price elements in cart area
+        const cartSelectors = ['.cart', '.cart-drawer', '.mini-cart', '.f-cart', '#cart', '[data-cart]'];
+        for (const cartSelector of cartSelectors) {
+          const cartArea = document.querySelector(cartSelector);
+          if (cartArea) {
+            console.log(`Found cart area with selector: ${cartSelector}`);
+            const priceElements = cartArea.querySelectorAll('.money, [class*="price"], .f-price, [data-price]');
+            console.log(`Found ${priceElements.length} price elements in cart area`);
+            
+            priceElements.forEach((priceElement, index) => {
+              console.log(`Price element ${index}:`, priceElement.textContent.trim(), priceElement);
+              
+              // Skip if already processed (check for dynamic pricing marker)
+              const updateKey = `${variantId}-${dynamicPrice}`;
+              if (priceElement.getAttribute('data-dynamic-price-updated') === updateKey) {
+                console.log(`Price element ${index} already updated for this variant/price, skipping`);
+                return;
+              }
+              
+              // Check if this price element contains the original price or 0
+              const priceText = priceElement.textContent.trim();
+              if (priceText.includes('0') || priceText.includes('kr')) {
+                const formattedPrice = window.formatPrice(dynamicPrice);
+                const originalPrice = priceElement.textContent;
+                
+                console.log(`Updating price element ${index} from "${originalPrice}" to "${formattedPrice}"`);
+                
+                // Simply update the text content without adding styling
+                priceElement.textContent = formattedPrice;
+                
+                // Mark as updated to prevent duplicate processing
+                priceElement.setAttribute('data-dynamic-price-updated', updateKey);
+                
+                // Add subtle tooltip only
+                priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
+                                       priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
+              }
+            });
+            break;
+          }
+        }
+      } else {
+        cartItems.forEach((item, itemIndex) => {
+          console.log(`Processing cart item ${itemIndex}:`, item);
+          
+          // Look for price elements within this cart item
+          const priceElements = item.querySelectorAll('.money, [class*="price"], .cart-item__price, .f-price, [data-price]');
+          console.log(`Found ${priceElements.length} price elements in cart item ${itemIndex}`);
+          
+          priceElements.forEach((priceElement, priceIndex) => {
+            console.log(`Price element ${priceIndex} in item ${itemIndex}:`, priceElement.textContent.trim(), priceElement);
             
             // Skip if already processed (check for dynamic pricing marker)
-            if (priceElement.hasAttribute('data-dynamic-price-updated')) {
-              console.log(`Price element ${index} already updated, skipping`);
+            const updateKey = `${variantId}-${dynamicPrice}`;
+            if (priceElement.getAttribute('data-dynamic-price-updated') === updateKey) {
+              console.log(`Price element ${priceIndex} already updated for this variant/price, skipping`);
               return;
             }
             
-            // Check if this price element contains the original price or 0
-            const priceText = priceElement.textContent.trim();
-            if (priceText.includes('0') || priceText.includes('kr')) {
+            if (priceElement.textContent.includes('kr') || priceElement.textContent.includes('SEK') || priceElement.textContent.includes('0')) {
               const formattedPrice = window.formatPrice(dynamicPrice);
               const originalPrice = priceElement.textContent;
               
-              console.log(`Updating price element ${index} from "${originalPrice}" to "${formattedPrice}"`);
+              console.log(`Updating price element from "${originalPrice}" to "${formattedPrice}"`);
               
               // Simply update the text content without adding styling
               priceElement.textContent = formattedPrice;
               
               // Mark as updated to prevent duplicate processing
-              priceElement.setAttribute('data-dynamic-price-updated', 'true');
+              priceElement.setAttribute('data-dynamic-price-updated', updateKey);
               
               // Add subtle tooltip only
               priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
                                      priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
             }
           });
-          break;
-        }
-      }
-    } else {
-      cartItems.forEach((item, itemIndex) => {
-        console.log(`Processing cart item ${itemIndex}:`, item);
-        
-        // Look for price elements within this cart item
-        const priceElements = item.querySelectorAll('.money, [class*="price"], .cart-item__price, .f-price, [data-price]');
-        console.log(`Found ${priceElements.length} price elements in cart item ${itemIndex}`);
-        
-        priceElements.forEach((priceElement, priceIndex) => {
-          console.log(`Price element ${priceIndex} in item ${itemIndex}:`, priceElement.textContent.trim(), priceElement);
-          
-          // Skip if already processed (check for dynamic pricing marker)
-          if (priceElement.hasAttribute('data-dynamic-price-updated')) {
-            console.log(`Price element ${priceIndex} already updated, skipping`);
-            return;
-          }
-          
-          if (priceElement.textContent.includes('kr') || priceElement.textContent.includes('SEK') || priceElement.textContent.includes('0')) {
-            const formattedPrice = window.formatPrice(dynamicPrice);
-            const originalPrice = priceElement.textContent;
-            
-            console.log(`Updating price element from "${originalPrice}" to "${formattedPrice}"`);
-            
-            // Simply update the text content without adding styling
-            priceElement.textContent = formattedPrice;
-            
-            // Mark as updated to prevent duplicate processing
-            priceElement.setAttribute('data-dynamic-price-updated', 'true');
-            
-            // Add subtle tooltip only
-            priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
-                                   priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
-          }
         });
-      });
+      }
     }
+    
+    // Update cart totals after individual item updates
+    this.updateCartTotals();
     
     console.log(`=== END CART ITEM DISPLAY UPDATE ===`);
   }
@@ -397,6 +446,60 @@ class DynamicPricingCart {
       throw error;
     }
   }
+
+  // Method to update cart totals display
+  updateCartTotals() {
+    console.log('=== UPDATING CART TOTALS ===');
+    
+    try {
+      // Find all cart items with dynamic pricing
+      const cartItems = document.querySelectorAll('[data-dynamic-price]');
+      let totalPrice = 0;
+      
+      cartItems.forEach(item => {
+        const dynamicPrice = parseFloat(item.getAttribute('data-dynamic-price')) || 0;
+        const quantityInput = item.querySelector('input[data-quantity-variant-id]');
+        const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        
+        console.log(`Item with dynamic price: ${dynamicPrice}, quantity: ${quantity}`);
+        totalPrice += dynamicPrice * quantity;
+      });
+      
+      // If no dynamic pricing items found, get from standard cart items
+      if (totalPrice === 0) {
+        const standardCartItems = document.querySelectorAll('.cart-item[data-variant-id]');
+        standardCartItems.forEach(item => {
+          const priceElement = item.querySelector('[class*="price"]');
+          if (priceElement) {
+            const priceText = priceElement.textContent.replace(/[^\d,]/g, '').replace(',', '.');
+            const price = parseFloat(priceText) || 0;
+            const quantityInput = item.querySelector('input[data-quantity-variant-id]');
+            const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+            
+            console.log(`Standard item price: ${price}, quantity: ${quantity}`);
+            totalPrice += price * quantity;
+          }
+        });
+      }
+      
+      console.log(`Calculated total price: ${totalPrice}`);
+      
+      // Update total display
+      const totalElements = document.querySelectorAll('.totals__subtotal-value, .cart-total, [class*="total"]');
+      totalElements.forEach(element => {
+        if (element.textContent.includes('SEK') || element.textContent.includes('kr') || element.textContent.includes('0')) {
+          const formattedTotal = window.formatPrice ? window.formatPrice(totalPrice) : `${totalPrice.toFixed(2)} kr`;
+          console.log(`Updating total element from "${element.textContent}" to "${formattedTotal}"`);
+          element.textContent = formattedTotal;
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error updating cart totals:', error);
+    }
+    
+    console.log('=== END CART TOTALS UPDATE ===');
+  }
 }
 
 // Initialize dynamic pricing cart if customer is logged in
@@ -418,5 +521,51 @@ if (window.customer?.id && typeof window.getCustomerPrice === 'function') {
   window.updateCartItemPricing = (variantId, dynamicPrice, priceSource) => {
     console.log('Manual cart item pricing update triggered', { variantId, dynamicPrice, priceSource });
     return window.dynamicPricingCart.updateCartItemDisplay(variantId, dynamicPrice, priceSource);
+  };
+  
+  // Add method to update cart totals
+  window.updateCartTotals = () => {
+    console.log('Manual cart totals update triggered');
+    return window.dynamicPricingCart.updateCartTotals();
+  };
+  
+  // Add test function for debugging
+  window.dpCart = {
+    testCartUpdate: () => {
+      console.log('=== TESTING CART UPDATE ===');
+      const cartItems = document.querySelectorAll('[data-variant-id]');
+      console.log(`Found ${cartItems.length} cart items with variant IDs`);
+      
+      cartItems.forEach((item, index) => {
+        const variantId = item.getAttribute('data-variant-id');
+        console.log(`Cart item ${index}: variant ${variantId}`, item);
+        
+        // Test updating with a test price
+        if (variantId) {
+          window.dynamicPricingCart.updateCartItemDisplay(variantId, 100, 'test');
+        }
+      });
+      
+      // Test total update
+      window.dynamicPricingCart.updateCartTotals();
+      console.log('=== END CART TEST ===');
+    },
+    
+    resetPricing: () => {
+      console.log('=== RESETTING CART PRICING ===');
+      // Remove all dynamic pricing markers
+      const updatedElements = document.querySelectorAll('[data-dynamic-price-updated]');
+      updatedElements.forEach(element => {
+        element.removeAttribute('data-dynamic-price-updated');
+      });
+      
+      const dynamicPriceItems = document.querySelectorAll('[data-dynamic-price]');
+      dynamicPriceItems.forEach(item => {
+        item.removeAttribute('data-dynamic-price');
+        item.removeAttribute('data-price-source');
+      });
+      
+      console.log('Pricing reset complete');
+    }
   };
 }
