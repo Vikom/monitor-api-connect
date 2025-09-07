@@ -104,6 +104,54 @@ async function isOutletProduct(partId) {
   }
 }
 
+// Fetch customer-specific price for a part
+async function fetchCustomerPartPrice(customerId, partId) {
+  try {
+    const session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+    url += `?$filter=PartId eq '${partId}' and CustomerId eq '${customerId}'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": session,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      // Try to re-login and retry once
+      sessionId = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": sessionId,
+        },
+        agent,
+      });
+      
+      if (res.status !== 200) {
+        console.error(`Failed to fetch customer part price for customer ${customerId}, part ${partId}: ${res.status}`);
+        return null;
+      }
+    }
+    
+    const customerParts = await res.json();
+    if (!Array.isArray(customerParts)) {
+      return null;
+    }
+    
+    return customerParts.length > 0 ? customerParts[0].Price : null;
+  } catch (error) {
+    console.error(`Error fetching customer part price for customer ${customerId}, part ${partId}:`, error);
+    return null;
+  }
+}
+
 // Fetch outlet price for a part
 async function fetchOutletPrice(partId) {
   try {
@@ -176,7 +224,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    const { variantId, customerId, shop, monitorId, isOutletProduct } = body;
+    const { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -201,7 +249,7 @@ export async function action({ request }) {
     }
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
-    console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}`);
+    console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}, Customer Monitor ID: ${customerMonitorId}`);
     console.log(`Monitor env check: URL=${!!monitorUrl}, USER=${!!monitorUsername}, COMPANY=${!!monitorCompany}`);
 
     let price = 299.99; // Default test price
@@ -225,10 +273,19 @@ export async function action({ request }) {
           priceSource = "outlet-fallback";
         }
       } else {
-        console.log(`Not an outlet product, using test price: ${price}`);
+        // Not an outlet product - check for customer-specific pricing if we have both IDs
+        if (customerMonitorId && monitorId) {
+          console.log(`Non-outlet product with customer Monitor ID ${customerMonitorId} and part ID ${monitorId} - using fallback price (API not configured)`);
+          price = 250.00; // Mock customer-specific price for testing
+          priceSource = "customer-fallback-no-api";
+        } else {
+          console.log(`Not an outlet product, using test price: ${price}`);
+        }
       }
     } else {
-      // Monitor API is configured, try to fetch real prices
+      // Monitor API is configured, try to fetch real prices with hierarchy
+      
+      // 1. First check if it's an outlet product
       if (isOutletProduct && monitorId) {
         console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
         const outletPrice = await fetchOutletPrice(monitorId);
@@ -249,7 +306,21 @@ export async function action({ request }) {
         priceSource = "outlet-fallback";
         console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
       } else {
-        console.log(`Not an outlet product, using test price: ${price}`);
+        // 2. Not an outlet product - check for customer-specific pricing
+        if (customerMonitorId && monitorId) {
+          console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}`);
+          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId);
+          
+          if (customerPrice !== null && customerPrice > 0) {
+            price = customerPrice;
+            priceSource = "customer-specific";
+            console.log(`Found customer-specific price: ${customerPrice}`);
+          } else {
+            console.log(`No customer-specific price found, using test price: ${price}`);
+          }
+        } else {
+          console.log(`Missing customer Monitor ID (${customerMonitorId}) or part Monitor ID (${monitorId}), using test price: ${price}`);
+        }
       }
     }
     
@@ -260,9 +331,14 @@ export async function action({ request }) {
         customerId,
         shop,
         monitorPartId: monitorId || null,
+        customerMonitorId: customerMonitorId || null,
         isOutletProduct: isOutletProduct || false,
         priceSource: priceSource,
-        message: `${priceSource === 'outlet' ? 'Real outlet pricing' : priceSource === 'outlet-fallback' ? 'Outlet fallback pricing' : 'Test pricing'} - CORS working`
+        message: `${priceSource === 'outlet' ? 'Real outlet pricing' : 
+                   priceSource === 'outlet-fallback' ? 'Outlet fallback pricing' : 
+                   priceSource === 'customer-specific' ? 'Customer-specific pricing' :
+                   priceSource === 'customer-fallback-no-api' ? 'Customer fallback pricing (API not configured)' :
+                   'Test pricing'} - CORS working`
       }
     }, {
       headers: corsHeaders()

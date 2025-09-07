@@ -26,7 +26,8 @@ async function getCustomerPrice(variantId, customerId) {
       customerId,
       shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
       monitorId: window.currentVariantMonitorId || null,
-      isOutletProduct: window.isOutletProduct || false
+      isOutletProduct: window.isOutletProduct || false,
+      customerMonitorId: window.customerMonitorId || null
     };
     
     console.log('=== API REQUEST DEBUG ===');
