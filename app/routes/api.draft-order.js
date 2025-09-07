@@ -7,17 +7,27 @@ export async function action({ request }) {
     const { admin } = await authenticate.admin(request);
     
     const body = await request.json();
-    const { customerId, items } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, useCartItems } = body; // items: [{ variantId, quantity }]
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400 });
     }
     
-    if (!items || !Array.isArray(items)) {
+    let finalItems = items;
+    
+    // If useCartItems is true, get current cart items from session
+    if (useCartItems) {
+      console.log('Getting cart items from customer session...');
+      // Note: This would require getting cart from customer session
+      // For now, we'll expect items to be passed or use a different approach
+      if (!items || !Array.isArray(items)) {
+        return json({ error: "Items array is required when useCartItems is true" }, { status: 400 });
+      }
+    } else if (!items || !Array.isArray(items)) {
       return json({ error: "Items array is required" }, { status: 400 });
     }
     
-    console.log(`Creating draft order for customer ${customerId} with ${items.length} items`);
+    console.log(`Creating draft order for customer ${customerId} with ${finalItems.length} items`);
     
     // Build line items with dynamic pricing
     const lineItems = [];

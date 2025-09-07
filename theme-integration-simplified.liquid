@@ -1,0 +1,61 @@
+<!-- Simplified Theme Integration for Dynamic Pricing -->
+{% if customer %}
+<script>
+  window.customer = {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    first_name: {{ customer.first_name | json }},
+    last_name: {{ customer.last_name | json }}
+  };
+  window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
+  window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
+  window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
+  
+  // Check if product is in outlet collection
+  {% assign is_in_outlet = false %}
+  {% for collection in product.collections %}
+    {% if collection.handle == 'outlet' %}
+      {% assign is_in_outlet = true %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+  window.isOutletProduct = {{ is_in_outlet }};
+</script>
+
+<!-- Load pricing scripts -->
+<script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
+<script src="{{ 'direct-cart-pricing.js' | asset_url }}" defer></script>
+
+<script>
+// Product page pricing update
+window.addEventListener('DOMContentLoaded', async () => {
+  while (typeof updatePriceDisplay === 'undefined') {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
+  if (!window.customer?.id) {
+    console.log('Customer not logged in - no pricing available');
+    return;
+  }
+  
+  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
+  const customerId = `gid://shopify/Customer/${window.customer.id}`;
+  
+  await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+});
+
+// Enhanced checkout button for dynamic pricing
+document.addEventListener('DOMContentLoaded', () => {
+  const checkoutBtn = document.querySelector('button[name="checkout"]');
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener('click', async (e) => {
+      if (window.customer?.id && window.dynamicPricingDraftOrderUrl) {
+        e.preventDefault();
+        console.log('Redirecting to draft order with dynamic pricing');
+        window.location.href = window.dynamicPricingDraftOrderUrl;
+      }
+    });
+  }
+});
+</script>
+{% endif %}

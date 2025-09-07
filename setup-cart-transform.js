@@ -97,12 +97,12 @@ const printManualSetup = () => {
   console.log('shopify app generate extension --type=cart_transform');
 };
 
-if (require.main === module) {
-  if (process.argv.includes('--manual')) {
-    printManualSetup();
-  } else {
-    setupCartTransform();
-  }
+// Check command line arguments
+const args = process.argv.slice(2);
+if (args.includes('--manual')) {
+  printManualSetup();
+} else {
+  setupCartTransform();
 }
 
-module.exports = { setupCartTransform, printManualSetup };
+export { setupCartTransform, printManualSetup };
