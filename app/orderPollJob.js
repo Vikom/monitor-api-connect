@@ -130,7 +130,8 @@ async function pollForNewOrders() {
           OrderTypeId: '980267526921268926',
           Preliminary: true,
           Rows: orderRows,
-          IsStockOrder: false
+          IsStockOrder: false,
+          GoodsLabel: order.custom.monitor_goodslabel // @TODO is this syntax correct?
         };
 
         console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
