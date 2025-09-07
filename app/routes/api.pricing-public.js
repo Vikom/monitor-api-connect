@@ -202,32 +202,55 @@ export async function action({ request }) {
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
     console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}`);
+    console.log(`Monitor env check: URL=${!!monitorUrl}, USER=${!!monitorUsername}, COMPANY=${!!monitorCompany}`);
 
     let price = 299.99; // Default test price
     let priceSource = "test";
     
-    // If this is an outlet product and we have a monitor ID, try to fetch outlet price
-    if (isOutletProduct && monitorId) {
-      console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
-      const outletPrice = await fetchOutletPrice(monitorId);
+    // Check if Monitor API is configured
+    if (!monitorUrl || !monitorUsername || !monitorCompany) {
+      console.log('Monitor API not configured, using local logic...');
       
-      if (outletPrice) {
-        price = outletPrice;
-        priceSource = "outlet";
-        console.log(`Found outlet price: ${outletPrice}`);
+      // If this is an outlet product, use the fallback price logic
+      if (isOutletProduct) {
+        // For outlet products without API, check if we have a monitor ID
+        if (monitorId) {
+          // Simulate API response - in production, this would call Monitor API
+          console.log(`Outlet product with Monitor ID ${monitorId} - using fallback price 100.00 (API not configured)`);
+          price = 100.00;
+          priceSource = "outlet-fallback-no-api";
+        } else {
+          console.log(`Outlet product without Monitor ID - using fallback price 100.00`);
+          price = 100.00;
+          priceSource = "outlet-fallback";
+        }
       } else {
-        // No outlet price found, set to 100.00 as requested
+        console.log(`Not an outlet product, using test price: ${price}`);
+      }
+    } else {
+      // Monitor API is configured, try to fetch real prices
+      if (isOutletProduct && monitorId) {
+        console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
+        const outletPrice = await fetchOutletPrice(monitorId);
+        
+        if (outletPrice !== null && outletPrice > 0) {
+          price = outletPrice;
+          priceSource = "outlet";
+          console.log(`Found outlet price: ${outletPrice}`);
+        } else {
+          // No outlet price found or empty array, set to 100.00 as requested
+          price = 100.00;
+          priceSource = "outlet-fallback";
+          console.log(`No outlet price found (empty array or null), using fallback price: 100.00`);
+        }
+      } else if (isOutletProduct && !monitorId) {
+        // Outlet product but no monitor ID - use fallback
         price = 100.00;
         priceSource = "outlet-fallback";
-        console.log(`No outlet price found, using fallback price: 100.00`);
+        console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
+      } else {
+        console.log(`Not an outlet product, using test price: ${price}`);
       }
-    } else if (isOutletProduct && !monitorId) {
-      // Outlet product but no monitor ID - use fallback
-      price = 100.00;
-      priceSource = "outlet-fallback";
-      console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
-    } else {
-      console.log(`Not an outlet product, using test price: ${price}`);
     }
     
     return json({ 
