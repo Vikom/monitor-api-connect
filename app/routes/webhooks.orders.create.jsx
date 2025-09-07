@@ -43,7 +43,7 @@ export const action = async ({ request }) => {
     console.log(`Found monitor customer ID: ${monitorCustomerId} for Shopify customer ${customer.id}`);
 
     // Extract line items and convert to Monitor format
-    const orderRows = await buildMonitorOrderRows(shop, session.accessToken, order.line_items);
+    const orderRows = await buildMonitorOrderRows(shop, session.accessToken, order.line_items, order);
     
     if (orderRows.length === 0) {
       console.log(`Order ${order.id} has no valid line items for Monitor, skipping sync`);
@@ -125,7 +125,7 @@ async function getCustomerMonitorId(shop, accessToken, customerId) {
 /**
  * Build Monitor order rows from Shopify line items
  */
-async function buildMonitorOrderRows(shop, accessToken, lineItems) {
+async function buildMonitorOrderRows(shop, accessToken, lineItems, order) {
   const fetch = (await import('node-fetch')).default;
   const rows = [];
 
@@ -177,15 +177,84 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
 
       const monitorPartId = monitorIdMetafield.node.value; // Keep as string to avoid precision loss
       
+      // Try to get the actual price that was charged (from line item properties or calculate dynamic price)
+      let finalPrice = parseFloat(lineItem.price);
+      
+      // Check if this order was placed by a logged-in customer and get dynamic pricing
+      if (order.customer && order.customer.id) {
+        try {
+          // Get customer Monitor ID
+          const customerMonitorId = await getCustomerMonitorId(shop, accessToken, order.customer.id);
+          
+          // Get variant details to check if it's an outlet product
+          const variantQuery = `query {
+            productVariant(id: "gid://shopify/ProductVariant/${variantId}") {
+              product {
+                collections(first: 50) {
+                  edges {
+                    node {
+                      handle
+                    }
+                  }
+                }
+              }
+            }
+          }`;
+
+          const variantResponse = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': accessToken,
+            },
+            body: JSON.stringify({ query: variantQuery }),
+          });
+
+          const variantResult = await variantResponse.json();
+          
+          if (!variantResult.errors) {
+            const collections = variantResult.data?.productVariant?.product?.collections?.edges || [];
+            const isOutletProduct = collections.some(edge => edge.node.handle === 'outlet');
+            
+            // Call our pricing API to get what the price should have been
+            const pricingResponse = await fetch(`${process.env.NODE_ENV === 'production' ? 'https://monitor-api-connect-production.up.railway.app' : 'http://localhost:3000'}/api/pricing-public`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                variantId: `gid://shopify/ProductVariant/${variantId}`,
+                customerId: `gid://shopify/Customer/${order.customer.id}`,
+                shop: shop,
+                monitorId: monitorPartId,
+                isOutletProduct: isOutletProduct,
+                customerMonitorId: customerMonitorId
+              })
+            });
+            
+            if (pricingResponse.ok) {
+              const pricingData = await pricingResponse.json();
+              if (pricingData.price && pricingData.price !== 299.99) {
+                console.log(`Using dynamic price ${pricingData.price} instead of original price ${finalPrice} for line item ${lineItem.id}`);
+                finalPrice = pricingData.price;
+              }
+            }
+          }
+          
+        } catch (pricingError) {
+          console.warn(`Could not get dynamic pricing for line item ${lineItem.id}, using original price:`, pricingError);
+        }
+      }
+      
       // Create order row
       rows.push({
         PartId: monitorPartId,
         Quantity: lineItem.quantity,
-        UnitPrice: parseFloat(lineItem.price),
+        UnitPrice: finalPrice,
         // Description: lineItem.title, // Optional: add product title as description
       });
 
-      console.log(`Added line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${lineItem.quantity}`);
+      console.log(`Added line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${lineItem.quantity} and price ${finalPrice}`);
     } catch (error) {
       console.error(`Error processing line item ${lineItem.id}:`, error);
       continue;

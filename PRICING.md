@@ -138,6 +138,7 @@ Include the pricing client in your theme:
 
 <!-- Pricing Integration - Non-blocking script loading -->
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
+<script src="{{ 'cart-pricing.js' | asset_url }}" defer></script>
 <script>
 // Debug customer login status
 console.log('Customer object:', window.customer);
@@ -195,12 +196,51 @@ document.addEventListener('change', async (event) => {
 </script>
 ```
 
+## Cart and Order Pricing
+
+### Cart Integration
+
+The `cart-pricing.js` script handles dynamic pricing in the cart:
+
+1. **Add to Cart**: Shows pricing notifications when items are added
+2. **Cart Display**: Updates cart item displays with dynamic pricing
+3. **Draft Orders**: Creates draft orders with correct dynamic pricing
+
+### Order Processing
+
+When orders are placed, the system:
+
+1. **Webhook Processing**: The order webhook recalculates dynamic pricing for each line item
+2. **Monitor Sync**: Orders are synced to Monitor with the correct dynamic prices
+3. **Price Accuracy**: Ensures Monitor receives the actual prices paid by customers
+
+### Implementation Notes
+
+- **Cart Transform API**: Available for Shopify Plus stores
+- **Draft Orders**: Alternative approach for applying dynamic pricing
+- **Line Item Properties**: Can store pricing metadata
+- **Order Webhooks**: Automatically recalculate prices for Monitor sync
+
+## Required Files
+
+### Shopify Theme Files
+
+- **`pricing-client.js`**: Core pricing functionality  
+- **`cart-pricing.js`**: Cart and dynamic pricing integration
+
 ## Required Metafields
 
 ### Product Variants
 
 - **Namespace**: `custom`
 - **Key**: `monitor_id`
+- **Value**: Monitor Part ID
+
+### Customers
+
+- **Namespace**: `custom`
+- **Key**: `monitor_id`
+- **Value**: Monitor Customer ID
 
 ## Troubleshooting
 
