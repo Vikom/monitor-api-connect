@@ -104,7 +104,7 @@ Include the pricing client in your theme:
     last_name: {{ customer.last_name | json }}
   };
   // Set your app URL for pricing API calls
-  window.pricingApiUrl = "{{ shop.permanent_domain | append: '.myshopify.com' }}";
+  window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
 </script>
 {% endif %}
 
