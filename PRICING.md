@@ -108,7 +108,16 @@ Include the pricing client in your theme:
   
   // Set product information for pricing
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
-  window.isOutletProduct = {% if collections['outlet'] contains product %}true{% else %}false{% endif %};
+  
+  // Check if product is in outlet collection using a more reliable method
+  {% assign isInOutlet = false %}
+  {% for collection in product.collections %}
+    {% if collection.handle == 'outlet' %}
+      {% assign isInOutlet = true %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+  window.isOutletProduct = {{ isInOutlet }};
   
   // Debug outlet detection
   console.log('=== OUTLET DETECTION DEBUG ===');
@@ -120,6 +129,7 @@ Include the pricing client in your theme:
       "{{ collection.handle }}"{% unless forloop.last %},{% endunless %}
     {% endfor %}
   ]);
+  console.log('Outlet collection check result:', {{ isInOutlet }});
   console.log('=== END OUTLET DEBUG ===');
 </script>
 {% endif %}
