@@ -109,6 +109,18 @@ Include the pricing client in your theme:
   // Set product information for pricing
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
   window.isOutletProduct = {% if collections['outlet'] contains product %}true{% else %}false{% endif %};
+  
+  // Debug outlet detection
+  console.log('=== OUTLET DETECTION DEBUG ===');
+  console.log('Product title:', "{{ product.title }}");
+  console.log('Product in outlet collection:', window.isOutletProduct);
+  console.log('Current variant Monitor ID:', window.currentVariantMonitorId);
+  console.log('Collections containing this product:', [
+    {% for collection in product.collections %}
+      "{{ collection.handle }}"{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ]);
+  console.log('=== END OUTLET DEBUG ===');
 </script>
 {% endif %}
 
@@ -118,6 +130,13 @@ Include the pricing client in your theme:
 // Debug customer login status
 console.log('Customer object:', window.customer);
 console.log('Customer ID:', window.customer?.id);
+
+// Debug outlet product detection
+console.log('=== PRICING DEBUG INFO ===');
+console.log('Current variant Monitor ID:', window.currentVariantMonitorId);
+console.log('Is outlet product:', window.isOutletProduct);
+console.log('API URL:', window.pricingApiUrl);
+console.log('=== END PRICING DEBUG ===');
 
 // Update product page price - customer must be logged in
 window.addEventListener('DOMContentLoaded', async () => {
