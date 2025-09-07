@@ -21,25 +21,41 @@ async function getCustomerPrice(variantId, customerId) {
       `https://${window.pricingApiUrl}/api/pricing-public` : 
       '/api/pricing-public';
     
+    const requestBody = {
+      variantId,
+      customerId,
+      shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
+      monitorId: window.currentVariantMonitorId || null,
+      isOutletProduct: window.isOutletProduct || false
+    };
+    
+    console.log('=== API REQUEST DEBUG ===');
+    console.log('API URL:', apiUrl);
+    console.log('Request body:', requestBody);
+    console.log('=== END API REQUEST DEBUG ===');
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        variantId,
-        customerId,
-        shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
-        monitorId: window.currentVariantMonitorId || null,
-        isOutletProduct: window.isOutletProduct || false
-      })
+      body: JSON.stringify(requestBody)
     });
 
+    console.log('=== API RESPONSE DEBUG ===');
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.log('Error response text:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Response data:', data);
+    console.log('=== END API RESPONSE DEBUG ===');
+    
     return data;
   } catch (error) {
     console.error('Error fetching customer price:', error);
@@ -60,22 +76,41 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
   }
 
   try {
+    console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
+    console.log('Variant ID:', variantId);
+    console.log('Price selector:', priceSelector);
+    console.log('Customer ID:', customerId);
+    
     const priceData = await getCustomerPrice(variantId, customerId);
+    console.log('Received price data:', priceData);
+    
     const priceElement = document.querySelector(priceSelector);
+    console.log('Found price element:', priceElement);
     
     if (priceElement && priceData.price) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
+      console.log('Formatted price:', formattedPrice);
+      console.log('Old price text:', priceElement.textContent);
+      
       priceElement.textContent = formattedPrice;
+      console.log('New price text:', priceElement.textContent);
       
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {
         priceElement.setAttribute('data-dynamic-price', 'true');
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
+      
+      console.log('Price update completed successfully');
     } else {
-      console.log('Price element not found or no price data:', { priceElement, priceData });
+      console.log('Price element not found or no price data:', { 
+        priceElement: !!priceElement, 
+        priceData: priceData,
+        priceValue: priceData?.price 
+      });
     }
+    console.log('=== END PRICE DISPLAY DEBUG ===');
   } catch (error) {
     console.error('Error updating price display:', error);
   }
