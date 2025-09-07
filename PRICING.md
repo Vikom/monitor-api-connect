@@ -92,17 +92,19 @@ const price = await getDynamicPrice(variantMonitorId, customerMonitorId, fallbac
 
 ### Theme Integration
 
-Include the pricing client in your theme:
+Add this to your `main-product.liquid` file (simplified approach):
 
 ```liquid
 {% if customer %}
 <script>
+  // Set up customer object and pricing variables
   window.customer = {
     id: {{ customer.id | json }},
     email: {{ customer.email | json }},
     first_name: {{ customer.first_name | json }},
     last_name: {{ customer.last_name | json }}
   };
+  
   // Set your app URL for pricing API calls
   window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
   
@@ -110,7 +112,7 @@ Include the pricing client in your theme:
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
   window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
   
-  // Check if product is in outlet collection using a more reliable method
+  // Check if product is in outlet collection
   {% assign is_in_outlet = false %}
   {% for collection in product.collections %}
     {% if collection.handle == 'outlet' %}
@@ -119,39 +121,12 @@ Include the pricing client in your theme:
     {% endif %}
   {% endfor %}
   window.isOutletProduct = {{ is_in_outlet }};
-  
-  // Debug outlet detection
-  console.log('=== OUTLET DETECTION DEBUG ===');
-  console.log('Product title:', "{{ product.title }}");
-  console.log('Product in outlet collection:', window.isOutletProduct);
-  console.log('Current variant Monitor ID:', window.currentVariantMonitorId);
-  console.log('Customer Monitor ID:', window.customerMonitorId);
-  console.log('Collections containing this product:', [
-    {% for collection in product.collections %}
-      "{{ collection.handle }}"{% unless forloop.last %},{% endunless %}
-    {% endfor %}
-  ]);
-  console.log('Outlet collection check result:', {{ is_in_outlet }});
-  console.log('=== END OUTLET DEBUG ===');
 </script>
-{% endif %}
 
-<!-- Pricing Integration - Non-blocking script loading -->
+<!-- Load pricing client script -->
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
-<script src="{{ 'cart-pricing.js' | asset_url }}" defer></script>
+
 <script>
-// Debug customer login status
-console.log('Customer object:', window.customer);
-console.log('Customer ID:', window.customer?.id);
-
-// Debug outlet product detection
-console.log('=== PRICING DEBUG INFO ===');
-console.log('Current variant Monitor ID:', window.currentVariantMonitorId);
-console.log('Customer Monitor ID:', window.customerMonitorId);
-console.log('Is outlet product:', window.isOutletProduct);
-console.log('API URL:', window.pricingApiUrl);
-console.log('=== END PRICING DEBUG ===');
-
 // Update product page price - customer must be logged in
 window.addEventListener('DOMContentLoaded', async () => {
   // Wait for pricing-client.js to load
@@ -161,25 +136,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   
   if (!window.customer?.id) {
     console.log('Customer not logged in - no pricing available');
-    console.log('Available customer data:', window.customer);
     return;
   }
   
   const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
-  console.log('Attempting to update price for:', { variantId, customerId });
+  console.log('Updating price for customer:', customerId);
   await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
 });
 
-// On variant change
+// Handle variant changes
 document.addEventListener('variant:change', async (event) => {
   if (!window.customer?.id) return;
   
   const variantId = event.detail.variantId;
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
-  console.log('Variant changed:', { variantId, customerId });
   await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
 });
 
@@ -189,12 +162,27 @@ document.addEventListener('change', async (event) => {
     const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
     const customerId = `gid://shopify/Customer/${window.customer.id}`;
     
-    console.log('Variant selector changed:', { variantId, customerId });
     await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
   }
 });
 </script>
+{% endif %}
 ```
+
+### Cart Integration (Recommended Approach)
+
+For cart pricing, add the script from `cart-drawer-dynamic-checkout.liquid` to your `cart-drawer.liquid` file. This approach:
+
+- ✅ **Shows dynamic pricing** on product pages  
+- ✅ **Uses Draft Orders** for accurate checkout pricing
+- ✅ **No complex cart price updates** needed
+- ✅ **Reliable pricing** throughout the entire flow
+
+**Files to use:**
+- **Product pages**: Above snippet in `main-product.liquid`
+- **Cart checkout**: `cart-drawer-dynamic-checkout.liquid` in your cart drawer
+- **Required script**: `pricing-client.js` (keep this file)
+- **Remove**: `cart-pricing.js` (no longer needed)
 
 ## Cart and Order Pricing (Recommended: Cart Transform)
 
