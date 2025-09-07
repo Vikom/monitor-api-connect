@@ -184,48 +184,14 @@ For cart pricing, add the script from `cart-drawer-dynamic-checkout.liquid` to y
 - **Required script**: `pricing-client.js` (keep this file)
 - **Remove**: `cart-pricing.js` (no longer needed)
 
-## Cart and Order Pricing (Recommended: Cart Transform)
+## Order Processing
 
-### Cart Transform API (Shopify Advanced)
+When orders are placed, the system:
 
-**This is the recommended approach** for Shopify Advanced stores. It automatically applies dynamic pricing in the cart without theme modifications.
-
-**Benefits:**
-- ✅ **No theme dependencies** - Works with any theme
-- ✅ **Real price changes** - Not just display updates
-- ✅ **Persists through checkout** - Prices carry through to order
-- ✅ **Automatic** - No customer interaction needed
-- ✅ **Reliable** - No JavaScript failures
-
-**Implementation:**
-1. Cart Transform API is implemented at `/api/cart-transform`
-2. Automatically applies dynamic pricing when customers add items to cart
-3. Works for logged-in customers only
-4. Requires proper Cart Transform configuration in Shopify
-
-**Setup Steps:**
-1. Run the setup script: `node setup-cart-transform.js`
-2. Or manually configure Cart Transform in Shopify Partner Dashboard
-3. Set endpoint URL to: `https://monitor-api-connect-production.up.railway.app/api/cart-transform`
-
-### Alternative: Theme Integration (Fallback)
-
-If Cart Transform is not available, use the simplified theme trigger:
-
-```liquid
-<!-- Replace complex cart-pricing.js with simple trigger -->
-<script src="{{ 'cart-transform-trigger.js' | asset_url }}" defer></script>
-```
-
-This provides visual feedback but relies on Cart Transform for actual price changes.
-
-### Legacy Cart Integration (Not Recommended)
-
-The complex `cart-pricing.js` approach is available but not recommended because:
-- ❌ Theme-dependent
-- ❌ Display-only updates
-- ❌ Doesn't persist through checkout
-- ❌ Fragile with theme updates
+1. **Draft Order Creation**: Creates draft orders with correct dynamic pricing for checkout
+2. **Webhook Processing**: The order webhook recalculates dynamic pricing for each line item
+3. **Monitor Sync**: Orders are synced to Monitor with the correct dynamic prices
+4. **Price Accuracy**: Ensures Monitor receives the actual prices paid by customers
 
 ## Required Files
 
