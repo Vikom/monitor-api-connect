@@ -196,30 +196,48 @@ document.addEventListener('change', async (event) => {
 </script>
 ```
 
-## Cart and Order Pricing
+## Cart and Order Pricing (Recommended: Cart Transform)
 
-### Cart Integration
+### Cart Transform API (Shopify Advanced)
 
-The `cart-pricing.js` script handles dynamic pricing in the cart:
+**This is the recommended approach** for Shopify Advanced stores. It automatically applies dynamic pricing in the cart without theme modifications.
 
-1. **Add to Cart**: Shows pricing notifications when items are added
-2. **Cart Display**: Updates cart item displays with dynamic pricing
-3. **Draft Orders**: Creates draft orders with correct dynamic pricing
+**Benefits:**
+- ✅ **No theme dependencies** - Works with any theme
+- ✅ **Real price changes** - Not just display updates
+- ✅ **Persists through checkout** - Prices carry through to order
+- ✅ **Automatic** - No customer interaction needed
+- ✅ **Reliable** - No JavaScript failures
 
-### Order Processing
+**Implementation:**
+1. Cart Transform API is implemented at `/api/cart-transform`
+2. Automatically applies dynamic pricing when customers add items to cart
+3. Works for logged-in customers only
+4. Requires proper Cart Transform configuration in Shopify
 
-When orders are placed, the system:
+**Setup Steps:**
+1. Run the setup script: `node setup-cart-transform.js`
+2. Or manually configure Cart Transform in Shopify Partner Dashboard
+3. Set endpoint URL to: `https://monitor-api-connect-production.up.railway.app/api/cart-transform`
 
-1. **Webhook Processing**: The order webhook recalculates dynamic pricing for each line item
-2. **Monitor Sync**: Orders are synced to Monitor with the correct dynamic prices
-3. **Price Accuracy**: Ensures Monitor receives the actual prices paid by customers
+### Alternative: Theme Integration (Fallback)
 
-### Implementation Notes
+If Cart Transform is not available, use the simplified theme trigger:
 
-- **Cart Transform API**: Available for Shopify Plus stores
-- **Draft Orders**: Alternative approach for applying dynamic pricing
-- **Line Item Properties**: Can store pricing metadata
-- **Order Webhooks**: Automatically recalculate prices for Monitor sync
+```liquid
+<!-- Replace complex cart-pricing.js with simple trigger -->
+<script src="{{ 'cart-transform-trigger.js' | asset_url }}" defer></script>
+```
+
+This provides visual feedback but relies on Cart Transform for actual price changes.
+
+### Legacy Cart Integration (Not Recommended)
+
+The complex `cart-pricing.js` approach is available but not recommended because:
+- ❌ Theme-dependent
+- ❌ Display-only updates
+- ❌ Doesn't persist through checkout
+- ❌ Fragile with theme updates
 
 ## Required Files
 
