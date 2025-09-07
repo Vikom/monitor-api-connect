@@ -293,6 +293,12 @@ class DynamicPricingCart {
           priceElements.forEach((priceElement, index) => {
             console.log(`Price element ${index}:`, priceElement.textContent.trim(), priceElement);
             
+            // Skip if already processed (check for dynamic pricing marker)
+            if (priceElement.hasAttribute('data-dynamic-price-updated')) {
+              console.log(`Price element ${index} already updated, skipping`);
+              return;
+            }
+            
             // Check if this price element contains the original price or 0
             const priceText = priceElement.textContent.trim();
             if (priceText.includes('0') || priceText.includes('kr')) {
@@ -301,17 +307,13 @@ class DynamicPricingCart {
               
               console.log(`Updating price element ${index} from "${originalPrice}" to "${formattedPrice}"`);
               
-              // Update the price display
-              priceElement.innerHTML = `
-                <span class="dynamic-price" style="color: #4CAF50; font-weight: bold;">
-                  ${formattedPrice}
-                </span>
-                <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-left: 8px; font-size: 0.9em;">
-                  ${originalPrice}
-                </span>
-              `;
+              // Simply update the text content without adding styling
+              priceElement.textContent = formattedPrice;
               
-              // Add tooltip
+              // Mark as updated to prevent duplicate processing
+              priceElement.setAttribute('data-dynamic-price-updated', 'true');
+              
+              // Add subtle tooltip only
               priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
                                      priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
             }
@@ -330,23 +332,25 @@ class DynamicPricingCart {
         priceElements.forEach((priceElement, priceIndex) => {
           console.log(`Price element ${priceIndex} in item ${itemIndex}:`, priceElement.textContent.trim(), priceElement);
           
+          // Skip if already processed (check for dynamic pricing marker)
+          if (priceElement.hasAttribute('data-dynamic-price-updated')) {
+            console.log(`Price element ${priceIndex} already updated, skipping`);
+            return;
+          }
+          
           if (priceElement.textContent.includes('kr') || priceElement.textContent.includes('SEK') || priceElement.textContent.includes('0')) {
             const formattedPrice = window.formatPrice(dynamicPrice);
             const originalPrice = priceElement.textContent;
             
             console.log(`Updating price element from "${originalPrice}" to "${formattedPrice}"`);
             
-            // Update the price display
-            priceElement.innerHTML = `
-              <span class="dynamic-price" style="color: #4CAF50; font-weight: bold;">
-                ${formattedPrice}
-              </span>
-              <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-left: 8px; font-size: 0.9em;">
-                ${originalPrice}
-              </span>
-            `;
+            // Simply update the text content without adding styling
+            priceElement.textContent = formattedPrice;
             
-            // Add tooltip
+            // Mark as updated to prevent duplicate processing
+            priceElement.setAttribute('data-dynamic-price-updated', 'true');
+            
+            // Add subtle tooltip only
             priceElement.title = `${priceSource === 'customer-specific' ? 'Customer-specific pricing' : 
                                    priceSource?.includes('outlet') ? 'Outlet pricing' : 'Special pricing'} applied`;
           }
