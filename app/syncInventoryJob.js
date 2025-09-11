@@ -24,6 +24,122 @@ const shopifyConfig = shopifyApi({
 if (!global.Shopify) global.Shopify = {};
 global.Shopify.config = shopifyConfig.config;
 
+// Mapping of Monitor warehouse IDs to Shopify custom metafield keys
+const WAREHOUSE_METAFIELD_MAPPING = {
+  '933124852911871989': 'custom.stock_vittsjo',
+  '933124156053429919': 'custom.stock_ronas',
+  '1189106270728482943': 'custom.stock_lund',
+  '933126667535575191': 'custom.stock_sundsvall',
+  '933125224426542349': 'custom.stock_goteborg',
+  '933126074830088482': 'custom.stock_stockholm'
+};
+
+// Helper function to update variant metafields with stock values
+async function updateVariantMetafields(shop, accessToken, variantId, stockData) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Prepare metafields array for each warehouse that has stock data
+  const metafields = [];
+  
+  for (const [warehouseId, stock] of Object.entries(stockData)) {
+    const metafieldKey = WAREHOUSE_METAFIELD_MAPPING[warehouseId];
+    if (metafieldKey) {
+      const [namespace, key] = metafieldKey.split('.');
+      metafields.push({
+        namespace: namespace,
+        key: key,
+        value: stock.toString(),
+        type: "number_decimal"
+      });
+    }
+  }
+  
+  if (metafields.length === 0) {
+    return true; // Nothing to update
+  }
+  
+  const mutation = `mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      metafields {
+        id
+        namespace
+        key
+        value
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    metafields: metafields.map(metafield => ({
+      ...metafield,
+      ownerId: variantId
+    }))
+  };
+
+  const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const result = await response.json();
+
+  if (result.errors) {
+    console.error("GraphQL errors updating metafields:", JSON.stringify(result.errors, null, 2));
+    return false;
+  }
+
+  if (result.data?.metafieldsSet?.userErrors?.length > 0) {
+    console.error("User errors updating metafields:", result.data.metafieldsSet.userErrors);
+    return false;
+  }
+
+  return true;
+}
+
+// Helper function to get stock data for all warehouses for a specific Monitor ID
+async function getStockDataForAllWarehouses(monitorId) {
+  try {
+    const stockTransactions = await fetchStockTransactionsFromMonitor(monitorId);
+    
+    if (stockTransactions.length === 0) {
+      return {};
+    }
+
+    // Group transactions by warehouse and get the most recent balance for each
+    const warehouseStock = {};
+    const warehouseTransactions = {};
+    
+    // Group transactions by warehouse
+    stockTransactions.forEach(transaction => {
+      const warehouseId = transaction.WarehouseId;
+      if (!warehouseTransactions[warehouseId]) {
+        warehouseTransactions[warehouseId] = [];
+      }
+      warehouseTransactions[warehouseId].push(transaction);
+    });
+    
+    // Get the most recent balance for each warehouse
+    for (const [warehouseId, transactions] of Object.entries(warehouseTransactions)) {
+      // Transactions should already be sorted by date (most recent first)
+      const mostRecent = transactions[0];
+      warehouseStock[warehouseId] = mostRecent.BalanceOnPartAfterChange;
+    }
+    
+    return warehouseStock;
+  } catch (error) {
+    console.error(`Error fetching stock data for Monitor ID ${monitorId}:`, error);
+    return {};
+  }
+}
+
 // Helper function to validate if a session is still valid
 async function validateSession(shop, accessToken) {
   const fetch = (await import('node-fetch')).default;
@@ -477,58 +593,83 @@ export async function syncInventory() {
       console.log(`Processing variant ${displayName} (Monitor ID: ${product.monitorId})...`);
       
       try {
-        // Fetch stock transactions from Monitor API for this part
-        const stockTransactions = await fetchStockTransactionsFromMonitor(product.monitorId);
+        // Get stock data for all warehouses for this Monitor ID
+        const allWarehouseStock = await getStockDataForAllWarehouses(product.monitorId);
         
-        if (stockTransactions.length === 0) {
-          console.log(`  No stock transactions found for Monitor ID ${product.monitorId}`);
+        if (Object.keys(allWarehouseStock).length === 0) {
+          console.log(`  No stock data found for Monitor ID ${product.monitorId}`);
           continue;
         }
 
-        // Get the most recent transaction to get current balance
-        const mostRecentTransaction = stockTransactions[0];
-        const currentBalance = mostRecentTransaction.BalanceOnPartAfterChange;
-        const warehouseId = mostRecentTransaction.WarehouseId;
+        console.log(`  Found stock data for warehouses: ${Object.keys(allWarehouseStock).join(', ')}`);
 
-        console.log(`  Current balance: ${currentBalance} in warehouse ${warehouseId}`);
-
-        // Find the corresponding Shopify location
-        const shopifyLocation = locationMap.get(warehouseId);
-        if (!shopifyLocation) {
-          console.log(`  ⚠️  No Shopify location mapped for Monitor warehouse ${warehouseId}`);
-          continue;
-        }
-
-        // Get inventory item ID for this variant
-        const inventoryItemId = await getInventoryItemId(shop, accessToken, product.variantId);
-        if (!inventoryItemId) {
-          console.log(`  ❌ Could not get inventory item ID for variant ${product.variantId}`);
-          errorCount++;
-          continue;
-        }
-
-        // Ensure inventory item is stocked at location
-        const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
-        if (!isStocked) {
-          console.log(`  ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.id}`);
-          errorCount++;
-          continue;
-        }
-
-        // Update inventory level in Shopify
-        const success = await updateShopifyInventoryLevel(
-          shop, 
-          accessToken, 
-          inventoryItemId, 
-          shopifyLocation.id, 
-          currentBalance
+        // Update variant metafields with stock data from all warehouses
+        const metafieldSuccess = await updateVariantMetafields(
+          shop,
+          accessToken,
+          product.variantId,
+          allWarehouseStock
         );
 
-        if (success) {
-          console.log(`  ✅ Updated inventory for ${displayName} to ${Math.floor(currentBalance)} at location "${shopifyLocation.name}"`);
+        if (metafieldSuccess) {
+          const metafieldUpdates = Object.entries(allWarehouseStock)
+            .filter(([warehouseId]) => WAREHOUSE_METAFIELD_MAPPING[warehouseId])
+            .map(([warehouseId, stock]) => `${WAREHOUSE_METAFIELD_MAPPING[warehouseId]}=${stock}`)
+            .join(', ');
+          
+          if (metafieldUpdates) {
+            console.log(`  ✅ Updated metafields: ${metafieldUpdates}`);
+          }
+        } else {
+          console.log(`  ⚠️  Failed to update metafields for ${displayName}`);
+        }
+
+        // Update Shopify inventory levels for each warehouse
+        let inventoryUpdated = false;
+        for (const [warehouseId, currentBalance] of Object.entries(allWarehouseStock)) {
+          console.log(`  Processing warehouse ${warehouseId} with balance: ${currentBalance}`);
+
+          // Find the corresponding Shopify location
+          const shopifyLocation = locationMap.get(warehouseId);
+          if (!shopifyLocation) {
+            console.log(`    ⚠️  No Shopify location mapped for Monitor warehouse ${warehouseId}`);
+            continue;
+          }
+
+          // Get inventory item ID for this variant
+          const inventoryItemId = await getInventoryItemId(shop, accessToken, product.variantId);
+          if (!inventoryItemId) {
+            console.log(`    ❌ Could not get inventory item ID for variant ${product.variantId}`);
+            continue;
+          }
+
+          // Ensure inventory item is stocked at location
+          const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
+          if (!isStocked) {
+            console.log(`    ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.id}`);
+            continue;
+          }
+
+          // Update inventory level in Shopify
+          const success = await updateShopifyInventoryLevel(
+            shop, 
+            accessToken, 
+            inventoryItemId, 
+            shopifyLocation.id, 
+            currentBalance
+          );
+
+          if (success) {
+            console.log(`    ✅ Updated inventory to ${Math.floor(currentBalance)} at location "${shopifyLocation.name}"`);
+            inventoryUpdated = true;
+          } else {
+            console.log(`    ❌ Failed to update inventory at location "${shopifyLocation.name}"`);
+          }
+        }
+
+        if (inventoryUpdated || metafieldSuccess) {
           successCount++;
         } else {
-          console.log(`  ❌ Failed to update inventory for ${displayName}`);
           errorCount++;
         }
 
@@ -539,7 +680,7 @@ export async function syncInventory() {
     }
 
     console.log(`\n✅ Inventory sync completed!`);
-    console.log(`  Successfully updated: ${successCount} variants`);
+    console.log(`  Successfully updated: ${successCount} variants (inventory levels + stock metafields)`);
     console.log(`  Errors: ${errorCount} variants`);
 
   } catch (error) {
@@ -559,6 +700,17 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log(`
 📋 Inventory Sync Job Usage:
 
+This job syncs inventory levels from Monitor to Shopify locations and updates
+custom metafields on product variants with current stock values from all warehouses.
+
+Warehouse to Metafield Mapping:
+  933124852911871989 → custom.stock_vittsjo
+  933124156053429919 → custom.stock_ronas  
+  1189106270728482943 → custom.stock_lund
+  933126667535575191 → custom.stock_sundsvall
+  933125224426542349 → custom.stock_goteborg
+  933126074830088482 → custom.stock_stockholm
+
 To sync to development store (OAuth):
   node app/syncInventoryJob.js
 
@@ -576,7 +728,8 @@ Make sure your .env file is configured properly before running.
 }
 
 console.log(`
-🚀 Starting Inventory Sync Job
+🚀 Starting Inventory & Metafield Sync Job
+📦 Syncs inventory levels and updates stock metafields for all warehouses
 📝 Use --help for usage instructions
 `);
 
