@@ -20,16 +20,10 @@ export async function loader({ request }) {
   return json({ error: "Method not allowed" }, { status: 405 });
 }
 
-// Dynamic import to avoid server-side import issues
-async function getShopifyUtils() {
-  const { sessionStorage } = await import("../shopify.server.js");
-  return { sessionStorage };
-}
-
-// Create draft order with dynamic pricing - PUBLIC endpoint
+// Create draft order with dynamic pricing - PUBLIC endpoint for PRIVATE APP
 export async function action({ request }) {
   try {
-    console.log('🟦 PUBLIC DRAFT ORDER - Starting draft order creation');
+    console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
     const { customerId, items, shop } = body; // items: [{ variantId, quantity }]
@@ -50,22 +44,19 @@ export async function action({ request }) {
 
     console.log(`🟦 Creating draft order for customer ${customerId} with ${items.length} items`);
     
-    // Get Shopify session using dynamic import
-    const { sessionStorage } = await getShopifyUtils();
-    const sessions = await sessionStorage.findSessionsByShop(shop);
+    // For private apps, use direct API credentials from environment
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    const apiVersion = '2023-10';
     
-    console.log(`🟦 Found ${sessions.length} sessions for shop: ${shop}`);
-    
-    if (sessions.length === 0) {
+    if (!accessToken) {
+      console.error('🟦 No SHOPIFY_ACCESS_TOKEN found in environment');
       return json({ 
-        error: "No valid session found for shop", 
-        shop 
-      }, { status: 400, headers: corsHeaders() });
+        error: "Private app access token not configured", 
+        suggestion: "Add SHOPIFY_ACCESS_TOKEN to Railway environment variables"
+      }, { status: 500, headers: corsHeaders() });
     }
     
-    // Use the first valid session (could be improved to check which is most recent/valid)
-    const session = sessions[0];
-    console.log(`🟦 Using session with ID: ${session.id}`);
+    console.log(`🟦 Using private app credentials for ${shop}`);
     
     // Build line items with dynamic pricing
     const lineItems = [];
@@ -75,7 +66,7 @@ export async function action({ request }) {
         const { variantId, quantity } = item;
         console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}`);
         
-        // Get variant details using Admin API
+        // Get variant details using Admin API with private app token
         const variantQuery = `
           query getVariant($id: ID!) {
             productVariant(id: $id) {
@@ -105,11 +96,11 @@ export async function action({ request }) {
           }
         `;
         
-        const variantResponse = await fetch(`https://${shop}/admin/api/2023-10/graphql.json`, {
+        const variantResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': session.accessToken,
+            'X-Shopify-Access-Token': accessToken,
           },
           body: JSON.stringify({
             query: variantQuery,
@@ -156,11 +147,11 @@ export async function action({ request }) {
           }
         `;
         
-        const customerResponse = await fetch(`https://${shop}/admin/api/2023-10/graphql.json`, {
+        const customerResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': session.accessToken,
+            'X-Shopify-Access-Token': accessToken,
           },
           body: JSON.stringify({
             query: customerQuery,
@@ -228,7 +219,7 @@ export async function action({ request }) {
     
     console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
     
-    // Create draft order using Admin API
+    // Create draft order using Admin API with private app token
     const draftOrderMutation = `
       mutation draftOrderCreate($input: DraftOrderInput!) {
         draftOrderCreate(input: $input) {
@@ -268,11 +259,11 @@ export async function action({ request }) {
     
     console.log(`🟦 Draft order input:`, JSON.stringify(draftOrderInput, null, 2));
     
-    const draftOrderResponse = await fetch(`https://${shop}/admin/api/2023-10/graphql.json`, {
+    const draftOrderResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': session.accessToken,
+        'X-Shopify-Access-Token': accessToken,
       },
       body: JSON.stringify({
         query: draftOrderMutation,
