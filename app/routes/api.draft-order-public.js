@@ -66,7 +66,7 @@ export async function action({ request }) {
         const { variantId, quantity } = item;
         console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}`);
         
-        // Get variant details using Admin API with private app token
+        // Get variant details using GraphQL (this was working)
         const variantQuery = `
           query getVariant($id: ID!) {
             productVariant(id: $id) {
@@ -109,13 +109,10 @@ export async function action({ request }) {
         });
         
         const variantData = await variantResponse.json();
-        console.log(`🟦 Variant response for ${variantId}:`, JSON.stringify(variantData, null, 2));
-        
         const variant = variantData.data?.productVariant;
         
         if (!variant) {
           console.log(`🟦 Variant ${variantId} not found, skipping`);
-          console.log(`🟦 Full variant response:`, variantData);
           continue;
         }
         
@@ -133,7 +130,7 @@ export async function action({ request }) {
         
         console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}`);
         
-        // Get customer Monitor ID
+        // Get customer Monitor ID using GraphQL
         const customerQuery = `
           query getCustomer($id: ID!) {
             customer(id: $id) {
@@ -173,7 +170,8 @@ export async function action({ request }) {
         console.log(`🟦 Customer Monitor ID: ${customerMonitorId}`);
         
         // Get dynamic price using our pricing API
-        const pricingResponse = await fetch(`${request.url.origin}/api/pricing-public`, {
+        const pricingApiUrl = process.env.SHOPIFY_APP_URL || 'https://monitor-api-connect-production.up.railway.app';
+        const pricingResponse = await fetch(`${pricingApiUrl}/api/pricing-public`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -222,7 +220,7 @@ export async function action({ request }) {
     
     console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
     
-    // Create draft order using Admin API with private app token
+    // Create draft order using GraphQL
     const draftOrderMutation = `
       mutation draftOrderCreate($input: DraftOrderInput!) {
         draftOrderCreate(input: $input) {
