@@ -109,10 +109,13 @@ export async function action({ request }) {
         });
         
         const variantData = await variantResponse.json();
+        console.log(`🟦 Variant response for ${variantId}:`, JSON.stringify(variantData, null, 2));
+        
         const variant = variantData.data?.productVariant;
         
         if (!variant) {
           console.log(`🟦 Variant ${variantId} not found, skipping`);
+          console.log(`🟦 Full variant response:`, variantData);
           continue;
         }
         

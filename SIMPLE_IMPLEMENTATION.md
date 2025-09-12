@@ -414,12 +414,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // Target the specific checkout button in cart page footer
-  const checkoutBtn = document.querySelector('.cart__footer--buttons button[name="checkout"]');
+  const checkoutBtn = document.querySelector('button[name="checkout"][form="cart"]');
   
   if (checkoutBtn) {
+    console.log('Found checkout button:', checkoutBtn);
+    
+    // Use both click and form submit event handlers for maximum compatibility
     checkoutBtn.addEventListener('click', async (e) => {
+      console.log('Checkout button click event fired');
+      await handleCheckoutInterception(e);
+    });
+    
+    // Also intercept form submission
+    const cartForm = document.getElementById('cart');
+    if (cartForm) {
+      cartForm.addEventListener('submit', async (e) => {
+        console.log('Cart form submit event fired');
+        await handleCheckoutInterception(e);
+      });
+    }
+    
+    async function handleCheckoutInterception(e) {
       if (window.customer?.id) {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        console.log('Checkout intercepted! Creating draft order...');
         
         // Show loading
         const btnText = checkoutBtn.querySelector('.btn__text');
@@ -452,22 +473,29 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           const result = await response.json();
+          console.log('Draft order API response:', result);
+          
           if (result.invoiceUrl) {
-            console.log('Redirecting to invoice:', result.invoiceUrl);
+            console.log('Success! Redirecting to invoice:', result.invoiceUrl);
             window.location.href = result.invoiceUrl;
           } else {
-            throw new Error('No invoice URL received');
+            console.error('No invoice URL in response:', result);
+            throw new Error('No invoice URL received: ' + JSON.stringify(result));
           }
           
         } catch (error) {
-          console.error('Error:', error);
+          console.error('Draft order creation failed:', error);
           // Restore button and fallback to normal checkout
           btnText.innerHTML = originalText;
           checkoutBtn.disabled = false;
+          alert('Kunde inte tillämpa dina priser. Försöker med vanlig checkout...');
           window.location.href = '/checkout';
         }
+      } else {
+        console.log('No customer logged in, allowing normal checkout');
+        // Let normal checkout proceed for guests
       }
-    });
+    }
   }
 });
 </script>
