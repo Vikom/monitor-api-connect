@@ -20,6 +20,24 @@ window.customer = {
   last_name: {{ customer.last_name | json }}
 };
 
+// Pre-populate cart item metafields using Liquid (same approach as product page!)
+window.cartItemsMetafields = {
+  {% for item in cart.items %}
+    "{{ item.variant_id }}": {
+      monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
+      customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      {% assign is_outlet = false %}
+      {% for collection in item.product.collections %}
+        {% if collection.handle == 'outlet' %}
+          {% assign is_outlet = true %}
+          {% break %}
+        {% endif %}
+      {% endfor %}
+      isOutletProduct: {{ is_outlet }}
+    }{% unless forloop.last %},{% endunless %}
+  {% endfor %}
+};
+
 // Enhanced checkout for dynamic pricing - Cart Drawer
 document.addEventListener('DOMContentLoaded', () => {
   // Cache to prevent multiple API calls for the same variant
@@ -30,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!window.customer?.id) return;
     
     console.log('Updating cart drawer prices...');
+    console.log('Cart metafields data:', window.cartItemsMetafields);
     
     try {
       // Get cart items
@@ -49,7 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let priceData = priceCache.get(cacheKey);
         
         if (!priceData) {
-          // Get dynamic price - send product handle for server-side outlet detection
+          // Get metafields from pre-populated data (same as product page approach!)
+          const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+          
+          console.log(`Using pre-populated metafields for ${item.variant_id}:`, itemMetafields);
+          
+          // Get dynamic price using Liquid template data (no API metafield fetching needed!)
           const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
           const priceResponse = await fetch(apiUrl, {
             method: 'POST',
@@ -58,13 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
               variantId: variantId,
               customerId: customerId,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
-              // Send product handle so API can determine if it's an outlet product
-              productHandle: item.handle,
-              monitorId: null,
-              isOutletProduct: null,
-              customerMonitorId: null,
-              // Still try to fetch metafields
-              fetchMetafields: true
+              // Use pre-populated metafields from Liquid templates!
+              monitorId: itemMetafields.monitorId || null,
+              isOutletProduct: itemMetafields.isOutletProduct || false,
+              customerMonitorId: itemMetafields.customerMonitorId || null
+              // No fetchMetafields needed - we have the data already!
             })
           });
           
@@ -231,6 +253,24 @@ window.customer = {
   last_name: {{ customer.last_name | json }}
 };
 
+// Pre-populate cart item metafields using Liquid (same approach as product page!)
+window.cartItemsMetafields = {
+  {% for item in cart.items %}
+    "{{ item.variant_id }}": {
+      monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
+      customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      {% assign is_outlet = false %}
+      {% for collection in item.product.collections %}
+        {% if collection.handle == 'outlet' %}
+          {% assign is_outlet = true %}
+          {% break %}
+        {% endif %}
+      {% endfor %}
+      isOutletProduct: {{ is_outlet }}
+    }{% unless forloop.last %},{% endunless %}
+  {% endfor %}
+};
+
 // Enhanced checkout for dynamic pricing - Cart Page
 document.addEventListener('DOMContentLoaded', () => {
   // Cache to prevent multiple API calls for the same variant
@@ -241,23 +281,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!window.customer?.id) return;
     
     console.log('Updating cart page prices...');
+    console.log('Cart metafields data:', window.cartItemsMetafields);
     
     try {
       // Get cart items
       const cartResponse = await fetch('/cart.js');
       const cart = await cartResponse.json();
       let cartTotal = 0;
-      
-      console.log('Cart data:', cart);
-      console.log('Cart items with properties:', cart.items.map(item => ({
-        id: item.id,
-        variant_id: item.variant_id,
-        handle: item.handle,
-        product_id: item.product_id,
-        properties: item.properties,
-        product_title: item.product_title,
-        variant_title: item.variant_title
-      })));
       
       // Update each cart item price
       for (let index = 0; index < cart.items.length; index++) {
@@ -272,7 +302,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let priceData = priceCache.get(cacheKey);
         
         if (!priceData) {
-          // Get dynamic price - send product handle for server-side outlet detection
+          // Get metafields from pre-populated data (same as product page approach!)
+          const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+          
+          console.log(`Using pre-populated metafields for ${item.variant_id}:`, itemMetafields);
+          
+          // Get dynamic price using Liquid template data (no API metafield fetching needed!)
           const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
           const priceResponse = await fetch(apiUrl, {
             method: 'POST',
@@ -281,13 +316,11 @@ document.addEventListener('DOMContentLoaded', () => {
               variantId: variantId,
               customerId: customerId,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
-              // Send product handle so API can determine if it's an outlet product
-              productHandle: item.handle,
-              monitorId: null,
-              isOutletProduct: null,
-              customerMonitorId: null,
-              // Still try to fetch metafields
-              fetchMetafields: true
+              // Use pre-populated metafields from Liquid templates!
+              monitorId: itemMetafields.monitorId || null,
+              isOutletProduct: itemMetafields.isOutletProduct || false,
+              customerMonitorId: itemMetafields.customerMonitorId || null
+              // No fetchMetafields needed - we have the data already!
             })
           });
           
