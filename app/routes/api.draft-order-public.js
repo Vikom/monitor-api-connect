@@ -71,7 +71,9 @@ export async function action({ request }) {
           query getVariant($id: ID!) {
             productVariant(id: $id) {
               id
+              title
               price
+              sku
               metafields(first: 10) {
                 edges {
                   node {
@@ -84,6 +86,7 @@ export async function action({ request }) {
               product {
                 id
                 title
+                vendor
                 collections(first: 50) {
                   edges {
                     node {
@@ -202,7 +205,11 @@ export async function action({ request }) {
         lineItems.push({
           variantId: variantId,
           quantity: quantity,
-          customPrice: finalPrice.toString()
+          customPrice: finalPrice.toString(),
+          productTitle: variant.product.title,
+          variantTitle: variant.title || 'Default',
+          sku: variant.sku || '',
+          vendor: variant.product.vendor || 'Sonsab'
         });
         
         console.log(`🟦 Added line item: variant ${variantId}, quantity ${quantity}, price ${finalPrice}`);
@@ -220,17 +227,27 @@ export async function action({ request }) {
     
     console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
     
-    // Create draft order using REST API (supports custom pricing better than GraphQL)
+    // Create draft order using REST API with custom line items (no variant_id allows custom pricing)
     const draftOrderPayload = {
       draft_order: {
         customer: {
           id: customerId.replace('gid://shopify/Customer/', '')
         },
-        line_items: lineItems.map(item => ({
-          variant_id: parseInt(item.variantId.replace('gid://shopify/ProductVariant/', '')),
-          quantity: item.quantity,
-          price: parseFloat(item.customPrice) // Ensure it's a number, not string
-        }))
+        line_items: lineItems.map(item => {
+          const customPrice = parseFloat(item.customPrice);
+          
+          // Create custom line item without variant_id to allow custom pricing
+          return {
+            custom: true,
+            title: `${item.productTitle} - ${item.variantTitle}`,
+            price: customPrice.toString(),
+            quantity: item.quantity,
+            taxable: true,
+            requires_shipping: true,
+            sku: item.sku,
+            vendor: item.vendor
+          };
+        })
       }
     };
     
