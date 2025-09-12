@@ -219,9 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           const result = await response.json();
-          if (result.invoiceUrl) {
-            console.log('Redirecting to invoice:', result.invoiceUrl);
-            window.location.href = result.invoiceUrl;
+          if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
+            console.log('Redirecting to invoice:', result.draftOrder.invoiceUrl);
+            window.location.href = result.draftOrder.invoiceUrl;
           } else {
             throw new Error('No invoice URL received');
           }
@@ -475,9 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const result = await response.json();
           console.log('Draft order API response:', result);
           
-          if (result.invoiceUrl) {
-            console.log('Success! Redirecting to invoice:', result.invoiceUrl);
-            window.location.href = result.invoiceUrl;
+          if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
+            console.log('Success! Redirecting to invoice:', result.draftOrder.invoiceUrl);
+            window.location.href = result.draftOrder.invoiceUrl;
           } else {
             console.error('No invoice URL in response:', result);
             throw new Error('No invoice URL received: ' + JSON.stringify(result));

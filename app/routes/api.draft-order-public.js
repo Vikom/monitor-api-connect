@@ -227,9 +227,9 @@ export async function action({ request }) {
           id: customerId.replace('gid://shopify/Customer/', '')
         },
         line_items: lineItems.map(item => ({
-          variant_id: item.variantId.replace('gid://shopify/ProductVariant/', ''),
+          variant_id: parseInt(item.variantId.replace('gid://shopify/ProductVariant/', '')),
           quantity: item.quantity,
-          price: item.customPrice
+          price: parseFloat(item.customPrice) // Ensure it's a number, not string
         }))
       }
     };
