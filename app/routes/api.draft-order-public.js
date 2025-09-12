@@ -45,14 +45,14 @@ export async function action({ request }) {
     console.log(`🟦 Creating draft order for customer ${customerId} with ${items.length} items`);
     
     // For private apps, use direct API credentials from environment
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || process.env.ADVANCED_STORE_ADMIN_TOKEN;
     const apiVersion = '2023-10';
     
     if (!accessToken) {
-      console.error('🟦 No SHOPIFY_ACCESS_TOKEN found in environment');
+      console.error('🟦 No SHOPIFY_ACCESS_TOKEN or ADVANCED_STORE_ADMIN_TOKEN found in environment');
       return json({ 
         error: "Private app access token not configured", 
-        suggestion: "Add SHOPIFY_ACCESS_TOKEN to Railway environment variables"
+        suggestion: "Add SHOPIFY_ACCESS_TOKEN or check ADVANCED_STORE_ADMIN_TOKEN in Railway environment variables"
       }, { status: 500, headers: corsHeaders() });
     }
     
