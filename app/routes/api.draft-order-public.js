@@ -220,71 +220,44 @@ export async function action({ request }) {
     
     console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
     
-    // Create draft order using GraphQL
-    const draftOrderMutation = `
-      mutation draftOrderCreate($input: DraftOrderInput!) {
-        draftOrderCreate(input: $input) {
-          draftOrder {
-            id
-            name
-            invoiceUrl
-            totalPrice
-            lineItems(first: 50) {
-              edges {
-                node {
-                  id
-                  title
-                  quantity
-                  originalUnitPrice
-                  discountedUnitPrice
-                }
-              }
-            }
-          }
-          userErrors {
-            field
-            message
-          }
-        }
+    // Create draft order using REST API (supports custom pricing better than GraphQL)
+    const draftOrderPayload = {
+      draft_order: {
+        customer: {
+          id: customerId.replace('gid://shopify/Customer/', '')
+        },
+        line_items: lineItems.map(item => ({
+          variant_id: item.variantId.replace('gid://shopify/ProductVariant/', ''),
+          quantity: item.quantity,
+          price: item.customPrice
+        }))
       }
-    `;
-    
-    const draftOrderInput = {
-      customerId: customerId,
-      lineItems: lineItems.map(item => ({
-        variantId: item.variantId,
-        quantity: item.quantity,
-        customPrice: item.customPrice
-      }))
     };
     
-    console.log(`🟦 Draft order input:`, JSON.stringify(draftOrderInput, null, 2));
+    console.log(`🟦 Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
     
-    const draftOrderResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+    const draftOrderResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/draft_orders.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': accessToken,
       },
-      body: JSON.stringify({
-        query: draftOrderMutation,
-        variables: { input: draftOrderInput }
-      })
+      body: JSON.stringify(draftOrderPayload)
     });
     
     const draftOrderData = await draftOrderResponse.json();
     
     console.log(`🟦 Draft order response:`, JSON.stringify(draftOrderData, null, 2));
     
-    if (draftOrderData.data?.draftOrderCreate?.userErrors?.length > 0) {
-      console.error('🟦 Draft order creation errors:', draftOrderData.data.draftOrderCreate.userErrors);
+    if (draftOrderData.errors) {
+      console.error('🟦 Draft order creation errors:', draftOrderData.errors);
       return json({ 
         error: "Failed to create draft order", 
-        details: draftOrderData.data.draftOrderCreate.userErrors 
+        details: draftOrderData.errors 
       }, { status: 400, headers: corsHeaders() });
     }
     
-    const draftOrder = draftOrderData.data?.draftOrderCreate?.draftOrder;
+    const draftOrder = draftOrderData.draft_order;
     
     if (!draftOrder) {
       console.error('🟦 No draft order returned');
@@ -293,17 +266,17 @@ export async function action({ request }) {
       }, { status: 400, headers: corsHeaders() });
     }
     
-    console.log(`🟦 ✅ Created draft order ${draftOrder.id} with total ${draftOrder.totalPrice}`);
-    console.log(`🟦 ✅ Invoice URL: ${draftOrder.invoiceUrl}`);
+    console.log(`🟦 ✅ Created draft order ${draftOrder.id} with total ${draftOrder.total_price}`);
+    console.log(`🟦 ✅ Invoice URL: ${draftOrder.invoice_url}`);
     
     return json({
       success: true,
       draftOrder: {
         id: draftOrder.id,
         name: draftOrder.name,
-        invoiceUrl: draftOrder.invoiceUrl,
-        totalPrice: draftOrder.totalPrice,
-        lineItems: draftOrder.lineItems.edges.map(edge => edge.node)
+        invoiceUrl: draftOrder.invoice_url,
+        totalPrice: draftOrder.total_price,
+        lineItems: draftOrder.line_items
       }
     }, { headers: corsHeaders() });
     
