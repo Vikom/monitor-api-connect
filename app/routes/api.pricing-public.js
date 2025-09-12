@@ -244,7 +244,8 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
     
     if (!session || !session.accessToken) {
       console.error(`No valid session found for shop ${shop}`);
-      return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+      // Try a different approach - use REST API with basic auth if available
+      return await fetchMetafieldsViaRest(shop, variantId, customerId);
     }
     
     // Use the session's access token for API calls
@@ -356,6 +357,28 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
   }
 }
 
+// Fallback method using REST API - for when we don't have GraphQL session
+async function fetchMetafieldsViaRest(shop, variantId, customerId) {
+  try {
+    console.log(`Attempting REST API fallback for metafields`);
+    
+    // Extract numeric IDs from GIDs
+    const variantNumericId = variantId.split('/').pop();
+    const customerNumericId = customerId.split('/').pop();
+    
+    console.log(`Extracted IDs - Variant: ${variantNumericId}, Customer: ${customerNumericId}`);
+    
+    // For now, return null values but with logging so we can see this path is taken
+    console.log(`REST API fallback not yet implemented - would need admin API credentials`);
+    
+    return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    
+  } catch (error) {
+    console.error(`Error in REST API fallback:`, error);
+    return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+  }
+}
+
 export async function action({ request }) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { 
@@ -366,7 +389,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields, productHandle } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -390,13 +413,29 @@ export async function action({ request }) {
       });
     }
 
+    // Simple outlet detection based on product handle
+    if (productHandle && !isOutletProduct) {
+      // Check if the product handle indicates it's an outlet product
+      const outletKeywords = ['outlet', 'rea', 'sale', 'clearance', 'discontinued'];
+      const isHandleOutlet = outletKeywords.some(keyword => 
+        productHandle.toLowerCase().includes(keyword)
+      );
+      
+      if (isHandleOutlet) {
+        isOutletProduct = true;
+        console.log(`Detected outlet product based on handle: ${productHandle}`);
+      }
+    }
+
     // If fetchMetafields is true, get metafields from Shopify Admin API
     if (fetchMetafields === true) {
       console.log(`Fetching metafields from Shopify Admin API for cart context`);
       try {
         const metafields = await fetchShopifyMetafields(shop, variantId, customerId);
         monitorId = metafields.monitorId;
-        isOutletProduct = metafields.isOutletProduct;
+        if (metafields.isOutletProduct !== null) {
+          isOutletProduct = metafields.isOutletProduct;
+        }
         customerMonitorId = metafields.customerMonitorId;
         console.log(`Fetched metafields result:`, metafields);
       } catch (metafieldsError) {

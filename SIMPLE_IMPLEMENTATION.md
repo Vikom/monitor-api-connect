@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log(`Getting price for variant ${item.variant_id}`);
         
-        // Get dynamic price - let the API fetch metafields server-side
+        // Get dynamic price - send product handle for server-side outlet detection
         const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
         const priceResponse = await fetch(apiUrl, {
           method: 'POST',
@@ -50,12 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
             variantId: variantId,
             customerId: customerId,
             shop: window.Shopify?.shop?.domain || window.location.hostname,
-            // Let the API fetch these from Shopify Admin API
+            // Send product handle so API can determine if it's an outlet product
+            productHandle: item.handle,
             monitorId: null,
             isOutletProduct: null,
-            customerMonitorId: null,
-            // Add a flag to tell API to fetch metafields
-            fetchMetafields: true
+            customerMonitorId: null
           })
         });
         
@@ -232,6 +231,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const cart = await cartResponse.json();
       let cartTotal = 0;
       
+      console.log('Cart data:', cart);
+      console.log('Cart items with properties:', cart.items.map(item => ({
+        id: item.id,
+        variant_id: item.variant_id,
+        handle: item.handle,
+        product_id: item.product_id,
+        properties: item.properties,
+        product_title: item.product_title,
+        variant_title: item.variant_title
+      })));
+      
       // Update each cart item price
       for (let index = 0; index < cart.items.length; index++) {
         const item = cart.items[index];
@@ -240,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log(`Getting price for variant ${item.variant_id} (index ${index})`);
         
-        // Get dynamic price - let the API fetch metafields server-side
+        // Get dynamic price - send product handle for server-side outlet detection
         const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
         const priceResponse = await fetch(apiUrl, {
           method: 'POST',
@@ -249,12 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
             variantId: variantId,
             customerId: customerId,
             shop: window.Shopify?.shop?.domain || window.location.hostname,
-            // Let the API fetch these from Shopify Admin API
+            // Send product handle so API can determine if it's an outlet product
+            productHandle: item.handle,
             monitorId: null,
             isOutletProduct: null,
-            customerMonitorId: null,
-            // Add a flag to tell API to fetch metafields
-            fetchMetafields: true
+            customerMonitorId: null
           })
         });
         
