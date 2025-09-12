@@ -1,6 +1,5 @@
 import { json } from "@remix-run/node";
 import https from "https";
-import { authenticate } from "../shopify.server.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -220,7 +219,7 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
   try {
     console.log(`Fetching metafields for variant ${variantId}, customer ${customerId}, shop ${shop}`);
     
-    // For Shopify apps, we need to get a session for the shop
+    // Dynamic import to avoid build issues - only import on server side
     const { sessionStorage } = await import("../shopify.server.js");
     
     // Try to get a session for the shop
