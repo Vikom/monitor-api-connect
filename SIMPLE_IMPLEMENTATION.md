@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log(`Getting price for variant ${item.variant_id}`);
         
-        // Get dynamic price
+        // Get dynamic price - let the API fetch metafields server-side
         const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
         const priceResponse = await fetch(apiUrl, {
           method: 'POST',
@@ -50,9 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
             variantId: variantId,
             customerId: customerId,
             shop: window.Shopify?.shop?.domain || window.location.hostname,
-            monitorId: null, // We don't have variant metafields in cart context
-            isOutletProduct: false, // We don't have collection info in cart context
-            customerMonitorId: null // We don't have customer metafields in cart context
+            // Let the API fetch these from Shopify Admin API
+            monitorId: null,
+            isOutletProduct: null,
+            customerMonitorId: null,
+            // Add a flag to tell API to fetch metafields
+            fetchMetafields: true
           })
         });
         
@@ -230,13 +233,14 @@ document.addEventListener('DOMContentLoaded', () => {
       let cartTotal = 0;
       
       // Update each cart item price
-      for (const item of cart.items) {
+      for (let index = 0; index < cart.items.length; index++) {
+        const item = cart.items[index];
         const variantId = `gid://shopify/ProductVariant/${item.variant_id}`;
         const customerId = `gid://shopify/Customer/${window.customer.id}`;
         
-        console.log(`Getting price for variant ${item.variant_id}`);
+        console.log(`Getting price for variant ${item.variant_id} (index ${index})`);
         
-        // Get dynamic price
+        // Get dynamic price - let the API fetch metafields server-side
         const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
         const priceResponse = await fetch(apiUrl, {
           method: 'POST',
@@ -245,9 +249,12 @@ document.addEventListener('DOMContentLoaded', () => {
             variantId: variantId,
             customerId: customerId,
             shop: window.Shopify?.shop?.domain || window.location.hostname,
-            monitorId: null, // We don't have variant metafields in cart context
-            isOutletProduct: false, // We don't have collection info in cart context
-            customerMonitorId: null // We don't have customer metafields in cart context
+            // Let the API fetch these from Shopify Admin API
+            monitorId: null,
+            isOutletProduct: null,
+            customerMonitorId: null,
+            // Add a flag to tell API to fetch metafields
+            fetchMetafields: true
           })
         });
         
@@ -274,14 +281,19 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr`);
           
-          // Find the cart row by looking for the item index in the ID
-          const itemIndex = cart.items.findIndex(cartItem => cartItem.variant_id === item.variant_id) + 1;
-          const cartRow = document.querySelector(`tr#CartItem-${itemIndex}, tr.cart-item`);
+          // Find the cart row by its actual position (1-based indexing for HTML IDs)
+          const itemNumber = index + 1;
+          const cartRow = document.querySelector(`tr#CartItem-${itemNumber}`);
+          
+          console.log(`Looking for cart row: #CartItem-${itemNumber}, found:`, !!cartRow);
           
           if (cartRow) {
-            // Update individual item price displays in both desktop and mobile views
+            // Update individual item price displays
             const priceElements = cartRow.querySelectorAll('.cart-item__prices .price');
-            priceElements.forEach(priceElement => {
+            console.log(`Found ${priceElements.length} price elements for item ${itemNumber}`);
+            
+            priceElements.forEach((priceElement, priceIndex) => {
+              console.log(`Updating price element ${priceIndex} for item ${itemNumber}`);
               // Handle both regular and sale price structures
               const hasDiscount = priceElement.classList.contains('price--on-sale');
               if (hasDiscount) {
@@ -299,8 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update line total (price × quantity) in the last column
             const lineTotalCell = cartRow.querySelector('.cart-item__total .font-body-bolder');
             if (lineTotalCell) {
-              lineTotalCell.textContent = `${priceData.price * item.quantity} kr`;
+              const lineTotal = priceData.price * item.quantity;
+              lineTotalCell.textContent = `${lineTotal} kr`;
+              console.log(`Updated line total for item ${itemNumber}: ${lineTotal} kr`);
             }
+          } else {
+            console.warn(`Could not find cart row for item ${itemNumber}`);
           }
         }
       }

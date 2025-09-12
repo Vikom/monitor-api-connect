@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import https from "https";
+import { authenticate } from "../shopify.server.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -214,6 +215,140 @@ export async function loader({ request }) {
   });
 }
 
+// Fetch metafields from Shopify Admin API
+async function fetchShopifyMetafields(shop, variantId, customerId) {
+  try {
+    console.log(`Fetching metafields for variant ${variantId}, customer ${customerId}, shop ${shop}`);
+    
+    // For Shopify apps, we need to get a session for the shop
+    const { sessionStorage } = await import("../shopify.server.js");
+    
+    // Try to get a session for the shop
+    let session = null;
+    try {
+      const sessions = await sessionStorage.findSessionsByShop(shop);
+      if (sessions && sessions.length > 0) {
+        session = sessions[0];
+        console.log(`Found session for shop ${shop}`);
+      }
+    } catch (sessionError) {
+      console.warn(`Could not find session for shop ${shop}:`, sessionError);
+    }
+    
+    if (!session || !session.accessToken) {
+      console.error(`No valid session found for shop ${shop}`);
+      return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    }
+    
+    // Use the session's access token for API calls
+    const adminUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
+    
+    const variantGid = variantId; // Already in GID format
+    const customerGid = customerId; // Already in GID format
+    
+    const query = `
+      query GetMetafields($variantId: ID!, $customerId: ID!) {
+        productVariant(id: $variantId) {
+          id
+          metafield(namespace: "monitor", key: "id") {
+            value
+          }
+          product {
+            id
+            collections(first: 10) {
+              edges {
+                node {
+                  handle
+                  title
+                }
+              }
+            }
+            tags
+          }
+        }
+        customer(id: $customerId) {
+          id
+          metafield(namespace: "monitor", key: "id") {
+            value
+          }
+        }
+      }
+    `;
+    
+    const response = await fetch(adminUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': session.accessToken,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { variantId: variantGid, customerId: customerGid }
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`Shopify API request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`Error response:`, errorText);
+      return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    }
+    
+    const data = await response.json();
+    console.log(`Shopify API response:`, JSON.stringify(data, null, 2));
+    
+    if (data.errors) {
+      console.error(`Shopify API errors:`, data.errors);
+      return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    }
+    
+    // Extract metafields
+    const variant = data.data?.productVariant;
+    const customer = data.data?.customer;
+    
+    let monitorId = null;
+    let isOutletProduct = false;
+    let customerMonitorId = null;
+    
+    // Get variant Monitor ID
+    if (variant?.metafield?.value) {
+      monitorId = variant.metafield.value;
+    }
+    
+    // Check if product is in outlet collection
+    if (variant?.product) {
+      // Check tags first
+      if (variant.product.tags && variant.product.tags.includes('outlet')) {
+        isOutletProduct = true;
+      }
+      
+      // Check collections
+      if (variant.product.collections?.edges) {
+        const hasOutletCollection = variant.product.collections.edges.some(edge => 
+          edge.node.handle === 'outlet' || 
+          edge.node.title.toLowerCase().includes('outlet')
+        );
+        if (hasOutletCollection) {
+          isOutletProduct = true;
+        }
+      }
+    }
+    
+    // Get customer Monitor ID
+    if (customer?.metafield?.value) {
+      customerMonitorId = customer.metafield.value;
+    }
+    
+    console.log(`Extracted metafields:`, { monitorId, isOutletProduct, customerMonitorId });
+    
+    return { monitorId, isOutletProduct, customerMonitorId };
+    
+  } catch (error) {
+    console.error(`Error fetching Shopify metafields:`, error);
+    return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+  }
+}
+
 export async function action({ request }) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { 
@@ -224,7 +359,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    const { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -246,6 +381,16 @@ export async function action({ request }) {
         status: 400,
         headers: corsHeaders()
       });
+    }
+
+    // If fetchMetafields is true, get metafields from Shopify Admin API
+    if (fetchMetafields === true) {
+      console.log(`Fetching metafields from Shopify Admin API for cart context`);
+      const metafields = await fetchShopifyMetafields(shop, variantId, customerId);
+      monitorId = metafields.monitorId;
+      isOutletProduct = metafields.isOutletProduct;
+      customerMonitorId = metafields.customerMonitorId;
+      console.log(`Fetched metafields:`, metafields);
     }
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
