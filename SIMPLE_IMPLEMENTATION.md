@@ -208,12 +208,13 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('Creating draft order with items:', items);
           
           // Create draft order with dynamic pricing
-          const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order', {
+          const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               customerId: `gid://shopify/Customer/${window.customer.id}`,
-              items: items
+              items: items,
+              shop: window.Shopify?.shop?.domain || window.location.hostname
             })
           });
           
@@ -440,12 +441,13 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('Creating draft order with items:', items);
           
           // Create draft order with dynamic pricing
-          const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order', {
+          const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               customerId: `gid://shopify/Customer/${window.customer.id}`,
-              items: items
+              items: items,
+              shop: window.Shopify?.shop?.domain || window.location.hostname
             })
           });
           
