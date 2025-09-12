@@ -22,6 +22,9 @@ window.customer = {
 
 // Enhanced checkout for dynamic pricing - Cart Drawer
 document.addEventListener('DOMContentLoaded', () => {
+  // Cache to prevent multiple API calls for the same variant
+  const priceCache = new Map();
+  
   // Function to update cart prices
   async function updateCartPrices() {
     if (!window.customer?.id) return;
@@ -38,43 +41,54 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const item of cart.items) {
         const variantId = `gid://shopify/ProductVariant/${item.variant_id}`;
         const customerId = `gid://shopify/Customer/${window.customer.id}`;
+        const cacheKey = `${item.variant_id}-${window.customer.id}`;
         
         console.log(`Getting price for variant ${item.variant_id}`);
         
-        // Get dynamic price - send product handle for server-side outlet detection
-        const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
-        const priceResponse = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            variantId: variantId,
-            customerId: customerId,
-            shop: window.Shopify?.shop?.domain || window.location.hostname,
-            // Send product handle so API can determine if it's an outlet product
-            productHandle: item.handle,
-            monitorId: null,
-            isOutletProduct: null,
-            customerMonitorId: null
-          })
-        });
+        // Check cache first
+        let priceData = priceCache.get(cacheKey);
         
-        console.log(`Price response status: ${priceResponse.status}`);
-        
-        if (!priceResponse.ok) {
-          console.error(`Price API error: ${priceResponse.status} ${priceResponse.statusText}`);
-          continue; // Skip this item
-        }
-        
-        const responseText = await priceResponse.text();
-        console.log(`Price response text: ${responseText}`);
-        
-        let priceData;
-        try {
-          priceData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error(`JSON parse error for variant ${item.variant_id}:`, parseError);
-          console.error(`Response text was: ${responseText}`);
-          continue; // Skip this item
+        if (!priceData) {
+          // Get dynamic price - send product handle for server-side outlet detection
+          const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
+          const priceResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              variantId: variantId,
+              customerId: customerId,
+              shop: window.Shopify?.shop?.domain || window.location.hostname,
+              // Send product handle so API can determine if it's an outlet product
+              productHandle: item.handle,
+              monitorId: null,
+              isOutletProduct: null,
+              customerMonitorId: null,
+              // Still try to fetch metafields
+              fetchMetafields: true
+            })
+          });
+          
+          console.log(`Price response status: ${priceResponse.status}`);
+          
+          if (!priceResponse.ok) {
+            console.error(`Price API error: ${priceResponse.status} ${priceResponse.statusText}`);
+            continue; // Skip this item
+          }
+          
+          const responseText = await priceResponse.text();
+          console.log(`Price response text: ${responseText}`);
+          
+          try {
+            priceData = JSON.parse(responseText);
+            // Cache the result
+            priceCache.set(cacheKey, priceData);
+          } catch (parseError) {
+            console.error(`JSON parse error for variant ${item.variant_id}:`, parseError);
+            console.error(`Response text was: ${responseText}`);
+            continue; // Skip this item
+          }
+        } else {
+          console.log(`Using cached price for variant ${item.variant_id}:`, priceData.price);
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
@@ -219,6 +233,9 @@ window.customer = {
 
 // Enhanced checkout for dynamic pricing - Cart Page
 document.addEventListener('DOMContentLoaded', () => {
+  // Cache to prevent multiple API calls for the same variant
+  const priceCache = new Map();
+  
   // Function to update cart prices
   async function updateCartPrices() {
     if (!window.customer?.id) return;
@@ -247,42 +264,53 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = cart.items[index];
         const variantId = `gid://shopify/ProductVariant/${item.variant_id}`;
         const customerId = `gid://shopify/Customer/${window.customer.id}`;
+        const cacheKey = `${item.variant_id}-${window.customer.id}`;
         
         console.log(`Getting price for variant ${item.variant_id} (index ${index})`);
         
-        // Get dynamic price - send product handle for server-side outlet detection
-        const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
-        const priceResponse = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            variantId: variantId,
-            customerId: customerId,
-            shop: window.Shopify?.shop?.domain || window.location.hostname,
-            // Send product handle so API can determine if it's an outlet product
-            productHandle: item.handle,
-            monitorId: null,
-            isOutletProduct: null,
-            customerMonitorId: null
-          })
-        });
+        // Check cache first
+        let priceData = priceCache.get(cacheKey);
         
-        console.log(`Price response status: ${priceResponse.status}`);
-        
-        if (!priceResponse.ok) {
-          console.error(`Price API error: ${priceResponse.status} ${priceResponse.statusText}`);
-          continue;
-        }
-        
-        const responseText = await priceResponse.text();
-        console.log(`Price response text: ${responseText}`);
-        
-        let priceData;
-        try {
-          priceData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error(`JSON parse error for variant ${item.variant_id}:`, parseError);
-          continue;
+        if (!priceData) {
+          // Get dynamic price - send product handle for server-side outlet detection
+          const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
+          const priceResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              variantId: variantId,
+              customerId: customerId,
+              shop: window.Shopify?.shop?.domain || window.location.hostname,
+              // Send product handle so API can determine if it's an outlet product
+              productHandle: item.handle,
+              monitorId: null,
+              isOutletProduct: null,
+              customerMonitorId: null,
+              // Still try to fetch metafields
+              fetchMetafields: true
+            })
+          });
+          
+          console.log(`Price response status: ${priceResponse.status}`);
+          
+          if (!priceResponse.ok) {
+            console.error(`Price API error: ${priceResponse.status} ${priceResponse.statusText}`);
+            continue;
+          }
+          
+          const responseText = await priceResponse.text();
+          console.log(`Price response text: ${responseText}`);
+          
+          try {
+            priceData = JSON.parse(responseText);
+            // Cache the result
+            priceCache.set(cacheKey, priceData);
+          } catch (parseError) {
+            console.error(`JSON parse error for variant ${item.variant_id}:`, parseError);
+            continue;
+          }
+        } else {
+          console.log(`Using cached price for variant ${item.variant_id}:`, priceData.price);
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
