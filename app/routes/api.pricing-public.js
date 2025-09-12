@@ -225,13 +225,21 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
     // Try to get a session for the shop
     let session = null;
     try {
+      console.log(`Attempting to find sessions for shop: ${shop}`);
       const sessions = await sessionStorage.findSessionsByShop(shop);
+      console.log(`Sessions found:`, sessions ? sessions.length : 0);
       if (sessions && sessions.length > 0) {
         session = sessions[0];
-        console.log(`Found session for shop ${shop}`);
+        console.log(`Found session for shop ${shop}:`, {
+          id: session.id,
+          shop: session.shop,
+          hasAccessToken: !!session.accessToken,
+          isOnline: session.isOnline,
+          scope: session.scope
+        });
       }
     } catch (sessionError) {
-      console.warn(`Could not find session for shop ${shop}:`, sessionError);
+      console.error(`Error finding session for shop ${shop}:`, sessionError);
     }
     
     if (!session || !session.accessToken) {
@@ -385,11 +393,16 @@ export async function action({ request }) {
     // If fetchMetafields is true, get metafields from Shopify Admin API
     if (fetchMetafields === true) {
       console.log(`Fetching metafields from Shopify Admin API for cart context`);
-      const metafields = await fetchShopifyMetafields(shop, variantId, customerId);
-      monitorId = metafields.monitorId;
-      isOutletProduct = metafields.isOutletProduct;
-      customerMonitorId = metafields.customerMonitorId;
-      console.log(`Fetched metafields:`, metafields);
+      try {
+        const metafields = await fetchShopifyMetafields(shop, variantId, customerId);
+        monitorId = metafields.monitorId;
+        isOutletProduct = metafields.isOutletProduct;
+        customerMonitorId = metafields.customerMonitorId;
+        console.log(`Fetched metafields result:`, metafields);
+      } catch (metafieldsError) {
+        console.error(`Error in fetchShopifyMetafields:`, metafieldsError);
+        // Continue with null values
+      }
     }
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
