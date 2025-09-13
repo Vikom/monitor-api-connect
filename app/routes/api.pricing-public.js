@@ -28,28 +28,56 @@ function corsHeaders() {
 
 // Monitor API login
 async function login() {
-  const url = `${monitorUrl}/${monitorCompany}/login`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "Cache-Control": "no-cache",
-    },
-    body: JSON.stringify({
-      UserName: monitorUsername,
-      Password: monitorPassword,
-    }),
-    agent,
-  });
+  try {
+    // Validate environment variables
+    if (!monitorUrl || !monitorUsername || !monitorPassword || !monitorCompany) {
+      console.error('Missing Monitor API credentials:', {
+        hasUrl: !!monitorUrl,
+        hasUser: !!monitorUsername,
+        hasPass: !!monitorPassword,
+        hasCompany: !!monitorCompany
+      });
+      throw new Error('Missing Monitor API environment variables');
+    }
+    
+    const url = `${monitorUrl}/${monitorCompany}/login`;
+    console.log(`Attempting Monitor API login to: ${url} with user: ${monitorUsername}`);
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({
+        UserName: monitorUsername,
+        Password: monitorPassword,
+      }),
+      agent,
+    });
 
-  if (!res.ok) {
-    throw new Error(`Monitor login failed: ${res.status}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Monitor login failed: ${res.status} ${res.statusText}`);
+      console.error(`Login error response: ${errorText}`);
+      throw new Error(`Monitor login failed: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    if (!data.SessionId) {
+      console.error(`No SessionId in login response:`, data);
+      throw new Error('No SessionId received from Monitor API');
+    }
+    
+    console.log(`Monitor API login successful, SessionId: ${data.SessionId.substring(0, 8)}...`);
+    sessionId = data.SessionId;
+    return sessionId;
+  } catch (error) {
+    console.error('Monitor API login error:', error);
+    sessionId = null; // Clear any stale session
+    throw error;
   }
-
-  const data = await res.json();
-  sessionId = data.SessionId;
-  return sessionId;
 }
 
 // Get or refresh session ID
@@ -175,6 +203,7 @@ async function fetchOutletPrice(partId) {
     url += `?$filter=PartId eq '${partId}' and PriceListId eq '${OUTLET_PRICE_LIST_ID}'`;
     
     console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
+    console.log(`Using session: ${session?.substring(0, 8)}...`);
     
     let res = await fetch(url, {
       headers: {
@@ -188,18 +217,25 @@ async function fetchOutletPrice(partId) {
     
     if (res.status === 401) {
       // Session expired, force re-login and retry
-      console.log(`Session expired for outlet price fetch, re-logging in...`);
+      console.log(`Session expired for outlet price fetch, forcing fresh login...`);
       sessionId = null; // Clear the session
-      session = await login();
-      res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": session,
-        },
-        agent,
-      });
+      try {
+        session = await login(); // Force fresh login
+        console.log(`Re-login successful, new session: ${session?.substring(0, 8)}...`);
+        
+        res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": session,
+          },
+          agent,
+        });
+      } catch (loginError) {
+        console.error(`Re-login failed:`, loginError);
+        return null;
+      }
     }
     
     if (res.status !== 200) {
