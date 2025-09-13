@@ -107,9 +107,11 @@ async function isOutletProduct(partId) {
 // Fetch customer-specific price for a part
 async function fetchCustomerPartPrice(customerId, partId) {
   try {
-    const session = await getSessionId();
-    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
-    url += `?$filter=PartId eq '${partId}' and CustomerId eq '${customerId}'`;
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartPrices`;
+    url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    
+    console.log(`Fetching customer price for customer ${customerId}, part ${partId}`);
     
     let res = await fetch(url, {
       headers: {
@@ -121,31 +123,44 @@ async function fetchCustomerPartPrice(customerId, partId) {
       agent,
     });
     
-    if (res.status !== 200) {
-      // Try to re-login and retry once
-      sessionId = await login();
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for customer price fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
       res = await fetch(url, {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
           "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": sessionId,
+          "X-Monitor-SessionId": session,
         },
         agent,
       });
-      
-      if (res.status !== 200) {
-        console.error(`Failed to fetch customer part price for customer ${customerId}, part ${partId}: ${res.status}`);
-        return null;
-      }
     }
     
-    const customerParts = await res.json();
-    if (!Array.isArray(customerParts)) {
+    if (res.status !== 200) {
+      console.error(`Failed to fetch customer part price for customer ${customerId}, part ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
       return null;
     }
     
-    return customerParts.length > 0 ? customerParts[0].Price : null;
+    const prices = await res.json();
+    console.log(`Customer price API response for customer ${customerId}, part ${partId}:`, prices);
+    
+    if (!Array.isArray(prices)) {
+      console.log(`Customer price response is not an array`);
+      return null;
+    }
+    
+    if (prices.length > 0) {
+      console.log(`Found customer price: ${prices[0].Price}`);
+      return prices[0].Price;
+    } else {
+      console.log(`No customer-specific price found for customer ${customerId}, part ${partId}`);
+      return null;
+    }
   } catch (error) {
     console.error(`Error fetching customer part price for customer ${customerId}, part ${partId}:`, error);
     return null;
@@ -155,9 +170,11 @@ async function fetchCustomerPartPrice(customerId, partId) {
 // Fetch outlet price for a part
 async function fetchOutletPrice(partId) {
   try {
-    const session = await getSessionId();
+    let session = await getSessionId();
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
     url += `?$filter=PartId eq '${partId}' and PriceListId eq '${OUTLET_PRICE_LIST_ID}'`;
+    
+    console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
     
     let res = await fetch(url, {
       headers: {
@@ -169,31 +186,44 @@ async function fetchOutletPrice(partId) {
       agent,
     });
     
-    if (res.status !== 200) {
-      // Try to re-login and retry once
-      sessionId = await login();
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for outlet price fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
       res = await fetch(url, {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
           "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": sessionId,
+          "X-Monitor-SessionId": session,
         },
         agent,
       });
-      
-      if (res.status !== 200) {
-        console.error(`Failed to fetch outlet price for ${partId}: ${res.status}`);
-        return null;
-      }
     }
     
-    const prices = await res.json();
-    if (!Array.isArray(prices)) {
+    if (res.status !== 200) {
+      console.error(`Failed to fetch outlet price for ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
       return null;
     }
     
-    return prices.length > 0 ? prices[0].Price : null;
+    const prices = await res.json();
+    console.log(`Outlet price API response for ${partId}:`, prices);
+    
+    if (!Array.isArray(prices)) {
+      console.log(`Outlet price response is not an array for ${partId}`);
+      return null;
+    }
+    
+    if (prices.length > 0) {
+      console.log(`Found outlet price for ${partId}: ${prices[0].Price}`);
+      return prices[0].Price;
+    } else {
+      console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
+      return null;
+    }
   } catch (error) {
     console.error(`Error fetching outlet price for part ${partId}:`, error);
     return null;
