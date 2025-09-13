@@ -179,6 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Also update when cart items change
   document.addEventListener('cart:updated', () => {
     console.log('Cart updated event, refreshing prices...');
+    // Clear the metafields cache since cart contents changed
+    window.cartItemsMetafields = {};
+    console.log('Cleared cart metafields cache due to cart update');
     setTimeout(updateCartPrices, 100);
   });
   
