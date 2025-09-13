@@ -203,6 +203,7 @@ async function fetchOutletPrice(partId) {
     url += `?$filter=PartId eq '${partId}' and PriceListId eq '${OUTLET_PRICE_LIST_ID}'`;
     
     console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
+    console.log(`API URL: ${url}`);
     console.log(`Using session: ${session?.substring(0, 8)}...`);
     
     let res = await fetch(url, {
@@ -215,9 +216,15 @@ async function fetchOutletPrice(partId) {
       agent,
     });
     
+    console.log(`Initial response status: ${res.status}`);
+    
     if (res.status === 401) {
-      // Session expired, force re-login and retry
-      console.log(`Session expired for outlet price fetch, forcing fresh login...`);
+      console.log(`Session expired, but let's see the error first...`);
+      const errorText = await res.text();
+      console.log(`401 Error response: ${errorText}`);
+      
+      // Session expired, force re-login and retry ONCE
+      console.log(`Forcing fresh login...`);
       sessionId = null; // Clear the session
       try {
         session = await login(); // Force fresh login
@@ -232,6 +239,8 @@ async function fetchOutletPrice(partId) {
           },
           agent,
         });
+        
+        console.log(`Retry response status: ${res.status}`);
       } catch (loginError) {
         console.error(`Re-login failed:`, loginError);
         return null;
@@ -241,12 +250,12 @@ async function fetchOutletPrice(partId) {
     if (res.status !== 200) {
       console.error(`Failed to fetch outlet price for ${partId}: ${res.status} ${res.statusText}`);
       const errorText = await res.text();
-      console.error(`Error response: ${errorText}`);
+      console.error(`Final error response: ${errorText}`);
       return null;
     }
     
     const prices = await res.json();
-    console.log(`Outlet price API response for ${partId}:`, prices);
+    console.log(`Outlet price API response for ${partId}:`, Array.isArray(prices) ? `Array with ${prices.length} items` : prices);
     
     if (!Array.isArray(prices)) {
       console.log(`Outlet price response is not an array for ${partId}`);

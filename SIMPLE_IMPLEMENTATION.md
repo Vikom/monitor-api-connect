@@ -69,9 +69,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!priceData) {
           // Get metafields from pre-populated data (same as product page approach!)
-          const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+          const itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
           
           console.log(`Using pre-populated metafields for ${item.variant_id}:`, itemMetafields);
+          
+          // If no metafields available (e.g., cart drawer loaded via AJAX), enable server-side fetching
+          const hasMetafields = itemMetafields.monitorId || itemMetafields.customerMonitorId;
+          if (!hasMetafields) {
+            console.log(`No metafields available for ${item.variant_id}, enabling server-side fetching`);
+          }
           
           // Get dynamic price using Liquid template data (no API metafield fetching needed!)
           const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
@@ -85,8 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
               // Use pre-populated metafields from Liquid templates!
               monitorId: itemMetafields.monitorId || null,
               isOutletProduct: itemMetafields.isOutletProduct || false,
-              customerMonitorId: itemMetafields.customerMonitorId || null
-              // No fetchMetafields needed - we have the data already!
+              customerMonitorId: itemMetafields.customerMonitorId || null,
+              // Enable server-side metafield fetching when Liquid data not available
+              fetchMetafields: !hasMetafields
             })
           });
           
