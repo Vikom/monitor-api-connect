@@ -179,11 +179,47 @@ document.addEventListener('DOMContentLoaded', () => {
   // Also update when cart items change
   document.addEventListener('cart:updated', () => {
     console.log('Cart updated event, refreshing prices...');
-    // Clear the metafields cache since cart contents changed
-    window.cartItemsMetafields = {};
-    console.log('Cleared cart metafields cache due to cart update');
+    // Try to get metafields from product page context if available
+    refreshCartMetafieldsFromProduct();
     setTimeout(updateCartPrices, 100);
   });
+  
+  // Function to get metafields from product page context when adding to cart
+  async function refreshCartMetafieldsFromProduct() {
+    try {
+      console.log('Refreshing cart metafields...');
+      const cartResponse = await fetch('/cart.js');
+      const cart = await cartResponse.json();
+      
+      // If we're on a product page, try to get metafields from product page globals
+      if (window.location.pathname.includes('/products/')) {
+        // Check if product page has metafields available (from pricing-client.js)
+        if (window.currentVariantMonitorId || window.isOutletProduct || window.customerMonitorId) {
+          console.log('Found product page metafields, using for cart');
+          // Ensure cartItemsMetafields exists
+          if (!window.cartItemsMetafields) {
+            window.cartItemsMetafields = {};
+          }
+          
+          // Get the most recently added item (last item in cart)
+          const lastItem = cart.items[cart.items.length - 1];
+          if (lastItem) {
+            const variantId = lastItem.variant_id.toString();
+            window.cartItemsMetafields[variantId] = {
+              monitorId: window.currentVariantMonitorId || null,
+              customerMonitorId: window.customerMonitorId || null,
+              isOutletProduct: window.isOutletProduct || false
+            };
+            console.log(`Added metafields for variant ${variantId}:`, window.cartItemsMetafields[variantId]);
+          }
+        }
+      }
+      
+      console.log('Final cart metafields:', window.cartItemsMetafields);
+    } catch (error) {
+      console.error('Error refreshing cart metafields:', error);
+    }
+  }
   
   // Initial update if drawer is already open
   if (cartDrawer && !cartDrawer.hasAttribute('hidden')) {
