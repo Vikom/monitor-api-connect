@@ -141,13 +141,14 @@ async function isOutletProduct(partId) {
 }
 
 // Fetch customer-specific price for a part
-async function fetchCustomerPartPrice(customerId, partId) {
+// Fetch customer's price list ID
+async function fetchCustomerPriceListId(customerId) {
   try {
     let session = await getSessionId();
-    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartPrices`;
-    url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
+    url += `?$filter=Id eq '${customerId}'`;
     
-    console.log(`Fetching customer price for customer ${customerId}, part ${partId}`);
+    console.log(`Fetching customer details for customer ${customerId} to get price list ID`);
     
     let res = await fetch(url, {
       headers: {
@@ -161,7 +162,7 @@ async function fetchCustomerPartPrice(customerId, partId) {
     
     if (res.status === 401) {
       // Session expired, force re-login and retry
-      console.log(`Session expired for customer price fetch, re-logging in...`);
+      console.log(`Session expired for customer lookup, re-logging in...`);
       sessionId = null; // Clear the session
       session = await login();
       res = await fetch(url, {
@@ -176,26 +177,171 @@ async function fetchCustomerPartPrice(customerId, partId) {
     }
     
     if (res.status !== 200) {
-      console.error(`Failed to fetch customer part price for customer ${customerId}, part ${partId}: ${res.status} ${res.statusText}`);
+      console.error(`Failed to fetch customer details for ${customerId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
+      return null;
+    }
+    
+    const customers = await res.json();
+    console.log(`Customer lookup API response for ${customerId}:`, customers);
+    
+    if (!Array.isArray(customers)) {
+      console.log(`Customer lookup response is not an array`);
+      return null;
+    }
+    
+    if (customers.length > 0) {
+      const priceListId = customers[0].PriceListId;
+      console.log(`Found customer price list ID: ${priceListId}`);
+      return priceListId;
+    } else {
+      console.log(`No customer found with ID ${customerId}`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error fetching customer price list ID for ${customerId}:`, error);
+    return null;
+  }
+}
+
+// Fetch price from a specific price list
+async function fetchPriceFromPriceList(partId, priceListId) {
+  try {
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '${priceListId}'`;
+    
+    console.log(`Fetching price for part ${partId} from price list ${priceListId}`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": session,
+      },
+      agent,
+    });
+    
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for price list fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        agent,
+      });
+    }
+    
+    if (res.status !== 200) {
+      console.error(`Failed to fetch price for part ${partId} from price list ${priceListId}: ${res.status} ${res.statusText}`);
       const errorText = await res.text();
       console.error(`Error response: ${errorText}`);
       return null;
     }
     
     const prices = await res.json();
-    console.log(`Customer price API response for customer ${customerId}, part ${partId}:`, prices);
+    console.log(`Price list API response for part ${partId}, price list ${priceListId}:`, prices);
     
     if (!Array.isArray(prices)) {
-      console.log(`Customer price response is not an array`);
+      console.log(`Price list response is not an array`);
       return null;
     }
     
     if (prices.length > 0) {
-      console.log(`Found customer price: ${prices[0].Price}`);
+      console.log(`Found price in price list: ${prices[0].Price}`);
       return prices[0].Price;
     } else {
-      console.log(`No customer-specific price found for customer ${customerId}, part ${partId}`);
+      console.log(`No price found for part ${partId} in price list ${priceListId}`);
       return null;
+    }
+  } catch (error) {
+    console.error(`Error fetching price from price list for part ${partId}, price list ${priceListId}:`, error);
+    return null;
+  }
+}
+
+// Fetch customer-specific price with fallback to customer's price list
+async function fetchCustomerPartPrice(customerId, partId) {
+  try {
+    // Step 1: Check for specific customer-part price using CustomerPartLinks
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+    url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    
+    console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": session,
+      },
+      agent,
+    });
+    
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for customer part links fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        agent,
+      });
+    }
+    
+    if (res.status !== 200) {
+      console.error(`Failed to fetch customer part links for customer ${customerId}, part ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
+      return null;
+    }
+    
+    const customerPartLinks = await res.json();
+    console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, customerPartLinks);
+    
+    if (Array.isArray(customerPartLinks) && customerPartLinks.length > 0) {
+      // Found specific customer-part price
+      const specificPrice = customerPartLinks[0].Price;
+      console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
+      return specificPrice;
+    } else {
+      console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
+      
+      // Step 2: Get customer's price list ID
+      const priceListId = await fetchCustomerPriceListId(customerId);
+      
+      if (!priceListId) {
+        console.log(`Step 2 FAILED: Could not get customer's price list ID`);
+        return null;
+      }
+      
+      console.log(`Step 2: Customer's price list ID: ${priceListId}`);
+      
+      // Step 3: Get price from customer's price list
+      const priceListPrice = await fetchPriceFromPriceList(partId, priceListId);
+      
+      if (priceListPrice !== null && priceListPrice > 0) {
+        console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
+        return priceListPrice;
+      } else {
+        console.log(`Step 3 FAILED: No price found in customer's price list ${priceListId}`);
+        return null;
+      }
     }
   } catch (error) {
     console.error(`Error fetching customer part price for customer ${customerId}, part ${partId}:`, error);
@@ -275,6 +421,34 @@ async function fetchOutletPrice(partId) {
       return prices[0].Price;
     } else {
       console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
+      
+      // DEBUG: Let's check what price lists exist for this part
+      console.log(`DEBUG: Checking if part ${partId} exists in other price lists...`);
+      try {
+        const allPricesUrl = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices?$filter=PartId eq '${partId}'&$top=5`;
+        const allPricesRes = await fetch(allPricesUrl, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": session,
+          },
+          agent,
+        });
+        
+        if (allPricesRes.ok) {
+          const allPrices = await allPricesRes.json();
+          console.log(`DEBUG: Found ${allPrices.length} price(s) for part ${partId} in any price list:`);
+          allPrices.forEach((price, index) => {
+            console.log(`  ${index + 1}. Price: ${price.Price}, PriceList: ${price.PriceListId}, Currency: ${price.CurrencyCode}`);
+          });
+        } else {
+          console.log(`DEBUG: Failed to check all prices for ${partId}: ${allPricesRes.status}`);
+        }
+      } catch (debugError) {
+        console.log(`DEBUG: Error checking all prices:`, debugError.message);
+      }
+      
       return null;
     }
   } catch (error) {
