@@ -51,8 +51,9 @@ async function login() {
         "Cache-Control": "no-cache",
       },
       body: JSON.stringify({
-        UserName: monitorUsername,
+        Username: monitorUsername,  // Fixed: was UserName, should be Username
         Password: monitorPassword,
+        ForceRelogin: true,  // Added to force fresh login
       }),
       agent,
     });
@@ -64,14 +65,21 @@ async function login() {
       throw new Error(`Monitor login failed: ${res.status} - ${errorText}`);
     }
 
+    // Get session ID from response header (like monitor.js), with fallback to body
+    let sessionIdFromHeader = res.headers.get("x-monitor-sessionid") || res.headers.get("X-Monitor-SessionId");
     const data = await res.json();
-    if (!data.SessionId) {
-      console.error(`No SessionId in login response:`, data);
+    
+    // Try header first, then body (for compatibility)
+    const receivedSessionId = sessionIdFromHeader || data.SessionId;
+    
+    if (!receivedSessionId) {
+      console.error(`No SessionId in header or body. Headers: ${JSON.stringify([...res.headers])}, Body:`, data);
       throw new Error('No SessionId received from Monitor API');
     }
     
-    console.log(`Monitor API login successful, SessionId: ${data.SessionId.substring(0, 8)}...`);
-    sessionId = data.SessionId;
+    console.log(`Monitor API login successful, SessionId: ${receivedSessionId.substring(0, 8)}...`);
+    console.log(`SessionId source: ${sessionIdFromHeader ? 'header' : 'body'}`);
+    sessionId = receivedSessionId;
     return sessionId;
   } catch (error) {
     console.error('Monitor API login error:', error);
