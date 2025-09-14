@@ -1461,7 +1461,7 @@ function setupCronJobs() {
   // Schedule inventory sync every 30 minutes
   cron.schedule("*/30 * * * *", () => {
     console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-    /*
+
     // Check if advanced store is configured
     const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
     const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -1487,7 +1487,7 @@ function setupCronJobs() {
       .finally(() => {
         // Restore original flag
         global.useAdvancedStore = originalUseAdvancedStore;
-      });*/
+      });
   });
   
   console.log("📅 Cron jobs scheduled:");
