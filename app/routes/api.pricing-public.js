@@ -11,6 +11,31 @@ const monitorCompany = process.env.MONITOR_COMPANY;
 const OUTLET_PRODUCT_GROUP_ID = "1229581166640460381";
 const OUTLET_PRICE_LIST_ID = "1289997006982727753";
 
+// Unit mapping from Monitor API
+const UNIT_MAPPING = {
+    "896454559822157228": { "Code": "st", "Description": "Styck", "Number": "1" },
+    "896454559822157331": { "Code": "mm", "Description": "Millimeter", "Number": "4" },
+    "896454559822157366": { "Code": "m²", "Description": "Kvadratmeter", "Number": "5" },
+    "896454559822157389": { "Code": "kg", "Description": "Kilo", "Number": "2" },
+    "896454559822157424": { "Code": "m", "Description": "Meter", "Number": "3" },
+    "964635041975763896": { "Code": "m³", "Description": "Kubikmeter", "Number": "6" },
+    "989630543418881598": { "Code": "h", "Description": "Timme", "Number": "7" },
+    "1066716939765765413": { "Code": "frp", "Description": "Förpackning", "Number": "8" },
+    "1067959871794544563": { "Code": "l", "Description": "Liter", "Number": "9" },
+    "1068890724534919021": { "Code": "rle", "Description": "Rulle", "Number": "10" },
+    "1068891474006718462": { "Code": "pal", "Description": "Pall", "Number": "11" },
+    "1069043501891593759": { "Code": "pkt", "Description": "Paket", "Number": "12" },
+    "1069043554504943125": { "Code": "krt", "Description": "Kartong", "Number": "13" },
+    "1069043662952867563": { "Code": "pås", "Description": "Påse", "Number": "14" },
+    "1069044050573666032": { "Code": "Sk", "Description": "Säck", "Number": "15" }
+};
+
+// Helper function to get unit code from unit ID
+function getUnitCode(unitId) {
+    const unit = UNIT_MAPPING[unitId];
+    return unit ? unit.Code : 'st'; // Default to 'st' if unit not found
+}
+
 // SSL agent for self-signed certificates
 const agent = new https.Agent({ rejectUnauthorized: false });
 
@@ -268,8 +293,72 @@ async function fetchPriceFromPriceList(partId, priceListId) {
   }
 }
 
-// Fetch customer-specific price with fallback to customer's price list
-async function fetchCustomerPartPrice(customerId, partId) {
+// Fetch part details to get StandardUnitId
+async function fetchPartDetails(partId) {
+  try {
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Parts`;
+    url += `?$filter=Id eq '${partId}'`;
+    
+    console.log(`Fetching part details for part ${partId} to get StandardUnitId`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": session,
+      },
+      agent,
+    });
+    
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for part details fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        agent,
+      });
+    }
+    
+    if (res.status !== 200) {
+      console.error(`Failed to fetch part details for ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
+      return null;
+    }
+    
+    const parts = await res.json();
+    console.log(`Part details API response for ${partId}:`, parts);
+    
+    if (!Array.isArray(parts)) {
+      console.log(`Part details response is not an array`);
+      return null;
+    }
+    
+    if (parts.length > 0) {
+      const standardUnitId = parts[0].StandardUnitId;
+      console.log(`Found part StandardUnitId: ${standardUnitId}`);
+      return { standardUnitId };
+    } else {
+      console.log(`No part found with ID ${partId}`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error fetching part details for ${partId}:`, error);
+    return null;
+  }
+}
+
+// Fetch customer-specific price with unit information and fallback to customer's price list
+async function fetchCustomerPartPriceWithUnit(customerId, partId) {
   try {
     // Step 1: Check for specific customer-part price using CustomerPartLinks
     let session = await getSessionId();
@@ -308,17 +397,19 @@ async function fetchCustomerPartPrice(customerId, partId) {
       console.error(`Failed to fetch customer part links for customer ${customerId}, part ${partId}: ${res.status} ${res.statusText}`);
       const errorText = await res.text();
       console.error(`Error response: ${errorText}`);
-      return null;
+      return { price: null, unitCode: 'st' };
     }
     
     const customerPartLinks = await res.json();
     console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, customerPartLinks);
     
     if (Array.isArray(customerPartLinks) && customerPartLinks.length > 0) {
-      // Found specific customer-part price
+      // Found specific customer-part price with UnitId
       const specificPrice = customerPartLinks[0].Price;
-      console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
-      return specificPrice;
+      const unitId = customerPartLinks[0].UnitId;
+      const unitCode = getUnitCode(unitId);
+      console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}, unitId: ${unitId}, unitCode: ${unitCode}`);
+      return { price: specificPrice, unitCode };
     } else {
       console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
       
@@ -327,7 +418,10 @@ async function fetchCustomerPartPrice(customerId, partId) {
       
       if (!priceListId) {
         console.log(`Step 2 FAILED: Could not get customer's price list ID`);
-        return null;
+        // Try to get part's standard unit
+        const partDetails = await fetchPartDetails(partId);
+        const unitCode = partDetails?.standardUnitId ? getUnitCode(partDetails.standardUnitId) : 'st';
+        return { price: null, unitCode };
       }
       
       console.log(`Step 2: Customer's price list ID: ${priceListId}`);
@@ -337,16 +431,29 @@ async function fetchCustomerPartPrice(customerId, partId) {
       
       if (priceListPrice !== null && priceListPrice > 0) {
         console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
-        return priceListPrice;
+        // For price list prices, use the part's standard unit
+        const partDetails = await fetchPartDetails(partId);
+        const unitCode = partDetails?.standardUnitId ? getUnitCode(partDetails.standardUnitId) : 'st';
+        console.log(`Using part's standard unit: ${unitCode}`);
+        return { price: priceListPrice, unitCode };
       } else {
         console.log(`Step 3 FAILED: No price found in customer's price list ${priceListId}`);
-        return null;
+        // Still try to get the unit even if no price found
+        const partDetails = await fetchPartDetails(partId);
+        const unitCode = partDetails?.standardUnitId ? getUnitCode(partDetails.standardUnitId) : 'st';
+        return { price: null, unitCode };
       }
     }
   } catch (error) {
-    console.error(`Error fetching customer part price for customer ${customerId}, part ${partId}:`, error);
-    return null;
+    console.error(`Error fetching customer part price with unit for customer ${customerId}, part ${partId}:`, error);
+    return { price: null, unitCode: 'st' };
   }
+}
+
+// Fetch customer-specific price with fallback to customer's price list (legacy function for compatibility)
+async function fetchCustomerPartPrice(customerId, partId) {
+  const result = await fetchCustomerPartPriceWithUnit(customerId, partId);
+  return result.price;
 }
 
 // Fetch outlet price for a part
@@ -707,6 +814,7 @@ export async function action({ request }) {
 
     let price = 299.99; // Default test price
     let priceSource = "test";
+    let unitCode = "st"; // Default unit
     
     // Check if Monitor API is configured
     if (!monitorUrl || !monitorUsername || !monitorCompany) {
@@ -720,10 +828,12 @@ export async function action({ request }) {
           console.log(`Outlet product with Monitor ID ${monitorId} - using fallback price 100.00 (API not configured)`);
           price = 100.00;
           priceSource = "outlet-fallback-no-api";
+          unitCode = "st"; // Default unit for outlet fallback
         } else {
           console.log(`Outlet product without Monitor ID - using fallback price 100.00`);
           price = 100.00;
           priceSource = "outlet-fallback";
+          unitCode = "st"; // Default unit for outlet fallback
         }
       } else {
         // Not an outlet product - check for customer-specific pricing if we have both IDs
@@ -731,8 +841,10 @@ export async function action({ request }) {
           console.log(`Non-outlet product with customer Monitor ID ${customerMonitorId} and part ID ${monitorId} - using fallback price (API not configured)`);
           price = 250.00; // Mock customer-specific price for testing
           priceSource = "customer-fallback-no-api";
+          unitCode = "st"; // Default unit for customer fallback
         } else {
           console.log(`Not an outlet product, using test price: ${price}`);
+          unitCode = "st"; // Default unit for test price
         }
       }
     } else {
@@ -746,39 +858,49 @@ export async function action({ request }) {
         if (outletPrice !== null && outletPrice > 0) {
           price = outletPrice;
           priceSource = "outlet";
-          console.log(`Found outlet price: ${outletPrice}`);
+          // For outlet products, try to get the part's standard unit
+          const partDetails = await fetchPartDetails(monitorId);
+          unitCode = partDetails?.standardUnitId ? getUnitCode(partDetails.standardUnitId) : 'st';
+          console.log(`Found outlet price: ${outletPrice}, unit: ${unitCode}`);
         } else {
           // No outlet price found or empty array, set to 100.00 as requested
           price = 100.00;
           priceSource = "outlet-fallback";
-          console.log(`No outlet price found (empty array or null), using fallback price: 100.00`);
+          unitCode = "st"; // Default unit for outlet fallback
+          console.log(`No outlet price found (empty array or null), using fallback price: 100.00, unit: ${unitCode}`);
         }
       } else if (isOutletProduct && !monitorId) {
         // Outlet product but no monitor ID - use fallback
         price = 100.00;
         priceSource = "outlet-fallback";
-        console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
+        unitCode = "st"; // Default unit for outlet fallback
+        console.log(`Outlet product but no Monitor ID, using fallback price: 100.00, unit: ${unitCode}`);
       } else {
         // 2. Not an outlet product - check for customer-specific pricing
         if (customerMonitorId && monitorId) {
-          console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}`);
-          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId);
+          console.log(`Checking customer-specific price with unit for customer ${customerMonitorId}, part ${monitorId}`);
+          const customerPriceResult = await fetchCustomerPartPriceWithUnit(customerMonitorId, monitorId);
           
-          if (customerPrice !== null && customerPrice > 0) {
-            price = customerPrice;
+          if (customerPriceResult.price !== null && customerPriceResult.price > 0) {
+            price = customerPriceResult.price;
+            unitCode = customerPriceResult.unitCode;
             priceSource = "customer-specific";
-            console.log(`Found customer-specific price: ${customerPrice}`);
+            console.log(`Found customer-specific price: ${customerPriceResult.price}, unit: ${customerPriceResult.unitCode}`);
           } else {
             console.log(`No customer-specific price found, using test price: ${price}`);
+            // Still use the unit even if no price found
+            unitCode = customerPriceResult.unitCode;
           }
         } else {
           console.log(`Missing customer Monitor ID (${customerMonitorId}) or part Monitor ID (${monitorId}), using test price: ${price}`);
+          unitCode = "st"; // Default unit when missing IDs
         }
       }
     }
     
     return json({ 
       price: price,
+      unitCode: unitCode,
       metadata: {
         variantId,
         customerId,
@@ -787,11 +909,12 @@ export async function action({ request }) {
         customerMonitorId: customerMonitorId || null,
         isOutletProduct: isOutletProduct || false,
         priceSource: priceSource,
+        unitCode: unitCode,
         message: `${priceSource === 'outlet' ? 'Real outlet pricing' : 
                    priceSource === 'outlet-fallback' ? 'Outlet fallback pricing' : 
                    priceSource === 'customer-specific' ? 'Customer-specific pricing' :
                    priceSource === 'customer-fallback-no-api' ? 'Customer fallback pricing (API not configured)' :
-                   'Test pricing'} - CORS working`
+                   'Test pricing'} - CORS working with unit: ${unitCode}`
       }
     }, {
       headers: corsHeaders()
