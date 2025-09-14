@@ -8,7 +8,6 @@ const monitorPassword = process.env.MONITOR_PASS;
 const monitorCompany = process.env.MONITOR_COMPANY;
 
 // Constants
-const OUTLET_PRODUCT_GROUP_ID = "1229581166640460381";
 const OUTLET_PRICE_LIST_ID = "1289997006982727753";
 
 // SSL agent for self-signed certificates
@@ -96,51 +95,6 @@ async function getSessionId() {
   return sessionId;
 }
 
-// Check if a part is in outlet product group
-async function isOutletProduct(partId) {
-  try {
-    const session = await getSessionId();
-    let url = `${monitorUrl}/${monitorCompany}/api/v1/Stock/Parts/${partId}`;
-    url += '?$select=ProductGroupId';
-    
-    let res = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-        "X-Monitor-SessionId": session,
-      },
-      agent,
-    });
-    
-    if (res.status !== 200) {
-      // Try to re-login and retry once
-      sessionId = await login();
-      res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": sessionId,
-        },
-        agent,
-      });
-      
-      if (res.status !== 200) {
-        console.error(`Failed to fetch part info for ${partId}: ${res.status}`);
-        return false;
-      }
-    }
-    
-    const part = await res.json();
-    return part.ProductGroupId === OUTLET_PRODUCT_GROUP_ID;
-  } catch (error) {
-    console.error(`Error checking if part ${partId} is outlet product:`, error);
-    return false;
-  }
-}
-
-// Fetch customer-specific price for a part
 // Fetch customer's price list ID
 async function fetchCustomerPriceListId(customerId) {
   try {
@@ -646,7 +600,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields, productHandle } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -670,19 +624,7 @@ export async function action({ request }) {
       });
     }
 
-    // Simple outlet detection based on product handle
-    if (productHandle && !isOutletProduct) {
-      // Check if the product handle indicates it's an outlet product
-      const outletKeywords = ['outlet', 'rea', 'sale', 'clearance', 'discontinued'];
-      const isHandleOutlet = outletKeywords.some(keyword => 
-        productHandle.toLowerCase().includes(keyword)
-      );
-      
-      if (isHandleOutlet) {
-        isOutletProduct = true;
-        console.log(`Detected outlet product based on handle: ${productHandle}`);
-      }
-    }
+    // Note: Outlet product detection is handled via Shopify collections/tags in fetchShopifyMetafields
 
     // If fetchMetafields is true, get metafields from Shopify Admin API
     if (fetchMetafields === true) {
@@ -705,36 +647,13 @@ export async function action({ request }) {
     console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}, Customer Monitor ID: ${customerMonitorId}`);
     console.log(`Monitor env check: URL=${!!monitorUrl}, USER=${!!monitorUsername}, COMPANY=${!!monitorCompany}`);
 
-    let price = 299.99; // Default test price
-    let priceSource = "test";
+    let price = null; // No default price - only set if found
+    let priceSource = "no-price";
     
     // Check if Monitor API is configured
     if (!monitorUrl || !monitorUsername || !monitorCompany) {
-      console.log('Monitor API not configured, using local logic...');
-      
-      // If this is an outlet product, use the fallback price logic
-      if (isOutletProduct) {
-        // For outlet products without API, check if we have a monitor ID
-        if (monitorId) {
-          // Simulate API response - in production, this would call Monitor API
-          console.log(`Outlet product with Monitor ID ${monitorId} - using fallback price 100.00 (API not configured)`);
-          price = 100.00;
-          priceSource = "outlet-fallback-no-api";
-        } else {
-          console.log(`Outlet product without Monitor ID - using fallback price 100.00`);
-          price = 100.00;
-          priceSource = "outlet-fallback";
-        }
-      } else {
-        // Not an outlet product - check for customer-specific pricing if we have both IDs
-        if (customerMonitorId && monitorId) {
-          console.log(`Non-outlet product with customer Monitor ID ${customerMonitorId} and part ID ${monitorId} - using fallback price (API not configured)`);
-          price = 250.00; // Mock customer-specific price for testing
-          priceSource = "customer-fallback-no-api";
-        } else {
-          console.log(`Not an outlet product, using test price: ${price}`);
-        }
-      }
+      console.log('Monitor API not configured - no pricing available');
+      priceSource = "api-not-configured";
     } else {
       // Monitor API is configured, try to fetch real prices with hierarchy
       
@@ -748,16 +667,12 @@ export async function action({ request }) {
           priceSource = "outlet";
           console.log(`Found outlet price: ${outletPrice}`);
         } else {
-          // No outlet price found or empty array, set to 100.00 as requested
-          price = 100.00;
-          priceSource = "outlet-fallback";
-          console.log(`No outlet price found (empty array or null), using fallback price: 100.00`);
+          console.log(`No outlet price found for Monitor ID: ${monitorId}`);
+          priceSource = "outlet-no-price";
         }
       } else if (isOutletProduct && !monitorId) {
-        // Outlet product but no monitor ID - use fallback
-        price = 100.00;
-        priceSource = "outlet-fallback";
-        console.log(`Outlet product but no Monitor ID, using fallback price: 100.00`);
+        console.log(`Outlet product but no Monitor ID available`);
+        priceSource = "outlet-no-monitor-id";
       } else {
         // 2. Not an outlet product - check for customer-specific pricing
         if (customerMonitorId && monitorId) {
@@ -769,10 +684,12 @@ export async function action({ request }) {
             priceSource = "customer-specific";
             console.log(`Found customer-specific price: ${customerPrice}`);
           } else {
-            console.log(`No customer-specific price found, using test price: ${price}`);
+            console.log(`No customer-specific price found for customer ${customerMonitorId}, part ${monitorId}`);
+            priceSource = "customer-no-price";
           }
         } else {
-          console.log(`Missing customer Monitor ID (${customerMonitorId}) or part Monitor ID (${monitorId}), using test price: ${price}`);
+          console.log(`Missing customer Monitor ID (${customerMonitorId}) or part Monitor ID (${monitorId}) - cannot fetch pricing`);
+          priceSource = "missing-monitor-ids";
         }
       }
     }
@@ -788,10 +705,13 @@ export async function action({ request }) {
         isOutletProduct: isOutletProduct || false,
         priceSource: priceSource,
         message: `${priceSource === 'outlet' ? 'Real outlet pricing' : 
-                   priceSource === 'outlet-fallback' ? 'Outlet fallback pricing' : 
                    priceSource === 'customer-specific' ? 'Customer-specific pricing' :
-                   priceSource === 'customer-fallback-no-api' ? 'Customer fallback pricing (API not configured)' :
-                   'Test pricing'} - CORS working`
+                   priceSource === 'outlet-no-price' ? 'Outlet product - no price found' :
+                   priceSource === 'customer-no-price' ? 'Customer product - no price found' :
+                   priceSource === 'outlet-no-monitor-id' ? 'Outlet product - no Monitor ID' :
+                   priceSource === 'missing-monitor-ids' ? 'Missing Monitor IDs for pricing' :
+                   priceSource === 'api-not-configured' ? 'Monitor API not configured' :
+                   'No pricing available'} - CORS working`
       }
     }, {
       headers: corsHeaders()
