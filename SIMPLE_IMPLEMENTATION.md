@@ -10,6 +10,10 @@ Show dynamic prices everywhere and use draft orders for checkout accuracy:
 
 **For Cart Drawer (add to your cart drawer template):**
 ```liquid
+{% comment %}
+  Note: For new Customer Accounts where customer variable may not be available,
+  see NEW_CUSTOMER_ACCOUNTS.md for alternative customer detection methods
+{% endcomment %}
 {% if customer %}
 <script>
 // Set up customer object first
