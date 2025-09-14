@@ -131,7 +131,7 @@ async function pollForNewOrders() {
           Preliminary: true,
           Rows: orderRows,
           IsStockOrder: false,
-          GoodsLabel: order.custom.monitor_goodslabel // @TODO is this syntax correct?
+          GoodsLabel: order.note // @TODO is this syntax correct?
         };
 
         console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
