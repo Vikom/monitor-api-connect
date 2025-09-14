@@ -65,8 +65,8 @@ async function getCustomerPrice(variantId, customerId) {
 }
 
 /**
- * Update price display on the page for a specific variant
- * @param {string} variantId - Shopify variant ID (gid://shopify/ProductVariant/...)
+ * Update price display on a product page for a logged-in customer
+ * @param {string} variantId - Shopify variant ID
  * @param {string} priceSelector - CSS selector for price element
  * @param {string} customerId - Shopify customer ID (required)
  */
@@ -91,15 +91,11 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
     if (priceElement && priceData.price) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
-      const unitCode = priceData.unitCode || 'st'; // Default to 'st' if no unit provided
-      
       console.log('Formatted price:', formattedPrice);
-      console.log('Unit code:', unitCode);
       console.log('Old price text:', priceElement.textContent);
       
-      // Update price with unit
-      priceElement.innerHTML = `${formattedPrice}<span>/${unitCode}</span>`;
-      console.log('New price HTML:', priceElement.innerHTML);
+      priceElement.textContent = formattedPrice;
+      console.log('New price text:', priceElement.textContent);
       
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {

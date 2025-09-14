@@ -123,8 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (priceData.price !== null && priceData.price !== undefined) {
           cartTotal += priceData.price * item.quantity;
           
-          const unitCode = priceData.unitCode || 'st'; // Default to 'st' if no unit provided
-          console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr/${unitCode}`);
+          console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr`);
           
           // Find the specific cart item by data-variant-id
           const cartItem = document.querySelector(`li[data-variant-id="${item.variant_id}"]`);
@@ -132,17 +131,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update the main price display - target the .price element specifically
             const priceElement = cartItem.querySelector('.cart-item__prices .price');
             if (priceElement) {
-              // Keep the existing structure but update the price value with unit
+              // Keep the existing structure but update the price value
               const hasDiscount = priceElement.classList.contains('price--on-sale');
               if (hasDiscount) {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.innerHTML = `${priceData.price} kr<span>/${unitCode}</span>`;
+                  salePriceSpan.textContent = `${priceData.price} kr`;
                 }
               } else {
                 // Update the regular price
-                priceElement.innerHTML = `${priceData.price} kr<span>/${unitCode}</span>`;
+                priceElement.innerHTML = `${priceData.price} kr`;
               }
             }
           }
@@ -397,8 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (priceData.price !== null && priceData.price !== undefined) {
           cartTotal += priceData.price * item.quantity;
           
-          const unitCode = priceData.unitCode || 'st'; // Default to 'st' if no unit provided
-          console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr/${unitCode}`);
+          console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr`);
           
           // Find the cart row by its actual position (1-based indexing for HTML IDs)
           const itemNumber = index + 1;
@@ -419,11 +417,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.innerHTML = `${priceData.price} kr<span>/${unitCode}</span>`;
+                  salePriceSpan.textContent = `${priceData.price} kr`;
                 }
               } else {
-                // Update the regular price - replace entire content with unit
-                priceElement.innerHTML = `${priceData.price} kr<span>/${unitCode}</span>`;
+                // Update the regular price - replace entire content
+                priceElement.innerHTML = `${priceData.price} kr`;
               }
             });
             
