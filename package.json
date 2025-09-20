@@ -41,16 +41,18 @@
     "@shopify/polaris": "^13.9.5",
     "@shopify/shopify-app-remix": "^3.8.3",
     "@shopify/shopify-app-session-storage-prisma": "^6.0.7",
+    "concurrently": "^9.2.1",
     "dotenv": "^16.5.0",
     "form-data": "^4.0.4",
     "isbot": "^5.1.0",
+    "json2csv": "^6.0.0-alpha.2",
     "node-cron": "^4.1.0",
     "node-fetch": "^3.3.2",
+    "pdfkit": "^0.17.2",
     "prisma": "^6.9.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "vite-tsconfig-paths": "^5.0.1",
-    "concurrently": "^9.2.1"
+    "vite-tsconfig-paths": "^5.0.1"
   },
   "devDependencies": {
     "@remix-run/eslint-config": "^2.16.1",
