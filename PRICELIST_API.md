@@ -202,6 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let payload = {
       customer_id: {{ customer.id }},
       customer_email: "{{ customer.email }}",
+      customer_company: "{{ customer.metafields.custom.company | default: '' }}",
       monitor_id: "{{ customer.metafields.custom.monitor_id | default: '' }}",
       format: format,
       selection_method: selectionMethod,

@@ -56,6 +56,7 @@ export async function action({ request }) {
     const {
       customer_id,
       customer_email,
+      customer_company,
       monitor_id,
       format = 'pdf',
       selection_method,
@@ -100,6 +101,7 @@ export async function action({ request }) {
     console.log('Parsed fields:');
     console.log('  - Customer ID:', customer_id);
     console.log('  - Customer Email:', customer_email);
+    console.log('  - Customer Company:', customer_company);
     console.log('  - Monitor ID:', monitor_id);
     console.log('  - Format:', format);
     console.log('  - Selection method:', selection_method);
@@ -150,7 +152,7 @@ export async function action({ request }) {
 
     // Generate file based on format
     if (format === 'pdf') {
-      const pdfBuffer = await generatePDF(priceData, customer_email);
+      const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
       
       return new Response(pdfBuffer, {
         status: 200,
@@ -516,7 +518,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
 /**
  * Generate PDF from price data
  */
-async function generatePDF(priceData, customerEmail) {
+async function generatePDF(priceData, customerEmail, customerCompany) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ margin: 50 });
@@ -528,7 +530,7 @@ async function generatePDF(priceData, customerEmail) {
       
       // Header
       doc.fontSize(20).text('Prislista', { align: 'center' });
-      doc.fontSize(12).text(`Kund: ${customerEmail}`, { align: 'center' });
+      doc.fontSize(12).text(`Kund: ${customerCompany}`, { align: 'center' });
       doc.text(`Datum: ${new Date().toLocaleDateString('sv-SE')}`, { align: 'center' });
       doc.moveDown(2);
       
