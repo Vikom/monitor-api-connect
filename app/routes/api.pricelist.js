@@ -21,20 +21,29 @@ function corsHeaders() {
   };
 }
 
-// Handle OPTIONS request for CORS
-export async function options() {
-  return new Response(null, {
-    status: 200,
-    headers: corsHeaders(),
+// Handle GET/OPTIONS requests for CORS
+export async function loader({ request }) {
+  const method = request.method;
+
+  if (method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  }
+
+  // For GET requests, return method not allowed
+  return new Response(JSON.stringify({ error: "Method not allowed. Use POST." }), {
+    status: 405,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders()
+    }
   });
 }
 
 export async function action({ request }) {
   const method = request.method;
-
-  if (method === "OPTIONS") {
-    return options();
-  }
 
   if (method !== "POST") {
     return json({ error: "Method not allowed" }, { 

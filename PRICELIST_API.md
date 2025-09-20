@@ -79,6 +79,10 @@ const response = await fetch('monitor-api-connect-production.up.railway.app/api/
 const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/pricelist', {
 ```
 
+### CORS Handling
+
+The endpoint properly handles CORS preflight requests (OPTIONS) and includes appropriate headers for cross-origin requests. The API includes both a `loader` function (for GET/OPTIONS requests) and an `action` function (for POST requests) to comply with Remix routing requirements.
+
 ### Complete Template Integration
 
 ```liquid
