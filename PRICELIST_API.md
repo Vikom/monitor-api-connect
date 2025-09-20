@@ -18,12 +18,12 @@ Content-Type: application/json
 {
   "customer_id": 123456789,                               // Required: Shopify customer ID (numeric)
   "customer_email": "customer@example.com",               // Required
-  "monitor_id": "CUSTOMER_MONITOR_ID",                    // Required: Customer's Monitor system ID
+  "monitor_id": "CUSTOMER_MONITOR_ID",                    // Required: Customer's Monitor system ID (cannot be empty)
   "format": "pdf",                                        // Required: "pdf" or "csv"
   "selection_method": "collections",                      // Required: "collections", "products", or "all"
   "collections": ["123456", "789012"],                   // Required if selection_method is "collections"
   "products": ["123456", "789012"],                      // Required if selection_method is "products"
-  "shop": "mystore.myshopify.com"                        // Optional: shop domain
+  "shop": "mystore.myshopify.com"                        // Required: actual Shopify shop domain
 }
 ```
 
@@ -100,64 +100,176 @@ All logs are prefixed with descriptive markers for easy identification in Railwa
 
 ```liquid
 <script>
-// Form submission
-form.addEventListener('submit', async function(e) {
-  e.preventDefault();
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('priceListForm');
+  const selectionMethods = document.querySelectorAll('input[name="selectionMethod"]');
+  const collectionsSection = document.getElementById('collectionsSelection');
+  const productsSection = document.getElementById('productsSelection');
+  const productSearch = document.getElementById('productSearch');
+  const searchResults = document.getElementById('productSearchResults');
+  const selectedProductsList = document.getElementById('selectedProductsList');
+  const loadingState = document.getElementById('loadingState');
+  const downloadBtn = document.getElementById('downloadBtn');
   
-  const formData = new FormData(form);
-  const selectionMethod = formData.get('selectionMethod');
-  const format = formData.get('format');
-  
-  let payload = {
-    customer_id: {{ customer.id }},
-    customer_email: "{{ customer.email }}",
-    monitor_id: "{{ customer.custom.monitor_id }}",
-    format: format,
-    selection_method: selectionMethod
+  // Use array instead of Set for better compatibility
+  let selectedProducts = [];
+  let searchTimeout;
+
+  // Handle selection method changes
+  selectionMethods.forEach(method => {
+    method.addEventListener('change', function() {
+      const value = this.value;
+      collectionsSection.style.display = value === 'collections' ? 'block' : 'none';
+      productsSection.style.display = value === 'products' ? 'block' : 'none';
+    });
+  });
+
+  // Product search functionality
+  if (productSearch) {
+    productSearch.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      const query = this.value.trim();
+      
+      if (query.length < 2) {
+        searchResults.innerHTML = '';
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        searchProducts(query);
+      }, 300);
+    });
+  }
+
+  async function searchProducts(query) {
+    try {
+      const response = await fetch(`/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=10`);
+      const data = await response.json();
+      
+      displaySearchResults(data.resources.results.products || []);
+    } catch (error) {
+      console.error('Search error:', error);
+    }
+  }
+
+  function displaySearchResults(products) {
+    searchResults.innerHTML = products.map(product => `
+      <div class="product-item" data-product-id="${product.id}" data-product-title="${product.title}">
+        <span>${product.title}</span>
+        <button type="button" onclick="addProduct(${product.id}, '${product.title.replace(/'/g, "\\'")}')">Lägg till</button>
+      </div>
+    `).join('');
+  }
+
+  window.addProduct = function(id, title) {
+    // Check if product is already selected
+    const existingProduct = selectedProducts.find(p => p.id === id);
+    if (!existingProduct) {
+      selectedProducts.push({id: id, title: title});
+      updateSelectedProductsDisplay();
+      console.log('Added product:', id, title);
+    }
   };
 
-  // Add selection data based on method
-  if (selectionMethod === 'collections') {
-    payload.collections = Array.from(formData.getAll('collections[]'));
-  } else if (selectionMethod === 'products') {
-    payload.products = Array.from(selectedProducts).map(p => p.id);
+  window.removeProduct = function(id) {
+    selectedProducts = selectedProducts.filter(product => product.id !== id);
+    updateSelectedProductsDisplay();
+    console.log('Removed product:', id);
+  };
+
+  function updateSelectedProductsDisplay() {
+    selectedProductsList.innerHTML = selectedProducts.map(product => `
+      <span class="selected-product">
+        ${product.title}
+        <span class="remove-product" onclick="removeProduct(${product.id})">×</span>
+      </span>
+    `).join('');
+    console.log('Selected products:', selectedProducts);
   }
 
-  // Show loading state
-  form.style.display = 'none';
-  loadingState.style.display = 'block';
+  // Form submission
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    console.log('Form submitted');
+    
+    const formData = new FormData(form);
+    const selectionMethod = formData.get('selectionMethod');
+    const format = formData.get('format');
+    
+    console.log('Selection method:', selectionMethod);
+    console.log('Format:', format);
+    
+    let payload = {
+      customer_id: {{ customer.id }},
+      customer_email: "{{ customer.email }}",
+      monitor_id: "{{ customer.custom.monitor_id | default: '' }}",  // Handle empty monitor_id
+      format: format,
+      selection_method: selectionMethod,
+      shop: "{{ shop.domain }}"  // Add shop domain to payload
+    };
 
-  try {
-    const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/pricelist', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (response.ok) {
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `price-list-${new Date().getTime()}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } else {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate price list');
+    // Add selection data based on method
+    if (selectionMethod === 'collections') {
+      payload.collections = Array.from(formData.getAll('collections[]'));
+      console.log('Selected collections:', payload.collections);
+    } else if (selectionMethod === 'products') {
+      payload.products = selectedProducts.map(p => p.id);
+      console.log('Selected products:', payload.products);
     }
-  } catch (error) {
-    console.error('Error:', error);
-    alert(`Error generating price list: ${error.message}`);
-  } finally {
-    // Hide loading state
-    form.style.display = 'block';
-    loadingState.style.display = 'none';
-  }
+
+    console.log('Final payload:', payload);
+
+    // Show loading state
+    form.style.display = 'none';
+    loadingState.style.display = 'block';
+
+    try {
+      console.log('Making request to API...');
+      const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/pricelist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        console.log('Response successful, downloading file...');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `price-list-${new Date().getTime()}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        console.log('File download triggered');
+      } else {
+        console.error('API request failed with status:', response.status);
+        let errorMessage = 'Failed to generate price list';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          console.error('Error data:', errorData);
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError);
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Request error:', error);
+      alert(`Error generating price list: ${error.message}`);
+    } finally {
+      // Hide loading state
+      form.style.display = 'block';
+      loadingState.style.display = 'none';
+    }
+  });
 });
 </script>
 ```

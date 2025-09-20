@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node";
-import { sessionStorage } from "../shopify.server.js";
+import { authenticate } from "../shopify.server.js";
 import PDFDocument from "pdfkit";
 
 // Monitor API configuration
@@ -53,6 +53,9 @@ export async function action({ request }) {
   }
 
   try {
+    // Authenticate with Shopify
+    const { admin } = await authenticate.admin(request);
+    
     const body = await request.json();
     const {
       customer_id,
@@ -80,6 +83,15 @@ export async function action({ request }) {
       });
     }
 
+    if (!monitor_id || monitor_id.trim() === '') {
+      return json({ 
+        error: 'Customer Monitor ID is required for pricing. Please ensure the customer has a monitor_id set in their custom fields.' 
+      }, { 
+        status: 400,
+        headers: corsHeaders()
+      });
+    }
+
     console.log('=== PRICELIST REQUEST DEBUG ===');
     console.log('Raw request body:', JSON.stringify(body, null, 2));
     console.log('Parsed fields:');
@@ -96,18 +108,25 @@ export async function action({ request }) {
     // Get shop domain from request or headers
     const shopDomain = shop || request.headers.get('X-Shopify-Shop-Domain') || request.headers.get('host');
     
+    console.log(`Using shop domain: ${shopDomain}`);
+    
+    // Validate Monitor ID if needed for pricing
+    if (!monitor_id && selection_method !== 'all') {
+      console.log('Warning: No customer Monitor ID provided - pricing may not work correctly');
+    }
+    
     // Fetch products based on selection method
     let productList = [];
     
     switch (selection_method) {
       case 'collections':
-        productList = await fetchProductsByCollections(collections, shopDomain);
+        productList = await fetchProductsByCollections(collections, admin);
         break;
       case 'products':
-        productList = await fetchProductsByIds(products, shopDomain);
+        productList = await fetchProductsByIds(products, admin);
         break;
       case 'all':
-        productList = await fetchAllProducts(shopDomain);
+        productList = await fetchAllProducts(admin);
         break;
       default:
         return json({ error: 'Invalid selection method' }, { 
@@ -119,7 +138,7 @@ export async function action({ request }) {
     console.log(`Found ${productList.length} products to process`);
 
     // Get pricing for all products
-    const priceData = await fetchPricingForProducts(productList, customer_id, shopDomain, monitor_id);
+    const priceData = await fetchPricingForProducts(productList, customer_id, admin, monitor_id);
 
     console.log(`Generated pricing data for ${priceData.length} items`);
 
@@ -165,18 +184,11 @@ export async function action({ request }) {
 /**
  * Fetch products by collection IDs using Shopify API
  */
-async function fetchProductsByCollections(collectionIds, shopDomain) {
+async function fetchProductsByCollections(collectionIds, admin) {
   console.log(`Fetching products from ${collectionIds.length} collections`);
   const products = [];
   
   try {
-    // Get session for the shop
-    const session = await getShopifySession(shopDomain);
-    if (!session) {
-      console.error('No Shopify session found for shop:', shopDomain);
-      return [];
-    }
-
     for (const collectionId of collectionIds) {
       try {
         console.log(`Fetching products from collection ${collectionId}`);
@@ -215,24 +227,15 @@ async function fetchProductsByCollections(collectionIds, shopDomain) {
           }
         `;
 
-        const response = await fetch(`https://${shopDomain}/admin/api/2025-01/graphql.json`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': session.accessToken,
-          },
-          body: JSON.stringify({ query, variables: { id: collectionId } })
+        const response = await admin.graphql(query, {
+          variables: { id: collectionId }
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.data?.collection?.products?.edges) {
-            const collectionProducts = data.data.collection.products.edges.map(edge => edge.node);
-            products.push(...collectionProducts);
-            console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
-          }
-        } else {
-          console.error(`Failed to fetch products from collection ${collectionId}:`, response.status);
+        const data = await response.json();
+        if (data.data?.collection?.products?.edges) {
+          const collectionProducts = data.data.collection.products.edges.map(edge => edge.node);
+          products.push(...collectionProducts);
+          console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
         }
       } catch (error) {
         console.error(`Error fetching products from collection ${collectionId}:`, error);
@@ -249,18 +252,11 @@ async function fetchProductsByCollections(collectionIds, shopDomain) {
 /**
  * Fetch products by product IDs using Shopify API
  */
-async function fetchProductsByIds(productIds, shopDomain) {
+async function fetchProductsByIds(productIds, admin) {
   console.log(`Fetching ${productIds.length} specific products`);
   const products = [];
   
   try {
-    // Get session for the shop
-    const session = await getShopifySession(shopDomain);
-    if (!session) {
-      console.error('No Shopify session found for shop:', shopDomain);
-      return [];
-    }
-
     // Batch fetch products (GraphQL allows up to 250 products in one query)
     const batchSize = 100;
     for (let i = 0; i < productIds.length; i += batchSize) {
@@ -294,22 +290,13 @@ async function fetchProductsByIds(productIds, shopDomain) {
         }
       `;
 
-      const response = await fetch(`https://${shopDomain}/admin/api/2025-01/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': session.accessToken,
-        },
-        body: JSON.stringify({ query, variables: { ids: gids } })
+      const response = await admin.graphql(query, {
+        variables: { ids: gids }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data?.nodes) {
-          products.push(...data.data.nodes.filter(node => node)); // Filter out null nodes
-        }
-      } else {
-        console.error(`Failed to fetch product batch:`, response.status);
+      const data = await response.json();
+      if (data.data?.nodes) {
+        products.push(...data.data.nodes.filter(node => node)); // Filter out null nodes
       }
     }
   } catch (error) {
@@ -323,18 +310,11 @@ async function fetchProductsByIds(productIds, shopDomain) {
 /**
  * Fetch all products using Shopify API
  */
-async function fetchAllProducts(shopDomain) {
+async function fetchAllProducts(admin) {
   console.log('Fetching all products');
   const products = [];
   
   try {
-    // Get session for the shop
-    const session = await getShopifySession(shopDomain);
-    if (!session) {
-      console.error('No Shopify session found for shop:', shopDomain);
-      return [];
-    }
-
     let hasNextPage = true;
     let cursor = null;
 
@@ -377,30 +357,18 @@ async function fetchAllProducts(shopDomain) {
         variables.after = cursor;
       }
 
-      const response = await fetch(`https://${shopDomain}/admin/api/2025-01/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': session.accessToken,
-        },
-        body: JSON.stringify({ query, variables })
-      });
+      const response = await admin.graphql(query, { variables });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data?.products) {
-          const pageProducts = data.data.products.edges.map(edge => edge.node);
-          products.push(...pageProducts);
-          
-          hasNextPage = data.data.products.pageInfo.hasNextPage;
-          cursor = data.data.products.pageInfo.endCursor;
-          
-          console.log(`Fetched ${pageProducts.length} products, total: ${products.length}`);
-        } else {
-          hasNextPage = false;
-        }
+      const data = await response.json();
+      if (data.data?.products) {
+        const pageProducts = data.data.products.edges.map(edge => edge.node);
+        products.push(...pageProducts);
+        
+        hasNextPage = data.data.products.pageInfo.hasNextPage;
+        cursor = data.data.products.pageInfo.endCursor;
+        
+        console.log(`Fetched ${pageProducts.length} products, total: ${products.length}`);
       } else {
-        console.error('Failed to fetch products page:', response.status);
         hasNextPage = false;
       }
     }
@@ -413,30 +381,9 @@ async function fetchAllProducts(shopDomain) {
 }
 
 /**
- * Get Shopify session for the given shop domain
- */
-async function getShopifySession(shopDomain) {
-  try {
-    // Try to find an active session for this shop
-    const sessions = await sessionStorage.findSessionsByShop(shopDomain);
-    if (sessions && sessions.length > 0) {
-      // Get the most recent session
-      const session = sessions[sessions.length - 1];
-      if (session && session.accessToken) {
-        return session;
-      }
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting Shopify session:', error);
-    return null;
-  }
-}
-
-/**
  * Fetch pricing for multiple products using existing pricing logic
  */
-async function fetchPricingForProducts(products, customerId, shopDomain, customerMonitorId = null) {
+async function fetchPricingForProducts(products, customerId, admin, customerMonitorId = null) {
   console.log(`Fetching pricing for ${products.length} products`);
   console.log(`Using customer Monitor ID: ${customerMonitorId}`);
   const priceData = [];
@@ -445,7 +392,7 @@ async function fetchPricingForProducts(products, customerId, shopDomain, custome
   let finalCustomerMonitorId = customerMonitorId;
   if (!finalCustomerMonitorId) {
     console.log('No customer Monitor ID provided, trying to fetch from Shopify metafields...');
-    finalCustomerMonitorId = await fetchCustomerMonitorId(customerId, shopDomain);
+    finalCustomerMonitorId = await fetchCustomerMonitorId(customerId, admin);
     console.log(`Fetched customer Monitor ID from metafields: ${finalCustomerMonitorId}`);
   }
   
@@ -868,16 +815,11 @@ async function fetchPriceFromPriceList(partId, priceListId) {
 /**
  * Fetch customer Monitor ID from Shopify metafields
  */
-async function fetchCustomerMonitorId(customerId, shopDomain) {
+async function fetchCustomerMonitorId(customerId, admin) {
   try {
-    const session = await getShopifySession(shopDomain);
-    if (!session) {
-      return null;
-    }
-
     const query = `
       query GetCustomerMonitorId($id: ID!) {
-        customer(id: "${customerId}") {
+        customer(id: $id) {
           id
           metafield(namespace: "monitor", key: "id") {
             value
@@ -886,21 +828,12 @@ async function fetchCustomerMonitorId(customerId, shopDomain) {
       }
     `;
 
-    const response = await fetch(`https://${shopDomain}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': session.accessToken,
-      },
-      body: JSON.stringify({ query })
+    const response = await admin.graphql(query, {
+      variables: { id: customerId }
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      return data.data?.customer?.metafield?.value || null;
-    }
-    
-    return null;
+    const data = await response.json();
+    return data.data?.customer?.metafield?.value || null;
   } catch (error) {
     console.error("Error fetching customer Monitor ID:", error);
     return null;
