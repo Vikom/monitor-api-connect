@@ -59,8 +59,6 @@ Content-Type: application/json
 - Kundpris (Customer Price)
 - Formaterat pris (Formatted Price)
 - Pristyp (Price Type)
-- Tillgänglighet (Availability)
-- Lagersaldo (Inventory Quantity)
 - Monitor ID
 
 ### Price Types
@@ -204,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let payload = {
       customer_id: {{ customer.id }},
       customer_email: "{{ customer.email }}",
-      monitor_id: "{{ customer.custom.monitor_id | default: '' }}",  // Handle empty monitor_id
+      monitor_id: "{{ customer.metafields.custom.monitor_id | default: '' }}",
       format: format,
       selection_method: selectionMethod,
       shop: "{{ shop.domain }}"  // Add shop domain to payload

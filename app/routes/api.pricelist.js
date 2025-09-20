@@ -486,8 +486,6 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             originalPrice: parseFloat(variant.price) || 0,
             customerPrice: price,
             priceSource: priceSource,
-            availability: (variant.inventoryQuantity > 0) ? 'I lager' : 'Ej i lager',
-            inventoryQuantity: variant.inventoryQuantity || 0,
             monitorId: monitorId || '',
             formattedPrice: price ? formatPrice(price) : 'Ingen prissättning'
           });
@@ -501,8 +499,6 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             originalPrice: parseFloat(variant.price) || 0,
             customerPrice: null,
             priceSource: "error",
-            availability: (variant.inventoryQuantity > 0) ? 'I lager' : 'Ej i lager',
-            inventoryQuantity: variant.inventoryQuantity || 0,
             monitorId: '',
             formattedPrice: 'Prisfel'
           });
@@ -545,9 +541,8 @@ async function generatePDF(priceData, customerEmail) {
         product: 50,
         variant: 150,
         sku: 250,
-        availability: 320,
-        price: 400,
-        source: 480
+        price: 350,
+        source: 450
       };
       
       // Headers
@@ -555,7 +550,6 @@ async function generatePDF(priceData, customerEmail) {
       doc.text('Produkt', colPositions.product, tableTop);
       doc.text('Variant', colPositions.variant, tableTop);
       doc.text('Artikelnr', colPositions.sku, tableTop);
-      doc.text('Status', colPositions.availability, tableTop);
       doc.text('Pris', colPositions.price, tableTop);
       doc.text('Typ', colPositions.source, tableTop);
       
@@ -576,7 +570,6 @@ async function generatePDF(priceData, customerEmail) {
         doc.text(item.productTitle.substring(0, 25), colPositions.product, yPosition, { width: 90 });
         doc.text(item.variantTitle.substring(0, 20), colPositions.variant, yPosition, { width: 90 });
         doc.text(item.sku || '', colPositions.sku, yPosition);
-        doc.text(item.availability, colPositions.availability, yPosition);
         doc.text(item.formattedPrice, colPositions.price, yPosition);
         doc.text(getPriceSourceLabel(item.priceSource), colPositions.source, yPosition);
         
@@ -611,8 +604,6 @@ function generateCSV(priceData) {
     'Kundpris',
     'Formaterat pris',
     'Pristyp',
-    'Tillgänglighet',
-    'Lagersaldo',
     'Monitor ID'
   ];
   
@@ -632,8 +623,6 @@ function generateCSV(priceData) {
       item.customerPrice || '',
       escapeCSVField(item.formattedPrice),
       escapeCSVField(getPriceSourceLabel(item.priceSource)),
-      escapeCSVField(item.availability),
-      item.inventoryQuantity || 0,
       escapeCSVField(item.monitorId || '')
     ];
     csvRows.push(row.join(';'));
