@@ -16,13 +16,14 @@ POST /api/pricelist
 Content-Type: application/json
 
 {
-  "customer_id": "gid://shopify/Customer/123456789",  // Required
-  "customer_email": "customer@example.com",           // Required
-  "format": "pdf",                                    // Required: "pdf" or "csv"
-  "selection_method": "collections",                  // Required: "collections", "products", or "all"
-  "collections": ["123456", "789012"],               // Required if selection_method is "collections"
-  "products": ["123456", "789012"],                  // Required if selection_method is "products"
-  "shop": "mystore.myshopify.com"                    // Optional: shop domain
+  "customer_id": 123456789,                               // Required: Shopify customer ID (numeric)
+  "customer_email": "customer@example.com",               // Required
+  "monitor_id": "CUSTOMER_MONITOR_ID",                    // Required: Customer's Monitor system ID
+  "format": "pdf",                                        // Required: "pdf" or "csv"
+  "selection_method": "collections",                      // Required: "collections", "products", or "all"
+  "collections": ["123456", "789012"],                   // Required if selection_method is "collections"
+  "products": ["123456", "789012"],                      // Required if selection_method is "products"
+  "shop": "mystore.myshopify.com"                        // Optional: shop domain
 }
 ```
 
@@ -83,6 +84,18 @@ const response = await fetch('https://monitor-api-connect-production.up.railway.
 
 The endpoint properly handles CORS preflight requests (OPTIONS) and includes appropriate headers for cross-origin requests. The API includes both a `loader` function (for GET/OPTIONS requests) and an `action` function (for POST requests) to comply with Remix routing requirements.
 
+### Enhanced Logging
+
+The endpoint includes comprehensive logging to help with debugging:
+
+- **Request logging**: Full payload dump and parsed field values
+- **Product processing**: Number of products found and processed
+- **Pricing logic**: Detailed logs for each variant pricing lookup
+- **Monitor API calls**: Logs for outlet pricing and customer-specific pricing calls
+- **Customer Monitor ID**: Logs showing which customer Monitor ID is being used
+
+All logs are prefixed with descriptive markers for easy identification in Railway logs.
+
 ### Complete Template Integration
 
 ```liquid
@@ -96,8 +109,9 @@ form.addEventListener('submit', async function(e) {
   const format = formData.get('format');
   
   let payload = {
-    customer_id: "gid://shopify/Customer/{{ customer.id }}",
+    customer_id: {{ customer.id }},
     customer_email: "{{ customer.email }}",
+    monitor_id: "{{ customer.custom.monitor_id }}",
     format: format,
     selection_method: selectionMethod
   };

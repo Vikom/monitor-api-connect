@@ -57,6 +57,7 @@ export async function action({ request }) {
     const {
       customer_id,
       customer_email,
+      monitor_id,
       format = 'pdf',
       selection_method,
       collections = [],
@@ -80,13 +81,16 @@ export async function action({ request }) {
     }
 
     console.log('=== PRICELIST REQUEST DEBUG ===');
-    console.log('Customer ID:', customer_id);
-    console.log('Customer Email:', customer_email);
-    console.log('Selection method:', selection_method);
-    console.log('Format:', format);
-    console.log('Collections:', collections);
-    console.log('Products:', products);
-    console.log('Shop:', shop);
+    console.log('Raw request body:', JSON.stringify(body, null, 2));
+    console.log('Parsed fields:');
+    console.log('  - Customer ID:', customer_id);
+    console.log('  - Customer Email:', customer_email);
+    console.log('  - Monitor ID:', monitor_id);
+    console.log('  - Format:', format);
+    console.log('  - Selection method:', selection_method);
+    console.log('  - Collections:', collections);
+    console.log('  - Products:', products);
+    console.log('  - Shop:', shop);
     console.log('=== END PRICELIST REQUEST DEBUG ===');
 
     // Get shop domain from request or headers
@@ -115,7 +119,7 @@ export async function action({ request }) {
     console.log(`Found ${productList.length} products to process`);
 
     // Get pricing for all products
-    const priceData = await fetchPricingForProducts(productList, customer_id, shopDomain);
+    const priceData = await fetchPricingForProducts(productList, customer_id, shopDomain, monitor_id);
 
     console.log(`Generated pricing data for ${priceData.length} items`);
 
@@ -432,12 +436,18 @@ async function getShopifySession(shopDomain) {
 /**
  * Fetch pricing for multiple products using existing pricing logic
  */
-async function fetchPricingForProducts(products, customerId, shopDomain) {
+async function fetchPricingForProducts(products, customerId, shopDomain, customerMonitorId = null) {
   console.log(`Fetching pricing for ${products.length} products`);
+  console.log(`Using customer Monitor ID: ${customerMonitorId}`);
   const priceData = [];
   
-  // Get customer's Monitor ID
-  const customerMonitorId = await fetchCustomerMonitorId(customerId, shopDomain);
+  // Use provided customerMonitorId or fetch from Shopify metafields as fallback
+  let finalCustomerMonitorId = customerMonitorId;
+  if (!finalCustomerMonitorId) {
+    console.log('No customer Monitor ID provided, trying to fetch from Shopify metafields...');
+    finalCustomerMonitorId = await fetchCustomerMonitorId(customerId, shopDomain);
+    console.log(`Fetched customer Monitor ID from metafields: ${finalCustomerMonitorId}`);
+  }
   
   for (const product of products) {
     try {
@@ -449,6 +459,8 @@ async function fetchPricingForProducts(products, customerId, shopDomain) {
         const variantId = variant.id;
         const monitorId = variant.metafield?.value;
         
+        console.log(`Processing variant ${variant.id}: monitorId=${monitorId}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        
         try {
           // Use existing pricing logic
           let price = null;
@@ -456,20 +468,32 @@ async function fetchPricingForProducts(products, customerId, shopDomain) {
           
           if (monitorId) {
             if (isOutletProduct) {
+              console.log(`Getting outlet price for Monitor ID: ${monitorId}`);
               // Get outlet price
               const outletPrice = await fetchOutletPrice(monitorId);
               if (outletPrice !== null && outletPrice > 0) {
                 price = outletPrice;
                 priceSource = "outlet";
+                console.log(`Found outlet price: ${outletPrice}`);
+              } else {
+                console.log(`No outlet price found for Monitor ID: ${monitorId}`);
               }
-            } else if (customerMonitorId) {
+            } else if (finalCustomerMonitorId) {
+              console.log(`Getting customer-specific price for customer ${finalCustomerMonitorId}, part ${monitorId}`);
               // Get customer-specific price
-              const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId);
+              const customerPrice = await fetchCustomerPartPrice(finalCustomerMonitorId, monitorId);
               if (customerPrice !== null && customerPrice > 0) {
                 price = customerPrice;
                 priceSource = "customer-specific";
+                console.log(`Found customer-specific price: ${customerPrice}`);
+              } else {
+                console.log(`No customer-specific price found for customer ${finalCustomerMonitorId}, part ${monitorId}`);
               }
+            } else {
+              console.log(`No customer Monitor ID available for pricing lookup`);
             }
+          } else {
+            console.log(`No Monitor ID found for variant ${variant.id}`);
           }
           
           priceData.push({
