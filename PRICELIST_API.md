@@ -5,9 +5,10 @@
 This endpoint generates customer-specific price lists in PDF or CSV format.
 
 ### Authentication
-- No authentication required for the endpoint itself
-- Customer ID and email must be provided in the request
-- The endpoint uses the shop's existing Shopify session for product data access
+- **Public Endpoint**: Can be called from Shopify theme/storefront without authentication
+- **Private App Credentials**: Uses `SHOPIFY_ACCESS_TOKEN` or `ADVANCED_STORE_ADMIN_TOKEN` environment variables
+- **Shop Domain Required**: Must include shop domain in request payload for API access
+- **Customer ID**: Customer ID and email must be provided in the request
 
 ### Request Format
 
