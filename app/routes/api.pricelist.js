@@ -1,7 +1,6 @@
 import { json } from "@remix-run/node";
 import { sessionStorage } from "../shopify.server.js";
 import PDFDocument from "pdfkit";
-import { Parser as Json2csvParser } from "json2csv";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -587,21 +586,57 @@ async function generatePDF(priceData, customerEmail) {
  * Generate CSV from price data
  */
 function generateCSV(priceData) {
-  const fields = [
-    { label: 'Produkt', value: 'productTitle' },
-    { label: 'Variant', value: 'variantTitle' },
-    { label: 'Artikelnummer', value: 'sku' },
-    { label: 'Ursprungspris', value: 'originalPrice' },
-    { label: 'Kundpris', value: 'customerPrice' },
-    { label: 'Formaterat pris', value: 'formattedPrice' },
-    { label: 'Pristyp', value: (row) => getPriceSourceLabel(row.priceSource) },
-    { label: 'Tillgänglighet', value: 'availability' },
-    { label: 'Lagersaldo', value: 'inventoryQuantity' },
-    { label: 'Monitor ID', value: 'monitorId' }
+  // Define CSV headers
+  const headers = [
+    'Produkt',
+    'Variant', 
+    'Artikelnummer',
+    'Ursprungspris',
+    'Kundpris',
+    'Formaterat pris',
+    'Pristyp',
+    'Tillgänglighet',
+    'Lagersaldo',
+    'Monitor ID'
   ];
   
-  const json2csvParser = new Json2csvParser({ fields, delimiter: ';' });
-  return json2csvParser.parse(priceData);
+  // Create CSV content
+  const csvRows = [];
+  
+  // Add header row
+  csvRows.push(headers.join(';'));
+  
+  // Add data rows
+  for (const item of priceData) {
+    const row = [
+      escapeCSVField(item.productTitle),
+      escapeCSVField(item.variantTitle),
+      escapeCSVField(item.sku || ''),
+      item.originalPrice || '',
+      item.customerPrice || '',
+      escapeCSVField(item.formattedPrice),
+      escapeCSVField(getPriceSourceLabel(item.priceSource)),
+      escapeCSVField(item.availability),
+      item.inventoryQuantity || 0,
+      escapeCSVField(item.monitorId || '')
+    ];
+    csvRows.push(row.join(';'));
+  }
+  
+  return csvRows.join('\n');
+}
+
+/**
+ * Escape CSV field content
+ */
+function escapeCSVField(field) {
+  if (field === null || field === undefined) return '';
+  const str = String(field);
+  // If field contains semicolon, quote, or newline, wrap in quotes and escape quotes
+  if (str.includes(';') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
 }
 
 // Import existing functions from pricing-public.js (we'll need to extract these into a shared module)

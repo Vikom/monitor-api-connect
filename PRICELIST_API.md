@@ -162,14 +162,16 @@ Error responses include JSON with `error` and optional `details` fields:
 
 ### Dependencies
 
-The endpoint requires these npm packages:
+The endpoint requires this npm package:
 - `pdfkit`: For PDF generation
-- `json2csv`: For CSV generation
 
 Install with:
+
 ```bash
-npm install pdfkit json2csv
+npm install pdfkit
 ```
+
+CSV generation is handled natively without external dependencies.
 
 ### Notes
 
