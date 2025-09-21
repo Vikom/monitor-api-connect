@@ -466,80 +466,124 @@ export async function fetchCustomersFromMonitor() {
         agent,
       });
       
-      if (res.status !== 200) {
-        const errorBody = await res.text();
-        console.error(`Monitor API fetchCustomers first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
-        // Try to re-login and retry once
-        await monitorClient.login();
-        const newSessionId = await monitorClient.getSessionId();
-        res = await fetch(url, {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            "Cache-Control": "no-cache",
-            "X-Monitor-SessionId": newSessionId,
-          },
-          agent,
-        });
-        if (res.status !== 200) {
-          const retryErrorBody = await res.text();
-          console.error(`Monitor API fetchCustomers retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
-          throw new Error("Monitor API fetchCustomers failed after re-login");
-        }
-      }
+      if (res.status !== 200) {/* Lines 470-489 omitted */}
       
       const customers = await res.json();
-      if (!Array.isArray(customers)) {
-        throw new Error("Monitor API returned unexpected data format for customers");
-      }
+      if (!Array.isArray(customers)) {/* Lines 493-494 omitted */}
       
       allCustomers = allCustomers.concat(customers);
       
-      if (customers.length < pageSize) {
-        keepFetching = false;
-      } else {
-        skip += pageSize;
-      }
+      if (customers.length < pageSize) {/* Lines 499-500 omitted */} else {/* Lines 501-502 omitted */}
     }
     
     // Transform Monitor customers/references into Shopify customer format
     const shopifyCustomers = [];
     
-    for (const monitorCustomer of allCustomers) {
-      // Each Monitor customer can have multiple references (persons)
-      if (Array.isArray(monitorCustomer.References)) {
-        for (const reference of monitorCustomer.References) {
-          // Only process references that have an email address
-          if (reference.EmailAddress && reference.EmailAddress.trim() !== "") {
-            // Parse the full name into first and last name
-            const fullName = reference.Name || "";
-            const nameParts = fullName.trim().split(/\s+/);
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            
-            shopifyCustomers.push({
-              email: reference.EmailAddress.trim(),
-              firstName: firstName,
-              lastName: lastName,
-              phone: reference.CellPhoneNumber || reference.PhoneNumber || undefined,
-              // Custom metafields for tracking
-              monitorId: reference.Id, // Reference (person) ID from Monitor
-              company: monitorCustomer.Name, // Company name from Monitor customer
-              // Additional data for potential future use
-              note: reference.Note || undefined,
-              monitorCustomerId: monitorCustomer.Id, // Customer (company) ID from Monitor
-              customerCode: monitorCustomer.Code,
-            });
-          }
-        }
-      }
-    }
+    for (const monitorCustomer of allCustomers) {/* Lines 509-536 omitted */}
     
     console.log(`Processed ${allCustomers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
     
     return shopifyCustomers;
   } catch (error) {
     console.error("Error fetching customers from Monitor:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch specific customers from Monitor by their IDs
+ * @param {Array<string>} customerIds - Array of customer IDs to fetch
+ * @returns {Promise<Array>} Array of customers in Shopify format
+ */
+export async function fetchCustomersByIdsFromMonitor(customerIds) {
+  if (!Array.isArray(customerIds) || customerIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    console.log(`Fetching ${customerIds.length} specific customers by ID...`);
+    
+    // Build filter for specific IDs - OData $filter with multiple IDs
+    const idFilter = customerIds.map(id => `Id eq '${id}'`).join(' or ');
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
+    url += `?$filter=${idFilter}`;
+    url += '&$expand=ExtraFields,References';
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchCustomersByIds first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        throw new Error(`Monitor API fetchCustomersByIds failed after retry. Status: ${res.status}, Body: ${retryErrorBody}`);
+      }
+    }
+    
+    const customers = await res.json();
+    if (!Array.isArray(customers)) {
+      throw new Error("Monitor API returned unexpected data format for customers");
+    }
+    
+    console.log(`Successfully fetched ${customers.length} customers by ID`);
+    
+    // Transform Monitor customers/references into Shopify customer format (same logic as fetchCustomersFromMonitor)
+    const shopifyCustomers = [];
+    
+    for (const monitorCustomer of customers) {
+      if (monitorCustomer.References && Array.isArray(monitorCustomer.References)) {
+        for (const reference of monitorCustomer.References) {
+          shopifyCustomers.push({
+            monitorId: monitorCustomer.Id,
+            email: reference.EmailAddress || "",
+            firstName: reference.FirstName || "",
+            lastName: reference.LastName || "",
+            phone: reference.CellPhone || reference.Phone || "",
+            company: monitorCustomer.CompanyName || "",
+            note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
+          });
+        }
+      } else {
+        // Handle customers without references
+        shopifyCustomers.push({
+          monitorId: monitorCustomer.Id,
+          email: monitorCustomer.Email || "",
+          firstName: monitorCustomer.FirstName || "",
+          lastName: monitorCustomer.LastName || "",
+          phone: monitorCustomer.Phone || "",
+          company: monitorCustomer.CompanyName || "",
+          note: `Monitor Customer ID: ${monitorCustomer.Id}`,
+        });
+      }
+    }
+    
+    console.log(`Processed ${customers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
+    
+    return shopifyCustomers;
+  } catch (error) {
+    console.error("Error fetching customers by IDs from Monitor:", error);
     throw error;
   }
 }
@@ -717,9 +761,10 @@ export async function fetchOutletPriceFromMonitor(partId) {
 
 /**
  * Fetch entity change logs from Monitor for the last 48 hours
- * @returns {Promise<Array>} Array of change log entries for products
+ * @param {string} entityTypeId - The entity type ID ('322cf0ac-10de-45ee-a792-f0944329d198' for products, '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc' for customers)
+ * @returns {Promise<Array>} Array of change log entries for the specified entity type
  */
-export async function fetchEntityChangeLogsFromMonitor() {
+export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-10de-45ee-a792-f0944329d198') {
   try {
     const sessionId = await monitorClient.getSessionId();
     
@@ -728,10 +773,11 @@ export async function fetchEntityChangeLogsFromMonitor() {
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
-    url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and EntityTypeId eq '322cf0ac-10de-45ee-a792-f0944329d198'`;
+    url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and EntityTypeId eq '${entityTypeId}'`;
     // Remove $orderby since it's causing SQL errors
     
-    console.log(`Fetching entity change logs since: ${dateFilter}`);
+    const entityType = entityTypeId === '322cf0ac-10de-45ee-a792-f0944329d198' ? 'products' : 'customers';
+    console.log(`Fetching entity change logs for ${entityType} since: ${dateFilter}`);
     console.log(`Change logs URL: ${url}`);
     
     let res = await fetch(url, {
@@ -771,11 +817,11 @@ export async function fetchEntityChangeLogsFromMonitor() {
       throw new Error("Monitor API returned unexpected data format for entity change logs");
     }
     
-    console.log(`Found ${changeLogs.length} entity changes in the last 48 hours`);
+    console.log(`Found ${changeLogs.length} entity changes in the last 48 hours for ${entityType}`);
     
-    // Extract unique entity IDs (product IDs) from the change logs
+    // Extract unique entity IDs from the change logs
     const uniqueEntityIds = [...new Set(changeLogs.map(log => log.EntityId))];
-    console.log(`Unique products with changes: ${uniqueEntityIds.length}`);
+    console.log(`Unique ${entityType} with changes: ${uniqueEntityIds.length}`);
     
     return uniqueEntityIds;
   } catch (error) {

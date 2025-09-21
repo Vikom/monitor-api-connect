@@ -2,14 +2,21 @@ import "@shopify/shopify-api/adapters/node";
 // import cron from "node-cron"; // Uncomment when enabling cron scheduling
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
-import { fetchCustomersFromMonitor } from "./utils/monitor.js";
+import { fetchCustomersFromMonitor, fetchCustomersByIdsFromMonitor, fetchEntityChangeLogsFromMonitor } from "./utils/monitor.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const isManualRun = args.includes('--manual') || args.includes('-m');
+
+// Store this globally for cron access
+global.useAdvancedStore = useAdvancedStore;
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+if (isManualRun) {
+  console.log(`🔧 Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
+}
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -57,10 +64,13 @@ async function validateSession(shop, accessToken) {
   }
 }
 
-async function syncCustomers() {
+async function syncCustomers(isIncrementalSync = false) {
   let shop, accessToken;
+  
+  // Use global variable if set (from cron), otherwise use the original variable
+  const currentUseAdvancedStore = global.useAdvancedStore !== undefined ? global.useAdvancedStore : useAdvancedStore;
 
-  if (useAdvancedStore) {
+  if (currentUseAdvancedStore) {
     // Use Advanced store configuration
     shop = process.env.ADVANCED_STORE_DOMAIN;
     accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -115,10 +125,32 @@ async function syncCustomers() {
   }
 
   console.log("✅ Store session is valid. Starting customers sync...");
+  
+  if (isIncrementalSync) {
+    console.log("🔄 Running incremental sync (customers with changes in last 48 hours)");
+  } else {
+    console.log("🔄 Running full sync (all customers)");
+  }
 
   let customers;
   try {
-    customers = await fetchCustomersFromMonitor();
+    if (isIncrementalSync) {
+      // Get customer IDs that have changed in the last 48 hours
+      const customerEntityTypeId = '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc';
+      const changedCustomerIds = await fetchEntityChangeLogsFromMonitor(customerEntityTypeId);
+      
+      if (changedCustomerIds.length === 0) {
+        console.log("No customer changes detected in the last 48 hours.");
+        return;
+      }
+      
+      console.log(`Found ${changedCustomerIds.length} customers with changes, fetching their data...`);
+      customers = await fetchCustomersByIdsFromMonitor(changedCustomerIds);
+    } else {
+      // Full sync - get all customers
+      customers = await fetchCustomersFromMonitor();
+    }
+    
     console.log("Fetched customers", JSON.stringify(customers, null, 2));
     if (!Array.isArray(customers) || customers.length === 0) {
       console.log("No customers found to sync.");
@@ -264,11 +296,76 @@ async function syncCustomers() {
   }
 }
 
-// Schedule to run every hour (commented out for testing)
+// Schedule to run every hour - only for advanced store with incremental sync
 /*cron.schedule("0 * * * *", () => {
-  console.log("[CRON] Syncing customers to Shopify...");
-  syncCustomers();
+  console.log("[CRON] Running scheduled incremental customer sync...");
+  
+  // Check if advanced store is configured
+  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+  
+  if (!advancedStoreDomain || !advancedStoreToken) {
+    console.log("❌ [CRON] Advanced store configuration missing - skipping scheduled sync");
+    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+    return;
+  }
+  
+  console.log(`[CRON] Running incremental sync for Advanced store: ${advancedStoreDomain}`);
+  
+  // Set global flag to use advanced store for this cron run
+  const originalUseAdvancedStore = global.useAdvancedStore;
+  global.useAdvancedStore = true;
+  
+  syncCustomers(true) // true = incremental sync
+    .then(() => {
+      console.log("[CRON] ✅ Scheduled incremental customer sync completed successfully");
+    })
+    .catch((error) => {
+      console.error("[CRON] ❌ Scheduled incremental customer sync failed:", error);
+    })
+    .finally(() => {
+      // Restore original flag
+      global.useAdvancedStore = originalUseAdvancedStore;
+    });
 });*/
+
+// Function to set up cron jobs - only called in worker mode
+function setupCronJobs() {
+  // Check if advanced store is configured
+  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+  
+  if (!advancedStoreDomain || !advancedStoreToken) {
+    console.log("❌ Advanced store configuration missing - cannot set up cron jobs");
+    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+    return;
+  }
+  
+  // Uncomment cron import at the top of the file for production use
+  const cron = require("node-cron");
+  
+  console.log("⏰ Setting up cron job for incremental customer sync every hour...");
+  
+  cron.schedule("0 * * * *", () => {
+    console.log("[CRON] Running scheduled incremental customer sync...");
+    
+    const originalUseAdvancedStore = global.useAdvancedStore;
+    global.useAdvancedStore = true;
+    
+    syncCustomers(true) // true = incremental sync
+      .then(() => {
+        console.log("[CRON] ✅ Scheduled incremental customer sync completed successfully");
+      })
+      .catch((error) => {
+        console.error("[CRON] ❌ Scheduled incremental customer sync failed:", error);
+      })
+      .finally(() => {
+        global.useAdvancedStore = originalUseAdvancedStore;
+      });
+  });
+  
+  console.log("✅ Cron job set up successfully");
+}
 
 // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
@@ -276,15 +373,23 @@ if (args.includes('--help') || args.includes('-h')) {
 📋 Customers Sync Job Usage:
 
 To sync to development store (OAuth):
-  node app/syncCustomersJob.js
+  node app/syncCustomersJob.js                    # Full sync (all customers)
+  node app/syncCustomersJob.js --manual           # Full sync (manual mode)
 
 To sync to Advanced store:
-  node app/syncCustomersJob.js --advanced
-  node app/syncCustomersJob.js -a
+  node app/syncCustomersJob.js --advanced         # Incremental sync (customers changed in last 48h)
+  node app/syncCustomersJob.js --advanced --manual # Full sync to advanced store
+
+Worker mode (runs continuously with cron):
+  node app/syncCustomersJob.js --advanced         # Starts worker with hourly incremental sync
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow
   Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
+
+Sync types:
+  Incremental: Only syncs customers that have changed in the last 48 hours
+  Full (manual): Syncs all customers regardless of changes
 
 Make sure your .env file is configured properly before running.
   `);
@@ -294,7 +399,20 @@ Make sure your .env file is configured properly before running.
 console.log(`
 🚀 Starting Customers Sync Job
 📝 Use --help for usage instructions
+⏰ Scheduled incremental sync runs every hour for Advanced store
 `);
 
-// Run the sync
-syncCustomers();
+// Check if this is running as a worker process (with --advanced flag but not manual)
+const isWorkerMode = useAdvancedStore && !isManualRun;
+
+if (isWorkerMode) {
+  console.log("🏭 Running in worker mode - setting up cron jobs and running initial incremental sync");
+  setupCronJobs();
+  // Run initial incremental sync
+  syncCustomers(true); // true = incremental sync
+} else {
+  // Run sync based on manual flag
+  const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
+  console.log(`Running ${isFullSync ? 'full' : 'incremental'} sync...`);
+  syncCustomers(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
+}
