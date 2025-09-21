@@ -271,14 +271,13 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`GraphQL response for collection ${collectionId}:`, JSON.stringify(data, null, 2));
           
           if (data.data?.collection?.products?.edges) {
             const collectionProducts = data.data.collection.products.edges.map(edge => {
               const product = edge.node;
               console.log(`Product ${product.id} (${product.title}) has ${product.variants?.edges?.length || 0} variants`);
               
-              // Log variant details
+              // Log variant details (reduced logging to avoid rate limits)
               if (product.variants?.edges) {
                 product.variants.edges.forEach((variantEdge, index) => {
                   const variant = variantEdge.node;
@@ -292,8 +291,10 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
             });
             products.push(...collectionProducts);
             console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
+          } else if (data.errors) {
+            console.error(`GraphQL errors for collection ${collectionId}:`, data.errors);
           } else {
-            console.log(`No products found in collection ${collectionId} - data structure:`, data);
+            console.log(`No products found in collection ${collectionId}`);
           }
         } else {
           const errorText = await response.text();
@@ -385,13 +386,12 @@ async function fetchProductsByIds(products, shop, accessToken) {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`GraphQL response for product ${productId}:`, JSON.stringify(data, null, 2));
           
           if (data.data?.product) {
             const fetchedProduct = data.data.product;
             console.log(`Product ${fetchedProduct.id} (${fetchedProduct.title}) has ${fetchedProduct.variants?.edges?.length || 0} variants`);
             
-            // Log variant details
+            // Log variant details (reduced logging to avoid rate limits)
             if (fetchedProduct.variants?.edges) {
               fetchedProduct.variants.edges.forEach((variantEdge, index) => {
                 const variant = variantEdge.node;
@@ -403,8 +403,10 @@ async function fetchProductsByIds(products, shop, accessToken) {
             // For now, we still fetch individual variant Monitor IDs as before
             fetchedProducts.push(fetchedProduct);
             console.log(`Fetched product: ${fetchedProduct.title}`);
+          } else if (data.errors) {
+            console.error(`GraphQL errors for product ${productId}:`, data.errors);
           } else {
-            console.log(`No product found for ${productId} - data structure:`, data);
+            console.log(`No product found for ${productId}`);
           }
         } else {
           const errorText = await response.text();
