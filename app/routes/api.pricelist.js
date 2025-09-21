@@ -1019,9 +1019,20 @@ async function fetchCustomerPartPrice(customerId, partId) {
     }
     
     // Step 2: Fallback to customer's price list
+    console.log(`Step 2: Getting customer's price list ID...`);
     const priceListId = await fetchCustomerPriceListId(customerId);
-    if (priceListId) {
-      return await fetchPriceFromPriceList(partId, priceListId);
+    if (!priceListId) {
+      console.log(`Step 2 FAILED: Could not get customer's price list ID`);
+      return null;
+    }
+    
+    console.log(`Step 2: Customer's price list ID: ${priceListId}`);
+    const priceListPrice = await fetchPriceFromPriceList(partId, priceListId);
+    if (priceListPrice) {
+      console.log(`Step 2 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
+      return priceListPrice;
+    } else {
+      console.log(`Step 2: No price found in customer's price list`);
     }
     
     return null;
@@ -1032,27 +1043,64 @@ async function fetchCustomerPartPrice(customerId, partId) {
 }
 
 /**
- * Fetch customer price list ID (simplified version)
+ * Fetch customer price list ID (updated to match working implementation)
  */
 async function fetchCustomerPriceListId(customerId) {
   try {
-    const session = await getSessionId();
+    let session = await getSessionId();
     const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$filter=Id eq '${customerId}'`;
     
-    const res = await fetch(url, {
+    console.log(`Fetching customer details for customer ${customerId} to get price list ID`);
+    
+    let res = await fetch(url, {
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
         "X-Monitor-SessionId": session,
       },
       agent: url.startsWith('https:') ? agent : undefined,
     });
 
-    if (res.status === 200) {
-      const customers = await res.json();
-      return customers.length > 0 ? customers[0].PriceListId : null;
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired while fetching customer, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        agent: url.startsWith('https:') ? agent : undefined,
+      });
+    }
+
+    if (res.status !== 200) {
+      console.error(`Failed to fetch customer ${customerId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
+      return null;
     }
     
-    return null;
+    const customers = await res.json();
+    console.log(`Customer lookup API response for ${customerId}:`, customers);
+    
+    if (!Array.isArray(customers)) {
+      console.log(`Customer response is not an array`);
+      return null;
+    }
+    
+    if (customers.length > 0) {
+      const priceListId = customers[0].PriceListId;
+      console.log(`Found customer's price list ID: ${priceListId}`);
+      return priceListId;
+    } else {
+      console.log(`No customer found with ID ${customerId}`);
+      return null;
+    }
   } catch (error) {
     console.error("Error fetching customer price list ID:", error);
     return null;
@@ -1060,29 +1108,66 @@ async function fetchCustomerPriceListId(customerId) {
 }
 
 /**
- * Fetch price from price list (simplified version)
+ * Fetch price from price list (updated to match working implementation)
  */
 async function fetchPriceFromPriceList(partId, priceListId) {
   try {
-    const session = await getSessionId();
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/PriceListRows?$filter=PriceListId eq '${priceListId}' and PartId eq '${partId}'`;
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '${priceListId}'`;
     
-    const res = await fetch(url, {
+    console.log(`Fetching price for part ${partId} from price list ${priceListId}`);
+    
+    let res = await fetch(url, {
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
         "X-Monitor-SessionId": session,
       },
       agent: url.startsWith('https:') ? agent : undefined,
     });
-
-    if (res.status === 200) {
-      const priceListRows = await res.json();
-      return priceListRows.length > 0 ? priceListRows[0].Price : null;
+    
+    if (res.status === 401) {
+      // Session expired, force re-login and retry
+      console.log(`Session expired for price list fetch, re-logging in...`);
+      sessionId = null; // Clear the session
+      session = await login();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        agent: url.startsWith('https:') ? agent : undefined,
+      });
     }
     
-    return null;
+    if (res.status !== 200) {
+      console.error(`Failed to fetch price for part ${partId} from price list ${priceListId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
+      return null;
+    }
+    
+    const prices = await res.json();
+    console.log(`Price list API response for part ${partId}, price list ${priceListId}:`, prices);
+    
+    if (!Array.isArray(prices)) {
+      console.log(`Price list response is not an array`);
+      return null;
+    }
+    
+    if (prices.length > 0) {
+      console.log(`Found price in price list: ${prices[0].Price}`);
+      return prices[0].Price;
+    } else {
+      console.log(`No price found for part ${partId} in price list ${priceListId}`);
+      return null;
+    }
   } catch (error) {
-    console.error("Error fetching price from price list:", error);
+    console.error(`Error fetching price from price list for part ${partId}, price list ${priceListId}:`, error);
     return null;
   }
 }
