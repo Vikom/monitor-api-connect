@@ -770,42 +770,71 @@ function escapeCSVField(field) {
 // For now, I'll include simplified versions here
 
 /**
- * Monitor API login (simplified version)
+ * Monitor API login (updated to match working implementation)
  */
 async function login() {
   try {
+    // Validate environment variables
     if (!monitorUrl || !monitorUsername || !monitorPassword || !monitorCompany) {
+      console.error('Missing Monitor API credentials:', {
+        hasUrl: !!monitorUrl,
+        hasUser: !!monitorUsername,
+        hasPass: !!monitorPassword,
+        hasCompany: !!monitorCompany
+      });
       throw new Error('Missing Monitor API environment variables');
     }
     
     const url = `${monitorUrl}/${monitorCompany}/login`;
+    console.log(`Attempting Monitor API login to: ${url} with user: ${monitorUsername}`);
+    
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "Cache-Control": "no-cache",
       },
       body: JSON.stringify({
         Username: monitorUsername,
         Password: monitorPassword,
+        ForceRelogin: true,  // Force fresh login
       }),
       agent: url.startsWith('https:') ? agent : undefined,
     });
 
-    if (res.status !== 200) {
-      throw new Error(`Login failed: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Monitor login failed: ${res.status} ${res.statusText}`);
+      console.error(`Login error response: ${errorText}`);
+      throw new Error(`Monitor login failed: ${res.status} - ${errorText}`);
     }
 
+    // Get session ID from response header (like monitor.js), with fallback to body
+    let sessionIdFromHeader = res.headers.get("x-monitor-sessionid") || res.headers.get("X-Monitor-SessionId");
     const loginResponse = await res.json();
-    return loginResponse.SessionId;
+    
+    // Try header first, then body (for compatibility)
+    const receivedSessionId = sessionIdFromHeader || loginResponse.SessionId;
+    
+    if (!receivedSessionId) {
+      console.error(`No SessionId in header or body. Headers: ${JSON.stringify([...res.headers])}, Body:`, loginResponse);
+      throw new Error('No SessionId received from Monitor API');
+    }
+    
+    console.log(`Monitor API login successful, SessionId: ${receivedSessionId.substring(0, 8)}...`);
+    console.log(`SessionId source: ${sessionIdFromHeader ? 'header' : 'body'}`);
+    sessionId = receivedSessionId;
+    return sessionId;
   } catch (error) {
     console.error("Monitor API login error:", error);
+    sessionId = null; // Clear any stale session
     throw error;
   }
 }
 
 /**
- * Get session ID (simplified version)
+ * Get or refresh session ID (updated to match working implementation)
  */
 async function getSessionId() {
   if (!sessionId) {
@@ -815,42 +844,109 @@ async function getSessionId() {
 }
 
 /**
- * Fetch outlet price (simplified version)
+ * Fetch outlet price (updated to match working implementation)
  */
 async function fetchOutletPrice(partId) {
   try {
-    const session = await getSessionId();
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/PriceListRows?$filter=PriceListId eq '${OUTLET_PRICE_LIST_ID}' and PartId eq '${partId}'`;
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
+    url += `?$filter=PartId eq '${partId}' and PriceListId eq '${OUTLET_PRICE_LIST_ID}'`;
     
-    const res = await fetch(url, {
+    console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
+    console.log(`API URL: ${url}`);
+    console.log(`Using session: ${session?.substring(0, 8)}...`);
+    
+    let res = await fetch(url, {
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
         "X-Monitor-SessionId": session,
       },
       agent: url.startsWith('https:') ? agent : undefined,
     });
-
+    
+    console.log(`Initial response status: ${res.status}`);
+    
     if (res.status === 401) {
-      sessionId = null;
-      const newSession = await login();
-      const retryRes = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "X-Monitor-SessionId": newSession,
-        },
-        agent: url.startsWith('https:') ? agent : undefined,
-      });
+      console.log(`Session expired, but let's see the error first...`);
+      const errorText = await res.text();
+      console.log(`401 Error response: ${errorText}`);
       
-      if (retryRes.status === 200) {
-        const data = await retryRes.json();
-        return data.length > 0 ? data[0].Price : null;
+      // Session expired, force re-login and retry ONCE
+      console.log(`Forcing fresh login...`);
+      sessionId = null; // Clear the session
+      try {
+        session = await login(); // Force fresh login
+        console.log(`Re-login successful, new session: ${session?.substring(0, 8)}...`);
+        
+        res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": session,
+          },
+          agent: url.startsWith('https:') ? agent : undefined,
+        });
+        
+        console.log(`Retry response status: ${res.status}`);
+      } catch (loginError) {
+        console.error(`Re-login failed:`, loginError);
+        return null;
       }
-    } else if (res.status === 200) {
-      const data = await res.json();
-      return data.length > 0 ? data[0].Price : null;
     }
     
-    return null;
+    if (res.status !== 200) {
+      console.error(`Failed to fetch outlet price for ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Final error response: ${errorText}`);
+      return null;
+    }
+    
+    const prices = await res.json();
+    console.log(`Outlet price API response for ${partId}:`, Array.isArray(prices) ? `Array with ${prices.length} items` : prices);
+    
+    if (!Array.isArray(prices)) {
+      console.log(`Outlet price response is not an array for ${partId}`);
+      return null;
+    }
+    
+    if (prices.length > 0) {
+      console.log(`Found outlet price for ${partId}: ${prices[0].Price}`);
+      return prices[0].Price;
+    } else {
+      console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
+      
+      // DEBUG: Let's check what price lists exist for this part
+      console.log(`DEBUG: Checking if part ${partId} exists in other price lists...`);
+      try {
+        const allPricesUrl = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices?$filter=PartId eq '${partId}'&$top=5`;
+        const allPricesRes = await fetch(allPricesUrl, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": session,
+          },
+          agent: url.startsWith('https:') ? agent : undefined,
+        });
+        
+        if (allPricesRes.ok) {
+          const allPrices = await allPricesRes.json();
+          console.log(`DEBUG: Found ${allPrices.length} price(s) for part ${partId} in any price list:`);
+          allPrices.forEach((price, index) => {
+            console.log(`  ${index + 1}. Price: ${price.Price}, PriceList: ${price.PriceListId}, Currency: ${price.CurrencyCode}`);
+          });
+        } else {
+          console.log(`DEBUG: Failed to check all prices for ${partId}: ${allPricesRes.status}`);
+        }
+      } catch (debugError) {
+        console.log(`DEBUG: Error checking all prices:`, debugError.message);
+      }
+      
+      return null;
+    }
   } catch (error) {
     console.error("Error fetching outlet price:", error);
     return null;
@@ -858,46 +954,71 @@ async function fetchOutletPrice(partId) {
 }
 
 /**
- * Fetch customer part price (simplified version)
+ * Fetch customer part price (using working logic from pricing-public.js)
  */
 async function fetchCustomerPartPrice(customerId, partId) {
   try {
+    // Step 1: Check for specific customer-part price using CustomerPartLinks
     const session = await getSessionId();
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+    url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
+    
+    console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
     
     const res = await fetch(url, {
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
         "X-Monitor-SessionId": session,
       },
       agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status === 401) {
+      console.log(`Session expired for customer part links fetch, re-logging in...`);
       sessionId = null;
       const newSession = await login();
       const retryRes = await fetch(url, {
         headers: {
           Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
           "X-Monitor-SessionId": newSession,
         },
         agent: url.startsWith('https:') ? agent : undefined,
       });
       
       if (retryRes.status === 200) {
-        const data = await retryRes.json();
-        if (data.length > 0) {
-          return data[0].Price;
+        const retryData = await retryRes.json();
+        console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, retryData);
+        if (Array.isArray(retryData) && retryData.length > 0) {
+          const specificPrice = retryData[0].Price;
+          console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
+          return specificPrice;
         }
+      } else {
+        console.error(`Failed to fetch customer part links after retry for customer ${customerId}, part ${partId}: ${retryRes.status}`);
+        const errorText = await retryRes.text();
+        console.error(`Error response: ${errorText}`);
       }
     } else if (res.status === 200) {
       const data = await res.json();
-      if (data.length > 0) {
-        return data[0].Price;
+      console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, data);
+      if (Array.isArray(data) && data.length > 0) {
+        const specificPrice = data[0].Price;
+        console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
+        return specificPrice;
+      } else {
+        console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
       }
+    } else {
+      console.error(`Failed to fetch customer part links for customer ${customerId}, part ${partId}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error(`Error response: ${errorText}`);
     }
     
-    // Fallback to price list
+    // Step 2: Fallback to customer's price list
     const priceListId = await fetchCustomerPriceListId(customerId);
     if (priceListId) {
       return await fetchPriceFromPriceList(partId, priceListId);
