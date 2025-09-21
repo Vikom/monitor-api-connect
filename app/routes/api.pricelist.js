@@ -191,15 +191,20 @@ export async function action({ request }) {
 
 /**
  * Fetch products by collection IDs using Shopify API
+ * @param {Array} collections - Array of collection IDs (string) or collection objects ({id, monitor_id})
  */
-async function fetchProductsByCollections(collectionIds, shop, accessToken) {
-  console.log(`Fetching products from ${collectionIds.length} collections`);
+async function fetchProductsByCollections(collections, shop, accessToken) {
+  console.log(`Fetching products from ${collections.length} collections`);
   const products = [];
   
   try {
-    for (const collectionId of collectionIds) {
+    for (const collection of collections) {
       try {
-        console.log(`Fetching products from collection ${collectionId}`);
+        // Handle both old format (string ID) and new format (object with id and monitor_id)
+        const collectionId = typeof collection === 'string' ? collection : collection.id;
+        const collectionMonitorId = typeof collection === 'object' ? collection.monitor_id : null;
+        
+        console.log(`Fetching products from collection ${collectionId}${collectionMonitorId ? ` (Monitor ID: ${collectionMonitorId})` : ''}`);
         
         // Use GraphQL to fetch products from collection
         const query = `
@@ -247,7 +252,12 @@ async function fetchProductsByCollections(collectionIds, shop, accessToken) {
         if (response.ok) {
           const data = await response.json();
           if (data.data?.collection?.products?.edges) {
-            const collectionProducts = data.data.collection.products.edges.map(edge => edge.node);
+            const collectionProducts = data.data.collection.products.edges.map(edge => {
+              const product = edge.node;
+              // If we have a collection Monitor ID, we could potentially use it for optimization
+              // For now, we still fetch individual variant Monitor IDs as before
+              return product;
+            });
             products.push(...collectionProducts);
             console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
           }
@@ -255,7 +265,7 @@ async function fetchProductsByCollections(collectionIds, shop, accessToken) {
           console.error(`Failed to fetch products from collection ${collectionId}:`, response.status);
         }
       } catch (error) {
-        console.error(`Error fetching products from collection ${collectionId}:`, error);
+        console.error(`Error fetching products from collection ${collection}:`, error);
       }
     }
   } catch (error) {
@@ -267,23 +277,26 @@ async function fetchProductsByCollections(collectionIds, shop, accessToken) {
 }
 
 /**
- * Fetch products by product IDs using Shopify API
+ * Fetch specific products by product IDs using Shopify API
+ * @param {Array} products - Array of product IDs (string) or product objects ({id, monitor_id})
  */
-async function fetchProductsByIds(productIds, shop, accessToken) {
-  console.log(`Fetching ${productIds.length} specific products`);
-  const products = [];
+async function fetchProductsByIds(products, shop, accessToken) {
+  console.log(`Fetching ${products.length} specific products`);
+  const fetchedProducts = [];
   
   try {
-    // Batch fetch products (GraphQL allows up to 250 products in one query)
-    const batchSize = 100;
-    for (let i = 0; i < productIds.length; i += batchSize) {
-      const batch = productIds.slice(i, i + batchSize);
-      const gids = batch.map(id => `gid://shopify/Product/${id}`);
-      
-      const query = `
-        query GetProducts($ids: [ID!]!) {
-          nodes(ids: $ids) {
-            ... on Product {
+    for (const product of products) {
+      try {
+        // Handle both old format (string ID) and new format (object with id and monitor_id)
+        const productId = typeof product === 'string' ? product : product.id;
+        const productMonitorId = typeof product === 'object' ? product.monitor_id : null;
+        
+        console.log(`Fetching product ${productId}${productMonitorId ? ` (Monitor ID: ${productMonitorId})` : ''}`);
+        
+        // Use GraphQL to fetch product details
+        const query = `
+          query GetProduct($id: ID!) {
+            product(id: "gid://shopify/Product/${productId}") {
               id
               title
               handle
@@ -304,33 +317,39 @@ async function fetchProductsByIds(productIds, shop, accessToken) {
               }
             }
           }
-        }
-      `;
+        `;
 
-      const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': accessToken,
-        },
-        body: JSON.stringify({ query, variables: { ids: gids } })
-      });
+        const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({ query, variables: { id: productId } })
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data?.nodes) {
-          products.push(...data.data.nodes.filter(node => node)); // Filter out null nodes
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.product) {
+            const fetchedProduct = data.data.product;
+            // If we have a product Monitor ID from the frontend, we could use it for optimization
+            // For now, we still fetch individual variant Monitor IDs as before
+            fetchedProducts.push(fetchedProduct);
+            console.log(`Fetched product: ${fetchedProduct.title}`);
+          }
+        } else {
+          console.error(`Failed to fetch product ${productId}:`, response.status);
         }
-      } else {
-        console.error(`Failed to fetch product batch:`, response.status);
+      } catch (error) {
+        console.error(`Error fetching product ${product}:`, error);
       }
     }
   } catch (error) {
     console.error('Error in fetchProductsByIds:', error);
   }
   
-  console.log(`Total products fetched: ${products.length}`);
-  return products;
+  console.log(`Total products fetched: ${fetchedProducts.length}`);
+  return fetchedProducts;
 }
 
 /**
@@ -553,7 +572,7 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       doc.text('Variant', colPositions.variant, tableTop);
       doc.text('Artikelnr', colPositions.sku, tableTop);
       doc.text('Pris', colPositions.price, tableTop);
-      doc.text('Typ', colPositions.source, tableTop);
+      doc.text('Enhet', colPositions.source, tableTop);
       
       // Line under headers
       doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
@@ -573,7 +592,8 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
         doc.text(item.variantTitle.substring(0, 20), colPositions.variant, yPosition, { width: 90 });
         doc.text(item.sku || '', colPositions.sku, yPosition);
         doc.text(item.formattedPrice, colPositions.price, yPosition);
-        doc.text(getPriceSourceLabel(item.priceSource), colPositions.source, yPosition);
+        // doc.text(item.priceSource, colPositions.source, yPosition);
+        doc.text('st', colPositions.source, yPosition);
         
         yPosition += 20;
       }

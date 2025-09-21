@@ -19,11 +19,18 @@ Content-Type: application/json
 {
   "customer_id": 123456789,                               // Required: Shopify customer ID (numeric)
   "customer_email": "customer@example.com",               // Required
+  "customer_company": "Customer Company Name",            // Optional: Customer company name
   "monitor_id": "CUSTOMER_MONITOR_ID",                    // Required: Customer's Monitor system ID (cannot be empty)
   "format": "pdf",                                        // Required: "pdf" or "csv"
   "selection_method": "collections",                      // Required: "collections", "products", or "all"
-  "collections": ["123456", "789012"],                   // Required if selection_method is "collections"
-  "products": ["123456", "789012"],                      // Required if selection_method is "products"
+  "collections": [                                        // Required if selection_method is "collections"
+    {"id": "123456", "monitor_id": "COLLECTION_MONITOR_ID"},
+    {"id": "789012", "monitor_id": "COLLECTION_MONITOR_ID_2"}
+  ],
+  "products": [                                           // Required if selection_method is "products"
+    {"id": "123456", "monitor_id": "PRODUCT_MONITOR_ID"},
+    {"id": "789012", "monitor_id": "PRODUCT_MONITOR_ID_2"}
+  ],
   "shop": "mystore.myshopify.com"                        // Required: actual Shopify shop domain
 }
 ```
@@ -140,6 +147,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Note: For Monitor IDs to work with product search, you'll need to:
+  // 1. Create a custom product search endpoint that includes variant metafields
+  // 2. Or use a different approach like pre-loading product data in the template
+  
   async function searchProducts(query) {
     try {
       const response = await fetch(`/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=10`);
@@ -155,18 +166,22 @@ document.addEventListener('DOMContentLoaded', function() {
     searchResults.innerHTML = products.map(product => `
       <div class="product-item" data-product-id="${product.id}" data-product-title="${product.title}">
         <span>${product.title}</span>
-        <button type="button" onclick="addProduct(${product.id}, '${product.title.replace(/'/g, "\\'")}')">Lägg till</button>
+        <button type="button" onclick="addProduct(${product.id}, '${product.title.replace(/'/g, "\\'")}', '')">Lägg till</button>
       </div>
     `).join('');
   }
 
-  window.addProduct = function(id, title) {
+  window.addProduct = function(id, title, monitorId = '') {
     // Check if product is already selected
     const existingProduct = selectedProducts.find(p => p.id === id);
     if (!existingProduct) {
-      selectedProducts.push({id: id, title: title});
+      selectedProducts.push({
+        id: id, 
+        title: title,
+        monitor_id: monitorId // Will be empty for search results, backend will fetch
+      });
       updateSelectedProductsDisplay();
-      console.log('Added product:', id, title);
+      console.log('Added product:', id, title, 'Monitor ID:', monitorId);
     }
   };
 
@@ -211,11 +226,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add selection data based on method
     if (selectionMethod === 'collections') {
-      payload.collections = Array.from(formData.getAll('collections[]'));
-      console.log('Selected collections:', payload.collections);
+      // Build collections array with Monitor IDs from form data
+      const selectedCollectionIds = Array.from(formData.getAll('collections[]'));
+      payload.collections = selectedCollectionIds.map(collectionId => {
+        // Get collection monitor_id from hidden form field or data attribute
+        const collectionElement = document.querySelector(`input[value="${collectionId}"]`);
+        const monitorId = collectionElement ? collectionElement.dataset.monitorId || '' : '';
+        
+        return {
+          id: collectionId,
+          monitor_id: monitorId
+        };
+      });
+      console.log('Selected collections with Monitor IDs:', payload.collections);
     } else if (selectionMethod === 'products') {
-      payload.products = selectedProducts.map(p => p.id);
-      console.log('Selected products:', payload.products);
+      // For products, include the Monitor IDs we stored during product selection
+      payload.products = selectedProducts.map(p => ({
+        id: p.id,
+        monitor_id: p.monitor_id || '' // This should be set when adding products
+      }));
+      console.log('Selected products with Monitor IDs:', payload.products);
     }
 
     console.log('Final payload:', payload);
