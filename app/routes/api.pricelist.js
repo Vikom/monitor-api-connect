@@ -251,18 +251,33 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
 
         if (response.ok) {
           const data = await response.json();
+          console.log(`GraphQL response for collection ${collectionId}:`, JSON.stringify(data, null, 2));
+          
           if (data.data?.collection?.products?.edges) {
             const collectionProducts = data.data.collection.products.edges.map(edge => {
               const product = edge.node;
+              console.log(`Product ${product.id} (${product.title}) has ${product.variants?.edges?.length || 0} variants`);
+              
+              // Log variant details
+              if (product.variants?.edges) {
+                product.variants.edges.forEach((variantEdge, index) => {
+                  const variant = variantEdge.node;
+                  console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${variant.metafield?.value || 'NONE'}`);
+                });
+              }
+              
               // If we have a collection Monitor ID, we could potentially use it for optimization
               // For now, we still fetch individual variant Monitor IDs as before
               return product;
             });
             products.push(...collectionProducts);
             console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
+          } else {
+            console.log(`No products found in collection ${collectionId} - data structure:`, data);
           }
         } else {
-          console.error(`Failed to fetch products from collection ${collectionId}:`, response.status);
+          const errorText = await response.text();
+          console.error(`Failed to fetch products from collection ${collectionId}:`, response.status, errorText);
         }
       } catch (error) {
         console.error(`Error fetching products from collection ${collection}:`, error);
@@ -330,15 +345,30 @@ async function fetchProductsByIds(products, shop, accessToken) {
 
         if (response.ok) {
           const data = await response.json();
+          console.log(`GraphQL response for product ${productId}:`, JSON.stringify(data, null, 2));
+          
           if (data.data?.product) {
             const fetchedProduct = data.data.product;
+            console.log(`Product ${fetchedProduct.id} (${fetchedProduct.title}) has ${fetchedProduct.variants?.edges?.length || 0} variants`);
+            
+            // Log variant details
+            if (fetchedProduct.variants?.edges) {
+              fetchedProduct.variants.edges.forEach((variantEdge, index) => {
+                const variant = variantEdge.node;
+                console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${variant.metafield?.value || 'NONE'}`);
+              });
+            }
+            
             // If we have a product Monitor ID from the frontend, we could use it for optimization
             // For now, we still fetch individual variant Monitor IDs as before
             fetchedProducts.push(fetchedProduct);
             console.log(`Fetched product: ${fetchedProduct.title}`);
+          } else {
+            console.log(`No product found for ${productId} - data structure:`, data);
           }
         } else {
-          console.error(`Failed to fetch product ${productId}:`, response.status);
+          const errorText = await response.text();
+          console.error(`Failed to fetch product ${productId}:`, response.status, errorText);
         }
       } catch (error) {
         console.error(`Error fetching product ${product}:`, error);
@@ -456,6 +486,13 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
   for (const product of products) {
     try {
       const isOutletProduct = product.tags?.includes('outlet') || false;
+      console.log(`Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
+      
+      // Check if product has variants
+      if (!product.variants?.edges || product.variants.edges.length === 0) {
+        console.log(`Product ${product.id} has no variants, skipping...`);
+        continue;
+      }
       
       // Get pricing for each variant
       for (const variantEdge of product.variants?.edges || []) {
@@ -463,7 +500,24 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         const variantId = variant.id;
         const monitorId = variant.metafield?.value;
         
-        console.log(`Processing variant ${variant.id}: monitorId=${monitorId}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        
+        // Skip variants without Monitor IDs since they can't be priced
+        if (!monitorId) {
+          console.log(`Skipping variant ${variant.id} - no Monitor ID found`);
+          // Still add to results but with a note that Monitor ID is missing
+          priceData.push({
+            productTitle: product.title,
+            variantTitle: variant.title || 'Default',
+            sku: variant.sku || '',
+            originalPrice: parseFloat(variant.price) || 0,
+            customerPrice: null,
+            priceSource: "no-monitor-id",
+            monitorId: '',
+            formattedPrice: 'Saknar Monitor ID'
+          });
+          continue;
+        }
         
         try {
           // Use existing pricing logic

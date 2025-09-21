@@ -226,26 +226,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add selection data based on method
     if (selectionMethod === 'collections') {
-      // Build collections array with Monitor IDs from form data
+      // Send simple array of collection IDs for compatibility
       const selectedCollectionIds = Array.from(formData.getAll('collections[]'));
-      payload.collections = selectedCollectionIds.map(collectionId => {
-        // Get collection monitor_id from hidden form field or data attribute
-        const collectionElement = document.querySelector(`input[value="${collectionId}"]`);
-        const monitorId = collectionElement ? collectionElement.dataset.monitorId || '' : '';
-        
-        return {
-          id: collectionId,
-          monitor_id: monitorId
-        };
-      });
-      console.log('Selected collections with Monitor IDs:', payload.collections);
+      payload.collections = selectedCollectionIds;
+      console.log('Selected collections:', payload.collections);
     } else if (selectionMethod === 'products') {
-      // For products, include the Monitor IDs we stored during product selection
-      payload.products = selectedProducts.map(p => ({
-        id: p.id,
-        monitor_id: p.monitor_id || '' // This should be set when adding products
-      }));
-      console.log('Selected products with Monitor IDs:', payload.products);
+      // Send simple array of product IDs for compatibility
+      payload.products = selectedProducts.map(p => p.id);
+      console.log('Selected products:', payload.products);
     }
 
     console.log('Final payload:', payload);
