@@ -1,0 +1,252 @@
+{% comment %}
+  Customer Price List Page Template
+{% endcomment %}
+
+{% unless customer %}
+  {% assign return_url = request.path | url_encode %}
+  {% assign login_url = routes.account_login_url | append: '?return_url=' | append: return_url %}
+  <script>
+    window.location.href = "{{ login_url }}";
+  </script>
+  <div class="customer-login-redirect">
+    <p>Redirecting to login...</p>
+    <a href="{{ login_url }}">Click here if you're not redirected automatically</a>
+  </div>
+{% else %}
+
+<div class="price-list-container">
+  <div class="page-header">
+    <h1>{{ page.title | default: "Ladda ner prislistor" }}</h1>
+    <p>Välj produkter för att skapa din prislista.</p>
+  </div>
+
+  <div class="price-list-form">
+    <form id="priceListForm">
+      <!-- Collections Selection -->
+      <div id="collectionsSelection" class="selection-section">
+        <h3>Välj kategorier för din prislista:</h3>
+        <div class="checkbox-group">
+          {% for collection in collections %}
+            {% unless collection.handle == 'frontpage' or collection.handle == 'all' %}
+              <label class="checkbox-label">
+                <input type="checkbox" name="collections[]" value="{{ collection.id }}" data-monitor-id="{{ collection.metafields.custom.monitor_id | default: '' }}">
+                {{ collection.title }} ({{ collection.products_count }} produkter)
+              </label>
+            {% endunless %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Format Selection -->
+      <div class="format-selection">
+        <h4>Format för prislista:</h4>
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="format" value="pdf" checked>
+            PDF
+          </label>
+          <label>
+            <input type="radio" name="format" value="csv">
+            CSV
+          </label>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-actions">
+        <button type="submit" id="downloadBtn" class="btn btn-primary">
+          Skapa prislista
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="loading-state" style="display: none;">
+    <p>Skapar din prislista...</p>
+    <div class="loading-spinner"></div>
+  </div>
+</div>
+
+<style>
+  .price-list-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  .selection-section, .format-selection {
+    margin-bottom: 25px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+  }
+
+  .radio-group, .checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .btn-primary {
+    background-color: #1D349A;
+    color: white;
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .loading-state {
+    text-align: center;
+    padding: 40px;
+  }
+
+  .loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1D349A;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 2s linear infinite;
+    margin: 20px auto;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .form-actions {
+    text-align: center;
+    margin-top: 30px;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('priceListForm');
+  const loadingState = document.getElementById('loadingState');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  // Form submission
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    console.log('Form submitted');
+    
+    const formData = new FormData(form);
+    const format = formData.get('format');
+    
+    console.log('Format:', format);
+    
+    // Get selected collections with Monitor IDs
+    const selectedCollectionIds = Array.from(formData.getAll('collections[]'));
+    
+    if (selectedCollectionIds.length === 0) {
+      alert('Välj minst en kategori för att skapa prislista.');
+      return;
+    }
+    
+    // Build collections array with Monitor IDs from data attributes
+    const collections = selectedCollectionIds.map(collectionId => {
+      const collectionElement = document.querySelector(`input[value="${collectionId}"]`);
+      const monitorId = collectionElement ? collectionElement.dataset.monitorId || '' : '';
+      
+      console.log(`Collection ${collectionId} has Monitor ID: ${monitorId || 'NONE'}`);
+      
+      return {
+        id: collectionId,
+        monitor_id: monitorId
+      };
+    });
+    
+    let payload = {
+      customer_id: {{ customer.id }},
+      customer_email: "{{ customer.email }}",
+      customer_company: "{{ customer.metafields.custom.company | default: '' }}",
+      monitor_id: "{{ customer.metafields.custom.monitor_id | default: '' }}",
+      format: format,
+      selection_method: "collections",
+      shop: "{{ shop.domain }}",
+      collections: collections
+    };
+
+    console.log('Final payload:', payload);
+
+    // Show loading state
+    form.style.display = 'none';
+    loadingState.style.display = 'block';
+
+    try {
+      console.log('Making request to API...');
+      const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/pricelist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        console.log('Response successful, downloading file...');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `price-list-${new Date().getTime()}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        console.log('File download triggered');
+      } else {
+        console.error('API request failed with status:', response.status);
+        let errorMessage = 'Failed to generate price list';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          console.error('Error data:', errorData);
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError);
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Request error:', error);
+      alert(`Error generating price list: ${error.message}`);
+    } finally {
+      // Hide loading state
+      form.style.display = 'block';
+      loadingState.style.display = 'none';
+    }
+  });
+});
+</script>
+
+{% endunless %}
