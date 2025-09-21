@@ -243,7 +243,7 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
                           sku
                           price
                           inventoryQuantity
-                          metafield(namespace: "monitor", key: "id") {
+                          metafield(namespace: "custom", key: "monitor_id") {
                             value
                           }
                         }
@@ -360,7 +360,7 @@ async function fetchProductsByIds(products, shop, accessToken) {
                     sku
                     price
                     inventoryQuantity
-                    metafield(namespace: "monitor", key: "id") {
+                    metafield(namespace: "custom", key: "monitor_id") {
                       value
                     }
                   }
@@ -455,7 +455,7 @@ async function fetchAllProducts(shop, accessToken) {
                       sku
                       price
                       inventoryQuantity
-                      metafield(namespace: "monitor", key: "id") {
+                      metafield(namespace: "custom", key: "monitor_id") {
                         value
                       }
                     }
@@ -962,7 +962,7 @@ async function fetchCustomerMonitorId(customerId, shop, accessToken) {
       query GetCustomerMonitorId($id: ID!) {
         customer(id: $id) {
           id
-          metafield(namespace: "monitor", key: "id") {
+          metafield(namespace: "custom", key: "monitor_id") {
             value
           }
         }
