@@ -89,7 +89,7 @@ class MonitorClient {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
+      url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId';
       url += '&$filter=Status eq 4';
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
@@ -161,7 +161,7 @@ class MonitorClient {
     const idFilter = productIds.map(id => `Id eq '${id}'`).join(' or ');
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
-    url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage';
+    url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId';
     url += `&$filter=(${idFilter}) and Status eq 4`;
     url += '&$expand=ExtraFields,ProductGroup,PartCode';
     

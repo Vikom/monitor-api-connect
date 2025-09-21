@@ -8,6 +8,32 @@ import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";
 dotenv.config();
 
+// Unit mapping from Monitor StandardUnitId to unit codes
+const STANDARD_UNIT_MAPPING = {
+  "896454559822157228": "st",        // Styck
+  "896454559822157331": "mm",        // Millimeter
+  "896454559822157366": "m²",        // Kvadratmeter
+  "896454559822157389": "kg",        // Kilo
+  "896454559822157424": "m",         // Meter
+  "964635041975763896": "m³",        // Kubikmeter
+  "989630543418881598": "h",         // Timme
+  "1066716939765765413": "frp",      // Förpackning
+  "1067959871794544563": "l",        // Liter
+  "1068890724534919021": "rle",      // Rulle
+  "1068891474006718462": "pal",      // Pall
+  "1069043501891593759": "pkt",      // Paket
+  "1069043554504943125": "krt",      // Kartong
+  "1069043662952867563": "pås",      // Påse
+  "1069044050573666032": "Sk"        // Säck
+};
+
+// Function to get unit code from StandardUnitId
+function getUnitCodeFromStandardUnitId(standardUnitId) {
+  if (!standardUnitId) return null;
+  const unitCode = STANDARD_UNIT_MAPPING[standardUnitId.toString()];
+  return unitCode || null;
+}
+
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
@@ -139,6 +165,19 @@ async function generateMetafieldsForVariation(variation) {
       value: Number(variation.PurchaseQuantityPerPackage).toFixed(2),
       type: "number_decimal"
     });
+  }
+
+  // Add standard unit metafield if StandardUnitId is available
+  if (variation.StandardUnitId) {
+    const unitCode = getUnitCodeFromStandardUnitId(variation.StandardUnitId);
+    if (unitCode) {
+      metafields.push({
+        namespace: "custom",
+        key: "standard_unit",
+        value: unitCode,
+        type: "single_line_text_field"
+      });
+    }
   }
 
   // Fetch ARTFSC data if the variation has the ARTFSC field
