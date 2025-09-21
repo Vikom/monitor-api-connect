@@ -225,7 +225,7 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
         // Use GraphQL to fetch products from collection
         const query = `
           query GetCollectionProducts($id: ID!) {
-            collection(id: "gid://shopify/Collection/${collectionId}") {
+            collection(id: $id) {
               id
               title
               products(first: 250) {
@@ -256,13 +256,17 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
           }
         `;
 
+        const variables = {
+          id: `gid://shopify/Collection/${collectionId}`
+        };
+
         const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Shopify-Access-Token': accessToken,
           },
-          body: JSON.stringify({ query, variables: { id: collectionId } })
+          body: JSON.stringify({ query, variables })
         });
 
         if (response.ok) {
@@ -343,7 +347,7 @@ async function fetchProductsByIds(products, shop, accessToken) {
         // Use GraphQL to fetch product details
         const query = `
           query GetProduct($id: ID!) {
-            product(id: "gid://shopify/Product/${productId}") {
+            product(id: $id) {
               id
               title
               handle
@@ -366,13 +370,17 @@ async function fetchProductsByIds(products, shop, accessToken) {
           }
         `;
 
+        const variables = {
+          id: `gid://shopify/Product/${productId}`
+        };
+
         const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Shopify-Access-Token': accessToken,
           },
-          body: JSON.stringify({ query, variables: { id: productId } })
+          body: JSON.stringify({ query, variables })
         });
 
         if (response.ok) {
