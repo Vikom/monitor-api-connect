@@ -200,9 +200,25 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
   try {
     for (const collection of collections) {
       try {
-        // Handle both old format (string ID) and new format (object with id and monitor_id)
-        const collectionId = typeof collection === 'string' ? collection : collection.id;
-        const collectionMonitorId = typeof collection === 'object' ? collection.monitor_id : null;
+        // Handle different formats: number, string ID, or object with {id, monitor_id}
+        let collectionId, collectionMonitorId;
+        
+        if (typeof collection === 'number') {
+          // Collection ID as number (most common from frontend)
+          collectionId = collection.toString();
+          collectionMonitorId = null;
+        } else if (typeof collection === 'string') {
+          // Collection ID as string
+          collectionId = collection;
+          collectionMonitorId = null;
+        } else if (typeof collection === 'object' && collection.id) {
+          // Object with id and monitor_id
+          collectionId = collection.id.toString();
+          collectionMonitorId = collection.monitor_id;
+        } else {
+          console.error(`Invalid collection format:`, collection);
+          continue;
+        }
         
         console.log(`Fetching products from collection ${collectionId}${collectionMonitorId ? ` (Monitor ID: ${collectionMonitorId})` : ''}`);
         
@@ -302,9 +318,25 @@ async function fetchProductsByIds(products, shop, accessToken) {
   try {
     for (const product of products) {
       try {
-        // Handle both old format (string ID) and new format (object with id and monitor_id)
-        const productId = typeof product === 'string' ? product : product.id;
-        const productMonitorId = typeof product === 'object' ? product.monitor_id : null;
+        // Handle different formats: number, string ID, or object with {id, monitor_id}
+        let productId, productMonitorId;
+        
+        if (typeof product === 'number') {
+          // Product ID as number (most common from frontend)
+          productId = product.toString();
+          productMonitorId = null;
+        } else if (typeof product === 'string') {
+          // Product ID as string
+          productId = product;
+          productMonitorId = null;
+        } else if (typeof product === 'object' && product.id) {
+          // Object with id and monitor_id
+          productId = product.id.toString();
+          productMonitorId = product.monitor_id;
+        } else {
+          console.error(`Invalid product format:`, product);
+          continue;
+        }
         
         console.log(`Fetching product ${productId}${productMonitorId ? ` (Monitor ID: ${productMonitorId})` : ''}`);
         
