@@ -1,5 +1,9 @@
 import { json } from "@remix-run/node";
 import PDFDocument from "pdfkit";
+import https from "https";
+
+// HTTPS agent to handle self-signed certificates
+const agent = new https.Agent({ rejectUnauthorized: false });
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -785,6 +789,7 @@ async function login() {
         Username: monitorUsername,
         Password: monitorPassword,
       }),
+      agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status !== 200) {
@@ -822,6 +827,7 @@ async function fetchOutletPrice(partId) {
         Accept: "application/json",
         "X-Monitor-SessionId": session,
       },
+      agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status === 401) {
@@ -832,6 +838,7 @@ async function fetchOutletPrice(partId) {
           Accept: "application/json",
           "X-Monitor-SessionId": newSession,
         },
+        agent: url.startsWith('https:') ? agent : undefined,
       });
       
       if (retryRes.status === 200) {
@@ -863,6 +870,7 @@ async function fetchCustomerPartPrice(customerId, partId) {
         Accept: "application/json",
         "X-Monitor-SessionId": session,
       },
+      agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status === 401) {
@@ -873,6 +881,7 @@ async function fetchCustomerPartPrice(customerId, partId) {
           Accept: "application/json",
           "X-Monitor-SessionId": newSession,
         },
+        agent: url.startsWith('https:') ? agent : undefined,
       });
       
       if (retryRes.status === 200) {
@@ -914,6 +923,7 @@ async function fetchCustomerPriceListId(customerId) {
         Accept: "application/json",
         "X-Monitor-SessionId": session,
       },
+      agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status === 200) {
@@ -941,6 +951,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
         Accept: "application/json",
         "X-Monitor-SessionId": session,
       },
+      agent: url.startsWith('https:') ? agent : undefined,
     });
 
     if (res.status === 200) {
