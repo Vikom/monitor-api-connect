@@ -50,7 +50,6 @@ if (isManualRun) {
 // Function to log Railway's outbound IP for Monitor API whitelisting
 async function logRailwayIP() {
   try {
-    console.log('Checking Railway outbound IP for Monitor API whitelisting...');
     const response = await fetch('https://api.ipify.org?format=json');
     const data = await response.json();
     console.log(`RAILWAY OUTBOUND IP: ${data.ip}`);
@@ -1578,7 +1577,7 @@ if (isWorkerMode) {
   console.log("💡 To run a manual full sync, use: node app/syncProductsJob.js --advanced --manual");
   
   // Set up cron jobs for worker mode
-  setupCronJobs();
+  // setupCronJobs(); // @TODO
   
   // Keep the process alive by not calling syncProducts() immediately
   // The cron job will handle the scheduling
