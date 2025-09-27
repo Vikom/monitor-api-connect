@@ -253,6 +253,15 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
                           standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                             value
                           }
+                          widthMetafield: metafield(namespace: "custom", key: "width") {
+                            value
+                          }
+                          depthMetafield: metafield(namespace: "custom", key: "depth") {
+                            value
+                          }
+                          lengthMetafield: metafield(namespace: "custom", key: "length") {
+                            value
+                          }
                         }
                       }
                     }
@@ -375,6 +384,15 @@ async function fetchProductsByIds(products, shop, accessToken) {
                     standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                       value
                     }
+                    widthMetafield: metafield(namespace: "custom", key: "width") {
+                      value
+                    }
+                    depthMetafield: metafield(namespace: "custom", key: "depth") {
+                      value
+                    }
+                    lengthMetafield: metafield(namespace: "custom", key: "length") {
+                      value
+                    }
                   }
                 }
               }
@@ -475,6 +493,15 @@ async function fetchAllProducts(shop, accessToken) {
                       standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                         value
                       }
+                      widthMetafield: metafield(namespace: "custom", key: "width") {
+                        value
+                      }
+                      depthMetafield: metafield(namespace: "custom", key: "depth") {
+                        value
+                      }
+                      lengthMetafield: metafield(namespace: "custom", key: "length") {
+                        value
+                      }
                     }
                   }
                 }
@@ -557,8 +584,11 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         const variantId = variant.id;
         const monitorId = variant.monitorIdMetafield?.value;
         const standardUnit = variant.standardUnitMetafield?.value || 'st';
+        const width = variant.widthMetafield?.value || '';
+        const depth = variant.depthMetafield?.value || '';
+        const length = variant.lengthMetafield?.value || '';
         
-        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, unit=${standardUnit}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, unit=${standardUnit}, dimensions=${width}x${depth}x${length}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
         
         // Skip variants without Monitor IDs since they can't be priced
         if (!monitorId) {
@@ -573,6 +603,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             priceSource: "no-monitor-id",
             monitorId: '',
             standardUnit: standardUnit,
+            width: width,
+            depth: depth,
+            length: length,
             formattedPrice: 'Saknar Monitor ID'
           });
           continue;
@@ -622,6 +655,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             priceSource: priceSource,
             monitorId: monitorId || '',
             standardUnit: standardUnit,
+            width: width,
+            depth: depth,
+            length: length,
             formattedPrice: price ? formatPrice(price) : 'Ingen prissättning'
           });
         } catch (variantError) {
@@ -636,6 +672,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             priceSource: "error",
             monitorId: '',
             standardUnit: standardUnit,
+            width: width,
+            depth: depth,
+            length: length,
             formattedPrice: 'Prisfel'
           });
         }
@@ -655,7 +694,11 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
 async function generatePDF(priceData, customerEmail, customerCompany) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ 
+        margin: 30, 
+        layout: 'landscape',
+        size: 'A4'
+      });
       const chunks = [];
       
       doc.on('data', chunk => chunks.push(chunk));
@@ -670,55 +713,63 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       
       // Table headers
       const tableTop = doc.y;
-      doc.fontSize(10);
+      doc.fontSize(9);
       
-      // Define column positions
+      // Define column positions for landscape layout with new columns
       const colPositions = {
-        product: 50,
-        variant: 150,
-        sku: 250,
-        price: 350,
-        source: 450
+        sku: 30,
+        product: 110,
+        variant: 210,
+        width: 300,
+        depth: 350,
+        length: 400,
+        price: 450,
+        unit: 520
       };
       
       // Headers
       doc.font('Helvetica-Bold');
+      doc.text('Artikelnr', colPositions.sku, tableTop);
       doc.text('Produkt', colPositions.product, tableTop);
       doc.text('Variant', colPositions.variant, tableTop);
-      doc.text('Artikelnr', colPositions.sku, tableTop);
+      doc.text('Bredd', colPositions.width, tableTop);
+      doc.text('Tjocklek', colPositions.depth, tableTop);
+      doc.text('Längd', colPositions.length, tableTop);
       doc.text('Pris', colPositions.price, tableTop);
-      doc.text('Enhet', colPositions.source, tableTop);
+      doc.text('Enhet', colPositions.unit, tableTop);
       
-      // Line under headers
-      doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+      // Line under headers (extended for landscape)
+      doc.moveTo(30, tableTop + 15).lineTo(580, tableTop + 15).stroke();
       
       let yPosition = tableTop + 25;
       doc.font('Helvetica');
       
       // Data rows
       for (const item of priceData) {
-        // Check if we need a new page
-        if (yPosition > 700) {
+        // Check if we need a new page (landscape has more height)
+        if (yPosition > 520) {
           doc.addPage();
-          yPosition = 50;
+          yPosition = 80;
         }
         
-        doc.text(item.productTitle.substring(0, 25), colPositions.product, yPosition, { width: 90 });
-        doc.text(item.variantTitle.substring(0, 20), colPositions.variant, yPosition, { width: 90 });
-        doc.text(item.sku || '', colPositions.sku, yPosition);
-        doc.text(item.formattedPrice, colPositions.price, yPosition);
-        // doc.text(item.priceSource, colPositions.source, yPosition);
-        doc.text(item.standardUnit || 'st', colPositions.source, yPosition);
+        doc.text(item.sku || '', colPositions.sku, yPosition, { width: 75 });
+        doc.text(item.productTitle.substring(0, 20), colPositions.product, yPosition, { width: 95 });
+        doc.text(item.variantTitle.substring(0, 18), colPositions.variant, yPosition, { width: 85 });
+        doc.text(item.width || '', colPositions.width, yPosition, { width: 45 });
+        doc.text(item.depth || '', colPositions.depth, yPosition, { width: 45 });
+        doc.text(item.length || '', colPositions.length, yPosition, { width: 45 });
+        doc.text(item.formattedPrice, colPositions.price, yPosition, { width: 65 });
+        doc.text(item.standardUnit || 'st', colPositions.unit, yPosition);
         
-        yPosition += 20;
+        yPosition += 18;
       }
       
-      // Footer
+      // Footer (positioned for landscape layout)
       doc.fontSize(8).text(
         `Genererad: ${new Date().toLocaleString('sv-SE')} | Sidor: ${doc.bufferedPageRange().count}`,
-        50,
-        750,
-        { align: 'center' }
+        30,
+        560,
+        { align: 'center', width: 550 }
       );
       
       doc.end();
@@ -734,9 +785,12 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
 function generateCSV(priceData) {
   // Define CSV headers
   const headers = [
+    'Artikelnummer',
     'Produkt',
     'Variant', 
-    'Artikelnummer',
+    'Bredd',
+    'Tjocklek',
+    'Längd',
     'Ursprungspris',
     'Kundpris',
     'Formaterat pris',
@@ -754,9 +808,12 @@ function generateCSV(priceData) {
   // Add data rows
   for (const item of priceData) {
     const row = [
+      escapeCSVField(item.sku || ''),
       escapeCSVField(item.productTitle),
       escapeCSVField(item.variantTitle),
-      escapeCSVField(item.sku || ''),
+      escapeCSVField(item.width || ''),
+      escapeCSVField(item.depth || ''),
+      escapeCSVField(item.length || ''),
       item.originalPrice || '',
       item.customerPrice || '',
       escapeCSVField(item.formattedPrice),
