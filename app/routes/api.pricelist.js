@@ -194,6 +194,18 @@ export async function action({ request }) {
 }
 
 /**
+ * Helper function to extract metafield value by key from metafields array
+ * @param {Array} metafields - Array of metafields
+ * @param {string} key - The key to look for
+ * @returns {string|null} The metafield value or null if not found
+ */
+function getMetafieldValue(metafields, key) {
+  if (!Array.isArray(metafields)) return null;
+  const metafield = metafields.find(mf => mf.key === key);
+  return metafield ? metafield.value : null;
+}
+
+/**
  * Fetch products by collection IDs using Shopify API
  * @param {Array} collections - Array of collection IDs (string) or collection objects ({id, monitor_id})
  */
@@ -247,7 +259,11 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
                           sku
                           price
                           inventoryQuantity
-                          metafield(namespace: "custom", key: "monitor_id") {
+                          metafields(identifiers: [
+                            {namespace: "custom", key: "monitor_id"}
+                            {namespace: "custom", key: "standard_unit"}
+                          ]) {
+                            key
                             value
                           }
                         }
@@ -285,7 +301,8 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
               if (product.variants?.edges) {
                 product.variants.edges.forEach((variantEdge, index) => {
                   const variant = variantEdge.node;
-                  console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${variant.metafield?.value || 'NONE'}`);
+                  const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
+                  console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
                 });
               }
               
@@ -365,7 +382,11 @@ async function fetchProductsByIds(products, shop, accessToken) {
                     sku
                     price
                     inventoryQuantity
-                    metafield(namespace: "custom", key: "monitor_id") {
+                    metafields(identifiers: [
+                      {namespace: "custom", key: "monitor_id"}
+                      {namespace: "custom", key: "standard_unit"}
+                    ]) {
+                      key
                       value
                     }
                   }
@@ -399,7 +420,8 @@ async function fetchProductsByIds(products, shop, accessToken) {
             if (fetchedProduct.variants?.edges) {
               fetchedProduct.variants.edges.forEach((variantEdge, index) => {
                 const variant = variantEdge.node;
-                console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${variant.metafield?.value || 'NONE'}`);
+                const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
+                console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
               });
             }
             
@@ -461,7 +483,11 @@ async function fetchAllProducts(shop, accessToken) {
                       sku
                       price
                       inventoryQuantity
-                      metafield(namespace: "custom", key: "monitor_id") {
+                      metafields(identifiers: [
+                        {namespace: "custom", key: "monitor_id"}
+                        {namespace: "custom", key: "standard_unit"}
+                      ]) {
+                        key
                         value
                       }
                     }
@@ -544,9 +570,10 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
       for (const variantEdge of product.variants?.edges || []) {
         const variant = variantEdge.node;
         const variantId = variant.id;
-        const monitorId = variant.metafield?.value;
+        const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
+        const standardUnit = getMetafieldValue(variant.metafields, 'standard_unit') || 'st';
         
-        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, unit=${standardUnit}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
         
         // Skip variants without Monitor IDs since they can't be priced
         if (!monitorId) {
@@ -560,6 +587,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             customerPrice: null,
             priceSource: "no-monitor-id",
             monitorId: '',
+            standardUnit: standardUnit,
             formattedPrice: 'Saknar Monitor ID'
           });
           continue;
@@ -608,6 +636,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             customerPrice: price,
             priceSource: priceSource,
             monitorId: monitorId || '',
+            standardUnit: standardUnit,
             formattedPrice: price ? formatPrice(price) : 'Ingen prissättning'
           });
         } catch (variantError) {
@@ -621,6 +650,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             customerPrice: null,
             priceSource: "error",
             monitorId: '',
+            standardUnit: standardUnit,
             formattedPrice: 'Prisfel'
           });
         }
@@ -693,7 +723,7 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
         doc.text(item.sku || '', colPositions.sku, yPosition);
         doc.text(item.formattedPrice, colPositions.price, yPosition);
         // doc.text(item.priceSource, colPositions.source, yPosition);
-        doc.text('st', colPositions.source, yPosition);
+        doc.text(item.standardUnit || 'st', colPositions.source, yPosition);
         
         yPosition += 20;
       }
@@ -725,6 +755,7 @@ function generateCSV(priceData) {
     'Ursprungspris',
     'Kundpris',
     'Formaterat pris',
+    'Enhet',
     'Pristyp',
     'Monitor ID'
   ];
@@ -744,6 +775,7 @@ function generateCSV(priceData) {
       item.originalPrice || '',
       item.customerPrice || '',
       escapeCSVField(item.formattedPrice),
+      escapeCSVField(item.standardUnit || 'st'),
       escapeCSVField(getPriceSourceLabel(item.priceSource)),
       escapeCSVField(item.monitorId || '')
     ];
