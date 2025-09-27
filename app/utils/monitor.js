@@ -89,7 +89,7 @@ class MonitorClient {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId';
+      url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
       url += '&$filter=Status eq 4';
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
@@ -161,7 +161,7 @@ class MonitorClient {
     const idFilter = productIds.map(id => `Id eq '${id}'`).join(' or ');
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
-    url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId';
+    url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
     url += `&$filter=(${idFilter}) and Status eq 4`;
     url += '&$expand=ExtraFields,ProductGroup,PartCode';
     
@@ -301,11 +301,14 @@ export async function fetchProductsFromMonitor() {
         length: product.Length,
         width: product.Width,
         height: product.Height,
+        volume: product.VolumePerUnit,
         category: product.CategoryString,
         barcode: product.Gs1Code,
         status: product.Status,
         productName: finalProductName,
         productVariation: finalProductVariation,
+        PurchaseQuantityPerPackage: product.QuantityPerPackage,
+        StandardUnitId: product.StandardUnitId,
         // Map both ProductGroup and PartCode for Shopify collections
         productGroupId: product.ProductGroup?.Id || null,
         productGroupDescription: product.ProductGroup?.Description || null,
@@ -414,11 +417,14 @@ export async function fetchProductsByIdsFromMonitor(productIds) {
         length: product.Length,
         width: product.Width,
         height: product.Height,
+        volume: product.VolumePerUnit,
         category: product.CategoryString,
         barcode: product.Gs1Code,
         status: product.Status,
         productName: finalProductName,
         productVariation: finalProductVariation,
+        PurchaseQuantityPerPackage: product.QuantityPerPackage,
+        StandardUnitId: product.StandardUnitId,
         // Map both ProductGroup and PartCode for Shopify collections
         productGroupId: product.ProductGroup?.Id || null,
         productGroupDescription: product.ProductGroup?.Description || null,

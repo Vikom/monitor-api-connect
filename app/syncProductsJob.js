@@ -76,7 +76,6 @@ global.Shopify.config = shopifyConfig.config;
 
 // Helper function to validate if a session is still valid
 async function validateSession(shop, accessToken) {
-  const fetch = (await import('node-fetch')).default;
   
   const testQuery = `query {
     shop {
@@ -86,16 +85,7 @@ async function validateSession(shop, accessToken) {
   }`;
 
   try {
-    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query: testQuery }),
-    });
-
-    const result = await response.json();
+    const result = await makeGraphQLRequest(shop, accessToken, testQuery, "session validation");
     
     if (result.errors) {
       console.error("Session validation failed:", result.errors);
@@ -106,6 +96,52 @@ async function validateSession(shop, accessToken) {
   } catch (error) {
     console.error("Error validating session:", error);
     return false;
+  }
+}
+
+// Helper function for making GraphQL requests with error handling and retry logic
+async function makeGraphQLRequest(shop, accessToken, query, operation = "GraphQL request", maxRetries = 2) {
+  const fetch = (await import('node-fetch')).default;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken,
+        },
+        body: JSON.stringify({ query }),
+      });
+      
+      // Check if response is OK
+      if (!response.ok) {
+        if (response.status === 429) {
+          // Rate limited - wait briefly and retry
+          console.warn(`⚠️  Rate limited during ${operation} (attempt ${attempt}/${maxRetries}). Retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Brief 1s wait for rate limit
+          continue;
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Received non-JSON response: ${contentType}. This might indicate rate limiting or server error.`);
+      }
+      
+      const result = await response.json();
+      return result;
+      
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error(`❌ Failed ${operation} after ${maxRetries} attempts: ${error.message}`);
+        throw error;
+      }
+      
+      console.warn(`⚠️  ${operation} failed (attempt ${attempt}/${maxRetries}): ${error.message}. Retrying...`);
+    }
   }
 }
 
@@ -148,12 +184,12 @@ async function generateMetafieldsForVariation(variation) {
     });
   }
 
-  if (variation.VolumePerUnit != null) {
+  if (variation.volume != null) {
     metafields.push({
       namespace: "custom",
       key: "volume",
-      value: Number(variation.VolumePerUnit).toFixed(2),
-      type: "single_line_text_field"
+      value: Number(variation.volume).toFixed(2),
+      type: "number_decimal"
     });
   }
 
@@ -333,6 +369,10 @@ async function syncProducts(isIncrementalSync = false) {
 
     console.log(`Found ${productGroups.size} unique product groups to process`);
     
+    // Track failed products for retry
+    const failedProducts = new Map();
+    let processedCount = 0;
+    
     // Get the Online Store sales channel ID for publishing products
     console.log("Getting Online Store sales channel ID...");
     const onlineStoreSalesChannelId = await getOnlineStoreSalesChannelId(shop, accessToken);
@@ -359,55 +399,202 @@ async function syncProducts(isIncrementalSync = false) {
       
       if (productGroupId && productGroupDescription) {
         console.log(`  🏷️  Finding collection for ProductGroup: "${productGroupDescription}" (ID: ${productGroupId})`);
-        const productGroupCollectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
-        if (productGroupCollectionId) {
-          collectionIds.push(productGroupCollectionId);
+        try {
+          const productGroupCollectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
+          if (productGroupCollectionId) {
+            collectionIds.push(productGroupCollectionId);
+          }
+        } catch (error) {
+          console.warn(`⚠️  Failed to find ProductGroup collection "${productGroupDescription}": ${error.message}. Continuing without this collection...`);
         }
       }
       
       if (partCodeId && partCodeDescription) {
         console.log(`  🏷️  Finding collection for PartCode: "${partCodeDescription}" (ID: ${partCodeId})`);
-        const partCodeCollectionId = await findExistingCollection(shop, accessToken, partCodeId, partCodeDescription);
-        if (partCodeCollectionId) {
-          collectionIds.push(partCodeCollectionId);
+        try {
+          const partCodeCollectionId = await findExistingCollection(shop, accessToken, partCodeId, partCodeDescription);
+          if (partCodeCollectionId) {
+            collectionIds.push(partCodeCollectionId);
+          }
+        } catch (error) {
+          console.warn(`⚠️  Failed to find PartCode collection "${partCodeDescription}": ${error.message}. Continuing without this collection...`);
         }
       }
       
       // Check if product already exists in Shopify by productName
-      const existingProduct = await findExistingProductByName(shop, accessToken, productName);
+      let existingProduct;
+      try {
+        existingProduct = await findExistingProductByName(shop, accessToken, productName);
+      } catch (error) {
+        console.error(`⚠️  Failed to check existing product "${productName}": ${error.message}`);
+        console.log(`⏭️  Adding "${productName}" to failed products list for retry...`);
+        failedProducts.set(productName, { variations, error: error.message });
+        continue;
+      }
       
-      if (existingProduct) {
-        console.log(`Product "${productName}" already exists, adding new variations if needed`);
-        await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
-        
-        // Add product to all collections
-        for (const collectionId of collectionIds) {
-          await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
-        }
-        
-        // Ensure existing product is published to Online Store
-        if (onlineStoreSalesChannelId) {
-          await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
-        }
-      } else {
-        console.log(`Creating new product: ${productName}`);
-        const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
-        
-        if (newProductId) {
+      try {
+        if (existingProduct) {
+          console.log(`Product "${productName}" already exists, adding new variations if needed`);
+          await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+          
           // Add product to all collections
           for (const collectionId of collectionIds) {
-            await addProductToCollection(shop, accessToken, newProductId, collectionId);
+            await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
           }
           
-          // Publish new product to Online Store
+          // Ensure existing product is published to Online Store
           if (onlineStoreSalesChannelId) {
-            await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+            await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
+          }
+        } else {
+          console.log(`Creating new product: ${productName}`);
+          const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
+          
+          if (newProductId) {
+            // Add product to all collections
+            for (const collectionId of collectionIds) {
+              await addProductToCollection(shop, accessToken, newProductId, collectionId);
+            }
+            
+            // Publish new product to Online Store
+            if (onlineStoreSalesChannelId) {
+              await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+            }
+          }
+        }
+        
+        processedCount++;
+        console.log(`✅ Successfully processed "${productName}" (${processedCount}/${productGroups.size})`);
+        
+      } catch (error) {
+        console.error(`⚠️  Failed to process product "${productName}": ${error.message}`);
+        console.log(`⏭️  Adding "${productName}" to failed products list for retry...`);
+        failedProducts.set(productName, { variations, error: error.message });
+        continue;
+      }
+    }
+    
+    // Summary of first pass
+    console.log(`\n📊 First pass completed:`);
+    console.log(`   ✅ Successfully processed: ${processedCount} products`);
+    console.log(`   ❌ Failed products: ${failedProducts.size} products`);
+    
+    // Retry failed products once
+    let retrySuccessCount = 0;
+    let retryFailedCount = 0;
+    
+    if (failedProducts.size > 0) {
+      console.log(`\n🔄 Retrying ${failedProducts.size} failed products...`);
+      
+      for (const [productName, { variations }] of failedProducts) {
+        console.log(`🔄 Retrying product: ${productName}`);
+        
+        try {
+          // Get collections for both ProductGroup and PartCode
+          const productGroupId = variations[0]?.productGroupId;
+          const productGroupDescription = variations[0]?.productGroupDescription;
+          const partCodeId = variations[0]?.partCodeId;
+          const partCodeDescription = variations[0]?.partCodeDescription;
+          
+          const collectionIds = [];
+          
+          if (productGroupId && productGroupDescription) {
+            try {
+              const productGroupCollectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
+              if (productGroupCollectionId) {
+                collectionIds.push(productGroupCollectionId);
+              }
+            } catch (error) {
+              console.warn(`⚠️  [Retry] Failed to find ProductGroup collection "${productGroupDescription}": ${error.message}. Continuing without this collection...`);
+            }
+          }
+          
+          if (partCodeId && partCodeDescription) {
+            try {
+              const partCodeCollectionId = await findExistingCollection(shop, accessToken, partCodeId, partCodeDescription);
+              if (partCodeCollectionId) {
+                collectionIds.push(partCodeCollectionId);
+              }
+            } catch (error) {
+              console.warn(`⚠️  [Retry] Failed to find PartCode collection "${partCodeDescription}": ${error.message}. Continuing without this collection...`);
+            }
+          }
+          
+          // Check if product already exists in Shopify by productName
+          const existingProduct = await findExistingProductByName(shop, accessToken, productName);
+          
+          if (existingProduct) {
+            console.log(`Product "${productName}" already exists, adding new variations if needed`);
+            await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+            
+            // Add product to all collections
+            for (const collectionId of collectionIds) {
+              await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
+            }
+            
+            // Ensure existing product is published to Online Store
+            if (onlineStoreSalesChannelId) {
+              await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
+            }
+          } else {
+            console.log(`Creating new product: ${productName}`);
+            const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
+            
+            if (newProductId) {
+              // Add product to all collections
+              for (const collectionId of collectionIds) {
+                await addProductToCollection(shop, accessToken, newProductId, collectionId);
+              }
+              
+              // Publish new product to Online Store
+              if (onlineStoreSalesChannelId) {
+                await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
+              }
+            }
+          }
+          
+          retrySuccessCount++;
+          console.log(`✅ Retry successful for "${productName}"`);
+          
+        } catch (error) {
+          retryFailedCount++;
+          console.error(`❌ Retry failed for "${productName}": ${error.message}`);
+        }
+      }
+      
+      console.log(`\n📊 Retry results:`);
+      console.log(`   ✅ Retry successful: ${retrySuccessCount} products`);
+      console.log(`   ❌ Still failed: ${retryFailedCount} products`);
+      
+      // List products that still failed after retry
+      if (retryFailedCount > 0) {
+        console.log(`\n🚨 Products that failed both attempts:`);
+        let stillFailedCount = 0;
+        for (const [productName, { variations }] of failedProducts) {
+          try {
+            await findExistingProductByName(shop, accessToken, productName);
+          } catch {
+            stillFailedCount++;
+            console.log(`   ${stillFailedCount}. "${productName}" (${variations.length} variations)`);
           }
         }
       }
     }
     
-    console.log(`✅ Product sync completed! Processed ${productGroups.size} product groups.`);
+    const totalSuccessful = processedCount + (failedProducts.size > 0 ? retrySuccessCount || 0 : 0);
+    const totalFailed = failedProducts.size - (retrySuccessCount || 0);
+    
+    console.log(`\n🎯 Final Summary:`);
+    console.log(`   📦 Total products processed: ${productGroups.size}`);
+    console.log(`   ✅ Successfully synced: ${totalSuccessful}`);
+    console.log(`   ❌ Failed to sync: ${totalFailed}`);
+    console.log(`   📈 Success rate: ${((totalSuccessful / productGroups.size) * 100).toFixed(1)}%`);
+    
+    if (totalFailed === 0) {
+      console.log(`\n🎉 All products synced successfully!`);
+    } else {
+      console.log(`\n⚠️  ${totalFailed} products could not be synced. Check the logs above for details.`);
+    }
   } catch (err) {
     console.error("Failed to instantiate GraphqlClient:", err);
     throw err;
@@ -416,7 +603,6 @@ async function syncProducts(isIncrementalSync = false) {
 
 // Helper function to find existing product by productName
 async function findExistingProductByName(shop, accessToken, productName) {
-  const fetch = (await import('node-fetch')).default;
   let endCursor = null;
   let hasNextPage = true;
   
@@ -445,34 +631,31 @@ async function findExistingProductByName(shop, accessToken, productName) {
       }
     }`;
     
-    const checkRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query: checkQuery }),
-    });
-    
-    const checkJson = await checkRes.json();
-    
-    if (checkJson.errors) {
-      console.error("GraphQL errors while checking products:", JSON.stringify(checkJson.errors, null, 2));
-      break;
-    }
-    
-    if (checkJson.data?.products?.edges) {
-      for (const edge of checkJson.data.products.edges) {
-        const metafields = edge.node.metafields.edges;
-        const productNameMetafield = metafields.find(mf => mf.node.key === "product_name" && mf.node.value === productName);
-        if (productNameMetafield) {
-          return { id: edge.node.id, title: edge.node.title };
+    try {
+      const checkJson = await makeGraphQLRequest(shop, accessToken, checkQuery, `checking products for "${productName}"`);
+      
+      if (checkJson.errors) {
+        console.error("GraphQL errors while checking products:", JSON.stringify(checkJson.errors, null, 2));
+        break;
+      }
+      
+      if (checkJson.data?.products?.edges) {
+        for (const edge of checkJson.data.products.edges) {
+          const metafields = edge.node.metafields.edges;
+          const productNameMetafield = metafields.find(mf => mf.node.key === "product_name" && mf.node.value === productName);
+          if (productNameMetafield) {
+            return { id: edge.node.id, title: edge.node.title };
+          }
         }
       }
+      
+      hasNextPage = checkJson.data?.products?.pageInfo?.hasNextPage || false;
+      endCursor = checkJson.data?.products?.pageInfo?.endCursor;
+    } catch (error) {
+      console.error(`⚠️  Error checking products for "${productName}": ${error.message}`);
+      console.log(`⏭️  Skipping product check and continuing...`);
+      break;
     }
-    
-    hasNextPage = checkJson.data?.products?.pageInfo?.hasNextPage || false;
-    endCursor = checkJson.data?.products?.pageInfo?.endCursor;
   }
   
   return null;
@@ -1290,7 +1473,6 @@ async function findExistingCollection(shop, accessToken, monitorId, collectionTi
 
 // Helper function to find existing collection by monitor_id metafield
 async function findExistingCollectionByMonitorId(shop, accessToken, monitorId) {
-  const fetch = (await import('node-fetch')).default;
   let endCursor = null;
   let hasNextPage = true;
   
@@ -1319,40 +1501,37 @@ async function findExistingCollectionByMonitorId(shop, accessToken, monitorId) {
       }
     }`;
     
-    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query }),
-    });
-    
-    const result = await response.json();
-    
-    if (result.errors) {
-      console.error("GraphQL errors searching for collections:", JSON.stringify(result.errors, null, 2));
-      break;
-    }
-    
-    if (result.data?.collections?.edges) {
-      for (const edge of result.data.collections.edges) {
-        const collection = edge.node;
-        const monitorIdMetafield = collection.metafields.edges.find(
-          mf => mf.node.key === "monitor_id" && mf.node.value === monitorId
-        );
-        
-        if (monitorIdMetafield) {
-          return {
-            id: collection.id,
-            title: collection.title
-          };
+    try {
+      const result = await makeGraphQLRequest(shop, accessToken, query, `searching for collection with Monitor ID ${monitorId}`);
+      
+      if (result.errors) {
+        console.error("GraphQL errors searching for collections:", JSON.stringify(result.errors, null, 2));
+        break;
+      }
+      
+      if (result.data?.collections?.edges) {
+        for (const edge of result.data.collections.edges) {
+          const collection = edge.node;
+          const monitorIdMetafield = collection.metafields.edges.find(
+            mf => mf.node.key === "monitor_id" && mf.node.value === monitorId
+          );
+          
+          if (monitorIdMetafield) {
+            return {
+              id: collection.id,
+              title: collection.title
+            };
+          }
         }
       }
+      
+      hasNextPage = result.data?.collections?.pageInfo?.hasNextPage || false;
+      endCursor = result.data?.collections?.pageInfo?.endCursor;
+    } catch (error) {
+      console.error(`⚠️  Error searching for collection with Monitor ID ${monitorId}: ${error.message}`);
+      console.log(`⏭️  Skipping collection search and continuing...`);
+      break;
     }
-    
-    hasNextPage = result.data?.collections?.pageInfo?.hasNextPage || false;
-    endCursor = result.data?.collections?.pageInfo?.endCursor;
   }
   
   return null;
@@ -1577,7 +1756,7 @@ if (isWorkerMode) {
   console.log("💡 To run a manual full sync, use: node app/syncProductsJob.js --advanced --manual");
   
   // Set up cron jobs for worker mode
-  // setupCronJobs(); // @TODO
+  setupCronJobs();
   
   // Keep the process alive by not calling syncProducts() immediately
   // The cron job will handle the scheduling
