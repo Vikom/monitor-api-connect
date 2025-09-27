@@ -64,7 +64,7 @@ async function validateSession(shop, accessToken) {
   }
 }
 
-async function syncCustomers(isIncrementalSync = false) {
+export async function syncCustomers(isIncrementalSync = false) {
   let shop, accessToken;
   
   // Use global variable if set (from cron), otherwise use the original variable
@@ -296,78 +296,9 @@ async function syncCustomers(isIncrementalSync = false) {
   }
 }
 
-// Schedule to run every hour - only for advanced store with incremental sync
-/*cron.schedule("0 * * * *", () => {
-  console.log("[CRON] Running scheduled incremental customer sync...");
-  
-  // Check if advanced store is configured
-  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
-  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
-  
-  if (!advancedStoreDomain || !advancedStoreToken) {
-    console.log("❌ [CRON] Advanced store configuration missing - skipping scheduled sync");
-    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
-    return;
-  }
-  
-  console.log(`[CRON] Running incremental sync for Advanced store: ${advancedStoreDomain}`);
-  
-  // Set global flag to use advanced store for this cron run
-  const originalUseAdvancedStore = global.useAdvancedStore;
-  global.useAdvancedStore = true;
-  
-  syncCustomers(true) // true = incremental sync
-    .then(() => {
-      console.log("[CRON] ✅ Scheduled incremental customer sync completed successfully");
-    })
-    .catch((error) => {
-      console.error("[CRON] ❌ Scheduled incremental customer sync failed:", error);
-    })
-    .finally(() => {
-      // Restore original flag
-      global.useAdvancedStore = originalUseAdvancedStore;
-    });
-});*/
-
-// Function to set up cron jobs - only called in worker mode
-function setupCronJobs() {
-  // Check if advanced store is configured
-  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
-  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
-  
-  if (!advancedStoreDomain || !advancedStoreToken) {
-    console.log("❌ Advanced store configuration missing - cannot set up cron jobs");
-    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
-    return;
-  }
-  
-  // Uncomment cron import at the top of the file for production use
-  const cron = require("node-cron");
-  
-  console.log("⏰ Setting up cron job for incremental customer sync every hour...");
-  
-  cron.schedule("0 * * * *", () => {
-    console.log("[CRON] Running scheduled incremental customer sync...");
-    
-    const originalUseAdvancedStore = global.useAdvancedStore;
-    global.useAdvancedStore = true;
-    
-    syncCustomers(true) // true = incremental sync
-      .then(() => {
-        console.log("[CRON] ✅ Scheduled incremental customer sync completed successfully");
-      })
-      .catch((error) => {
-        console.error("[CRON] ❌ Scheduled incremental customer sync failed:", error);
-      })
-      .finally(() => {
-        global.useAdvancedStore = originalUseAdvancedStore;
-      });
-  });
-  
-  console.log("✅ Cron job set up successfully");
-}
-
-// Display usage instructions
+// Only run when executed directly, not when imported
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
 📋 Customers Sync Job Usage:
@@ -377,11 +308,10 @@ To sync to development store (OAuth):
   node app/syncCustomersJob.js --manual           # Full sync (manual mode)
 
 To sync to Advanced store:
-  node app/syncCustomersJob.js --advanced         # Incremental sync (customers changed in last 48h)
   node app/syncCustomersJob.js --advanced --manual # Full sync to advanced store
 
-Worker mode (runs continuously with cron):
-  node app/syncCustomersJob.js --advanced         # Starts worker with hourly incremental sync
+For scheduled syncs, use the worker:
+  node app/worker.js
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow
@@ -399,20 +329,21 @@ Make sure your .env file is configured properly before running.
 console.log(`
 🚀 Starting Customers Sync Job
 📝 Use --help for usage instructions
-⏰ Scheduled incremental sync runs every hour for Advanced store
+💡 For scheduled syncs, use: node app/worker.js
 `);
 
-// Check if this is running as a worker process (with --advanced flag but not manual)
-const isWorkerMode = useAdvancedStore && !isManualRun;
+// Only allow manual execution when run directly
+if (!isManualRun && useAdvancedStore) {
+  console.log("⚠️  For automated scheduling, please use: node app/worker.js");
+  console.log("⚠️  Direct execution without --manual flag is not recommended for advanced store");
+  console.log("🚀 Running incremental sync anyway...");
+}
 
-if (isWorkerMode) {
-  console.log("🏭 Running in worker mode - setting up cron jobs and running initial incremental sync");
-  setupCronJobs();
-  // Run initial incremental sync
-  syncCustomers(true); // true = incremental sync
-} else {
-  // Run sync based on manual flag
-  const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
-  console.log(`Running ${isFullSync ? 'full' : 'incremental'} sync...`);
-  syncCustomers(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
+// Determine sync type based on flags
+const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
+const syncType = isFullSync ? "full sync" : "incremental sync";
+console.log(`🚀 Running ${syncType}...`);
+
+// Run the sync
+syncCustomers(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
 }

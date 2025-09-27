@@ -1,5 +1,4 @@
 import "@shopify/shopify-api/adapters/node";
-import cron from "node-cron";
 import { createOrderInMonitor } from "./utils/monitor.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -153,16 +152,10 @@ async function pollForNewOrders() {
   }
 }
 
-// Poll for orders every 15 minutes
-cron.schedule("*/15 * * * *", () => {
-  console.log("[ORDER-POLL] Checking for new orders...");
-  pollForNewOrders();
-});
-
+// Cron schedule is now handled by worker.js
+// Poll for orders every 5 minutes (managed by worker)
 // For testing - uncomment to run immediately
 // pollForNewOrders();
-
-console.log("🔄 Order polling service started - checking every 15 minutes");
 
 /**
  * Get customer's monitor_id metafield from Shopify

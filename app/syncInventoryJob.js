@@ -695,9 +695,11 @@ export async function syncInventory() {
 //   syncInventory();
 // });
 
-// Display usage instructions
-if (args.includes('--help') || args.includes('-h')) {
-  console.log(`
+// Only run when executed directly, not when imported
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // Display usage instructions
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(`
 📋 Inventory Sync Job Usage:
 
 This job syncs inventory levels from Monitor to Shopify locations and updates
@@ -723,15 +725,16 @@ Configuration:
   Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
 
 Make sure your .env file is configured properly before running.
-  `);
-  process.exit(0);
-}
+    `);
+    process.exit(0);
+  }
 
-console.log(`
+  console.log(`
 🚀 Starting Inventory & Metafield Sync Job
 📦 Syncs inventory levels and updates stock metafields for all warehouses
 📝 Use --help for usage instructions
-`);
+  `);
 
-// Run the sync
-// syncInventory();
+  // Run the sync
+  // syncInventory();
+}
