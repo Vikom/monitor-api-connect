@@ -194,18 +194,6 @@ export async function action({ request }) {
 }
 
 /**
- * Helper function to extract metafield value by key from metafields array
- * @param {Array} metafields - Array of metafields
- * @param {string} key - The key to look for
- * @returns {string|null} The metafield value or null if not found
- */
-function getMetafieldValue(metafields, key) {
-  if (!Array.isArray(metafields)) return null;
-  const metafield = metafields.find(mf => mf.key === key);
-  return metafield ? metafield.value : null;
-}
-
-/**
  * Fetch products by collection IDs using Shopify API
  * @param {Array} collections - Array of collection IDs (string) or collection objects ({id, monitor_id})
  */
@@ -259,11 +247,10 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
                           sku
                           price
                           inventoryQuantity
-                          metafields(identifiers: [
-                            {namespace: "custom", key: "monitor_id"}
-                            {namespace: "custom", key: "standard_unit"}
-                          ]) {
-                            key
+                          monitorIdMetafield: metafield(namespace: "custom", key: "monitor_id") {
+                            value
+                          }
+                          standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                             value
                           }
                         }
@@ -301,7 +288,7 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
               if (product.variants?.edges) {
                 product.variants.edges.forEach((variantEdge, index) => {
                   const variant = variantEdge.node;
-                  const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
+                  const monitorId = variant.monitorIdMetafield?.value;
                   console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
                 });
               }
@@ -382,11 +369,10 @@ async function fetchProductsByIds(products, shop, accessToken) {
                     sku
                     price
                     inventoryQuantity
-                    metafields(identifiers: [
-                      {namespace: "custom", key: "monitor_id"}
-                      {namespace: "custom", key: "standard_unit"}
-                    ]) {
-                      key
+                    monitorIdMetafield: metafield(namespace: "custom", key: "monitor_id") {
+                      value
+                    }
+                    standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                       value
                     }
                   }
@@ -420,7 +406,7 @@ async function fetchProductsByIds(products, shop, accessToken) {
             if (fetchedProduct.variants?.edges) {
               fetchedProduct.variants.edges.forEach((variantEdge, index) => {
                 const variant = variantEdge.node;
-                const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
+                const monitorId = variant.monitorIdMetafield?.value;
                 console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
               });
             }
@@ -483,11 +469,10 @@ async function fetchAllProducts(shop, accessToken) {
                       sku
                       price
                       inventoryQuantity
-                      metafields(identifiers: [
-                        {namespace: "custom", key: "monitor_id"}
-                        {namespace: "custom", key: "standard_unit"}
-                      ]) {
-                        key
+                      monitorIdMetafield: metafield(namespace: "custom", key: "monitor_id") {
+                        value
+                      }
+                      standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                         value
                       }
                     }
@@ -570,8 +555,8 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
       for (const variantEdge of product.variants?.edges || []) {
         const variant = variantEdge.node;
         const variantId = variant.id;
-        const monitorId = getMetafieldValue(variant.metafields, 'monitor_id');
-        const standardUnit = getMetafieldValue(variant.metafields, 'standard_unit') || 'st';
+        const monitorId = variant.monitorIdMetafield?.value;
+        const standardUnit = variant.standardUnitMetafield?.value || 'st';
         
         console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, unit=${standardUnit}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
         
