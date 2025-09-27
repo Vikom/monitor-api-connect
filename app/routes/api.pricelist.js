@@ -606,7 +606,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             width: width,
             depth: depth,
             length: length,
-            formattedPrice: 'Saknar Monitor ID'
+            formattedPrice: 'Pris saknas'
           });
           continue;
         }
