@@ -34,6 +34,7 @@
   {% unless product.has_only_default_variant %}
     {{ 'component-product-variant-picker.css' | asset_url | stylesheet_tag: preload: true }}
   {% endunless %}
+  {{ 'decimal-quantity.css' | asset_url | stylesheet_tag: preload: true }}
   {%- assign has_models = product.media | where: 'media_type', 'model' | first -%}
   {%- if has_models -%}
     <link
@@ -251,6 +252,8 @@ document.addEventListener('change', async (event) => {
 {%- if block_atc_bar != blank -%}
   {%- render 'sticky-atc-bar', block: block_atc_bar -%}
 {%- endif -%}
+
+<script src="{{ 'decimal-quantity.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
