@@ -77,25 +77,25 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
   }
 
   try {
-    console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
-    console.log('Variant ID:', variantId);
-    console.log('Price selector:', priceSelector);
-    console.log('Customer ID:', customerId);
+    // console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
+    // console.log('Variant ID:', variantId);
+    // console.log('Price selector:', priceSelector);
+    // console.log('Customer ID:', customerId);
     
     const priceData = await getCustomerPrice(variantId, customerId);
-    console.log('Received price data:', priceData);
+    // console.log('Received price data:', priceData);
     
     const priceElement = document.querySelector(priceSelector);
-    console.log('Found price element:', priceElement);
+    // console.log('Found price element:', priceElement);
     
     if (priceElement && priceData.price) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
-      console.log('Formatted price:', formattedPrice);
-      console.log('Old price text:', priceElement.textContent);
+      // console.log('Formatted price:', formattedPrice);
+      // console.log('Old price text:', priceElement.textContent);
       
       priceElement.textContent = formattedPrice;
-      console.log('New price text:', priceElement.textContent);
+      // console.log('New price text:', priceElement.textContent);
       
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {
@@ -103,7 +103,7 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
       
-      console.log('Price update completed successfully');
+      // console.log('Price update completed successfully');
     } else {
       console.log('Price element not found or no price data:', { 
         priceElement: !!priceElement, 
@@ -111,7 +111,7 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
         priceValue: priceData?.price 
       });
     }
-    console.log('=== END PRICE DISPLAY DEBUG ===');
+    // console.log('=== END PRICE DISPLAY DEBUG ===');
   } catch (error) {
     console.error('Error updating price display:', error);
   }

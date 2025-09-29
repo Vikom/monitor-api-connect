@@ -70,7 +70,7 @@
 
 <style>
   .price-list-container {
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
   }
@@ -87,11 +87,33 @@
     border-radius: 8px;
   }
 
-  .radio-group, .checkbox-group {
+  .radio-group {
     display: flex;
     flex-direction: column;
     gap: 10px;
     margin-top: 10px;
+  }
+
+  .checkbox-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  /* Responsive grid layout for larger screens */
+  @media (min-width: 768px) {
+    .checkbox-group {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .checkbox-group {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
   }
 
   .checkbox-label {
@@ -99,6 +121,7 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
+    font-size: 14px;
   }
 
   .btn {
