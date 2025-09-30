@@ -214,7 +214,8 @@ export async function action({ request }) {
         
         lineItems.push({
           variantId: variantId,
-          quantity: displayQuantity,
+          quantity: quantity, // Keep original integer quantity for API
+          displayQuantity: displayQuantity, // Store display quantity for reference
           customPrice: finalPrice.toString(),
           productTitle: variant.product.title,
           variantTitle: variant.title || 'Default',
@@ -224,7 +225,7 @@ export async function action({ request }) {
           isDecimalUnit: isDecimalUnit
         });
         
-        console.log(`🟦 Added line item: variant ${variantId}, quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}`);
+        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${quantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}`);
         
       } catch (error) {
         console.error(`🟦 Error processing item ${item.variantId}:`, error);
@@ -246,14 +247,23 @@ export async function action({ request }) {
           id: customerId.replace('gid://shopify/Customer/', '')
         },
         line_items: lineItems.map(item => {
-          const customPrice = parseFloat(item.customPrice);
+          let customPrice = parseFloat(item.customPrice);
+          let apiQuantity = item.quantity; // Use original integer quantity
+          
+          // For decimal products, adjust the price instead of quantity
+          // Since we're using integer quantity but want to show decimal amounts,
+          // we need to adjust the unit price accordingly
+          if (item.isDecimalUnit) {
+            // Price per unit should be divided by 20 to account for the 20x quantity multiplier
+            customPrice = customPrice / 20.0;
+          }
           
           // Create custom line item without variant_id to allow custom pricing
           return {
             custom: true,
             title: `${item.productTitle} - ${item.variantTitle}`,
             price: customPrice.toString(),
-            quantity: item.quantity,
+            quantity: apiQuantity, // Always integer for API
             taxable: true,
             requires_shipping: true,
             sku: item.sku,
