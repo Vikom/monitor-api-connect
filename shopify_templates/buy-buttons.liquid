@@ -57,7 +57,7 @@
     # Set step and unit display
     if allows_decimal
       assign quantity_step = 0.05
-      assign min_quantity = 1.00
+      assign min_quantity = 0.05
       if standard_unit != blank
         assign quantity_unit = standard_unit
       else
@@ -155,15 +155,15 @@
                   </button>
                   <input
                     class="quantity__input"
-                    type="number"
+                    {% if allows_decimal %}type="text"{% else %}type="number"{% endif %}
                     name="quantity"
                     id="Quantity-{{ section.id }}"
                     data-cart-quantity="{{ cart_qty }}"
                     {% if allows_decimal %}
                       step="0.05"
                       value="1.00"
-                      data-min="1.00"
-                      min="1.00"
+                      data-min="0.05"
+                      min="0.05"
                       data-decimal="true"
                       data-unit="{{ quantity_unit }}"
                     {% else %}
@@ -377,15 +377,15 @@
               </button>
               <input
                 class="quantity__input"
-                type="number"
+                {% if allows_decimal %}type="text"{% else %}type="number"{% endif %}
                 name="quantity"
                 id="Quantity-{{ section.id }}"
                 data-cart-quantity="{{ cart_qty }}"
                 {% if allows_decimal %}
                   step="0.05"
                   value="1.00"
-                  data-min="1.00"
-                  min="1.00"
+                  data-min="0.05"
+                  min="0.05"
                   data-decimal="true"
                   data-unit="{{ quantity_unit }}"
                 {% else %}

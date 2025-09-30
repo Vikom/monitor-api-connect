@@ -263,7 +263,6 @@ class CartItems extends HTMLElement {
         parseFloat(quantity.replace(',', '.')) : 
         parseFloat(quantity);
       apiQuantity = Math.round(decimalValue * 20);
-      console.log('🛒 Converting decimal quantity for API:', quantity, '→', apiQuantity);
     }
 
     const body = JSON.stringify({

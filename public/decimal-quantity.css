@@ -43,9 +43,10 @@
 
 /* Cart drawer decimal quantity input width adjustments */
 .cart-drawer .quantity__input[data-decimal="true"],
-.cart-drawer-item .quantity__input[data-decimal="true"] {
-  min-width: 80px;
-  width: 80px;
+.cart-drawer-item .quantity__input[data-decimal="true"],
+.cart-quantity .quantity__input[data-decimal="true"] {
+  min-width: 100px;
+  /*width: 80px; */
 }
 
 /* Ensure decimal values are fully visible in cart drawer */
@@ -57,7 +58,8 @@
 /* Mobile adjustments for cart drawer quantity inputs */
 @media (max-width: 749px) {
   .cart-drawer .quantity__input[data-decimal="true"],
-  .cart-drawer-item .quantity__input[data-decimal="true"] {
+  .cart-drawer-item .quantity__input[data-decimal="true"],
+  .cart-quantity .quantity__input[data-decimal="true"] {
     min-width: 75px;
     width: 75px;
     font-size: 0.875rem;

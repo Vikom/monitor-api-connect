@@ -266,7 +266,11 @@ console.log(
       if (typeof number === 'string') {
         number = parseFloat(number);
       }
-      return number.toFixed(decimals).replace('.', ',');
+      if (isNaN(number)) {
+        number = 1.00;
+      }
+      const result = number.toFixed(decimals).replace('.', ',');
+      return result;
     },
     // Parse Swedish decimal format back to number - handles both comma and period
     parseSwedishDecimal: (swedishDecimal) => {
@@ -1150,13 +1154,24 @@ class QuantityInput extends HTMLElement {
     // Initialize decimal inputs with proper Swedish formatting
     const isDecimal = this.input.dataset.decimal === 'true';
     if (isDecimal) {
-      // Convert initial value from period decimal (HTML attribute) to Swedish comma format
-      const initialValue = parseFloat(this.input.value) || 1.00;
-      this.input.value = window.FoxTheme.utils.formatSwedishDecimal(initialValue, 2);
-      console.log('🔄 Initialized decimal input with Swedish format:', this.input.value);
+      // Check if value is already in Swedish format (contains comma) - don't reinitialize
+      if (this.input.value && this.input.value.includes(',')) {
+        // Value is already formatted correctly (from cart drawer), don't change it
+      } else {
+        // Convert initial value from period decimal (HTML attribute) to Swedish comma format
+        const initialValue = parseFloat(this.input.value) || 1.00;
+        
+        if (window.FoxTheme && window.FoxTheme.utils && window.FoxTheme.utils.formatSwedishDecimal) {
+          this.input.value = window.FoxTheme.utils.formatSwedishDecimal(initialValue, 2);
+        } else {
+          // Fallback to manual formatting
+          this.input.value = initialValue.toFixed(2).replace('.', ',');
+        }
+      }
     }
 
     this.input.addEventListener('change', this.onInputChange.bind(this));
+    this.input.addEventListener('input', this.onInputValidation.bind(this));
     this.input.addEventListener('focus', () => setTimeout(() => this.input.select()));
 
     this.buttons.forEach((button) => button.addEventListener('click', this.onButtonClick.bind(this)), {
@@ -1198,28 +1213,28 @@ class QuantityInput extends HTMLElement {
     const previousValue = this.input.value;
     const isDecimal = this.input.dataset.decimal === 'true';
 
-    console.log('🔘 Button clicked:', event.currentTarget.name, 'isDecimal:', isDecimal, 'currentValue:', this.input.value);
-
     if (event.currentTarget.name === 'plus') {
       if (isDecimal) {
+        if (!window.FoxTheme || !window.FoxTheme.utils) {
+          return;
+        }
         const currentValue = window.FoxTheme.utils.parseSwedishDecimal(this.input.value) || 0;
         const step = window.FoxTheme.utils.parseSwedishDecimal(this.input.step) || 0.05;
         const newValue = currentValue + step;
-        console.log('➕ Plus calculation:', currentValue, '+', step, '=', newValue);
         this.input.value = window.FoxTheme.utils.formatSwedishDecimal(newValue, 2);
-        console.log('➕ New formatted value:', this.input.value);
       } else {
         this.input.stepUp();
       }
     } else {
       if (isDecimal) {
+        if (!window.FoxTheme || !window.FoxTheme.utils) {
+          return;
+        }
         const currentValue = window.FoxTheme.utils.parseSwedishDecimal(this.input.value) || 0;
         const step = window.FoxTheme.utils.parseSwedishDecimal(this.input.step) || 0.05;
         const minValue = window.FoxTheme.utils.parseSwedishDecimal(this.input.min) || 1.00;
         const newValue = Math.max(minValue, currentValue - step);
-        console.log('➖ Minus calculation:', currentValue, '-', step, '= max(', minValue, ',', newValue, ')');
         this.input.value = window.FoxTheme.utils.formatSwedishDecimal(newValue, 2);
-        console.log('➖ New formatted value:', this.input.value);
       } else {
         this.input.stepDown();
       }
@@ -1228,19 +1243,28 @@ class QuantityInput extends HTMLElement {
     if (previousValue !== this.input.value) this.input.dispatchEvent(this.changeEvent);
   }
 
+  onInputValidation() {
+    const isDecimal = this.input.dataset.decimal === 'true';
+    if (isDecimal) {
+      // Allow only numbers, comma, and period
+      let value = this.input.value;
+      const validPattern = /^[0-9,\.]*$/;
+      if (!validPattern.test(value)) {
+        // Remove invalid characters
+        this.input.value = value.replace(/[^0-9,\.]/g, '');
+      }
+    }
+  }
+
   onInputChange() {
     const isDecimal = this.input.dataset.decimal === 'true';
-    console.log('🔄 Input change event:', 'isDecimal:', isDecimal, 'value:', this.input.value);
     
     if (this.input.value === '') {
-      console.log('⚠️ Input value is empty, setting default');
       if (isDecimal) {
         const minValue = window.FoxTheme.utils.parseSwedishDecimal(this.input.min);
         this.input.value = window.FoxTheme.utils.formatSwedishDecimal(minValue, 2);
-        console.log('✅ Set decimal default value:', this.input.value);
       } else {
         this.input.value = parseInt(this.input.min);
-        console.log('✅ Set integer default value:', this.input.value);
       }
     }
     this.validateQtyRules();
@@ -1322,7 +1346,7 @@ class QuantityInput extends HTMLElement {
       if (isDecimal) {
         // For decimal inputs, the cart quantity is stored as integer, convert to decimal (divide by 20 for 0.05 steps)
         cartQuantityValue = parseFloat(cartQuantityAttr) / 20;
-        console.log('🔄 Converting cart quantity for boundaries:', cartQuantityAttr, '→', window.FoxTheme.utils.formatSwedishDecimal(cartQuantityValue, 2));
+        // Convert cart quantity for boundaries display
       } else {
         cartQuantityValue = parseInt(cartQuantityAttr);
       }
@@ -2547,6 +2571,19 @@ class ProductForm extends HTMLFormElement {
     delete config.headers['Content-Type'];
 
     this.formData = new FormData(this);
+    
+    // Handle decimal quantities - convert to integer for Shopify API
+    const quantityInput = this.querySelector('input[name="quantity"]');
+    if (quantityInput && quantityInput.dataset.decimal === 'true') {
+      const decimalQuantity = quantityInput.value;
+      // Parse Swedish decimal format and convert to integer by multiplying by 20 (for 0.05 steps)
+      const numericValue = typeof decimalQuantity === 'string' ? 
+        parseFloat(decimalQuantity.replace(',', '.')) : 
+        parseFloat(decimalQuantity);
+      const integerQuantity = Math.round(numericValue * 20);
+      this.formData.set('quantity', integerQuantity);
+    }
+    
     this.formData.append('sections', sectionsToBundle);
     this.formData.append('sections_url', window.location.pathname);
 

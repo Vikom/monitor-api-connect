@@ -29,11 +29,11 @@ async function getCustomerPrice(variantId, customerId) {
       isOutletProduct: window.isOutletProduct || false,
       customerMonitorId: window.customerMonitorId || null
     };
-    
-    console.log('=== API REQUEST DEBUG ===');
-    console.log('API URL:', apiUrl);
-    console.log('Request body:', requestBody);
-    console.log('=== END API REQUEST DEBUG ===');
+
+    // console.log('=== API REQUEST DEBUG ===');
+    // console.log('API URL:', apiUrl);
+    // console.log('Request body:', requestBody);
+    // console.log('=== END API REQUEST DEBUG ===');
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -43,9 +43,9 @@ async function getCustomerPrice(variantId, customerId) {
       body: JSON.stringify(requestBody)
     });
 
-    console.log('=== API RESPONSE DEBUG ===');
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    // console.log('=== API RESPONSE DEBUG ===');
+    // console.log('Response status:', response.status);
+    // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -54,8 +54,8 @@ async function getCustomerPrice(variantId, customerId) {
     }
 
     const data = await response.json();
-    console.log('Response data:', data);
-    console.log('=== END API RESPONSE DEBUG ===');
+    // console.log('Response data:', data);
+    // console.log('=== END API RESPONSE DEBUG ===');
     
     return data;
   } catch (error) {

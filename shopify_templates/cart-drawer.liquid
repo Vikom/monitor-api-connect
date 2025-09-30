@@ -371,7 +371,7 @@
                                   </svg>
                                 </button>
                                 <input class="quantity__input"
-                                  type="number"
+                                  {% if allows_decimal %}type="text"{% else %}type="number"{% endif %}
                                   {% if allows_decimal %}
                                     name="quantity_decimal_{{ item.variant_id }}"
                                     data-cart-updates-name="updates[]"
@@ -385,8 +385,8 @@
                                   aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
                                   {% if allows_decimal %}
                                     step="0,05"
-                                    data-min="1,00"
-                                    min="1,00"
+                                    data-min="0,05"
+                                    min="0,05"
                                     data-decimal="true"
                                     data-unit="{{ quantity_unit }}"
                                   {% else %}
@@ -395,7 +395,7 @@
                                     min="{{ item.variant.quantity_rule.min }}"
                                     data-decimal="false"
                                   {% endif %}
-                                  size="2"
+                                  {% unless allows_decimal %}size="2"{% endunless %}
                                   inputmode="numeric"
                                   autocomplete="off"
                                   data-index="{{ item.index | plus: 1 }}"
