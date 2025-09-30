@@ -18,23 +18,7 @@
       <h1 class="cart__title h1">
         <motion-element data-motion="fade-up" class="inline-flex gap-2">
           {{- 'sections.cart.title' | t }}
-          <cart-count
-            class="cart-count cart-count--blank"
-            aria-label="{{ 'general.cart.cart_count' | t: count: cart.item_count | escape }}"
-            {% if cart == empty %}
-              hidden
-            {% endif %}
-            data-type="blank"
-          >
-            (
-            {%- if cart.item_count < 100 -%}
-              {{- cart.item_count -}}
-            {%- else -%}
-              99+
-            {%- endif -%}
-            )</cart-count
-          ></motion-element
-        >
+        </motion-element>
       </h1>
     </div>
     <div class="cart__empty text-center flex flex-col gap-10">
