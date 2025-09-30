@@ -250,12 +250,16 @@ export async function action({ request }) {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use original integer quantity
           
-          // For decimal products, adjust the price instead of quantity
-          // Since we're using integer quantity but want to show decimal amounts,
-          // we need to adjust the unit price accordingly
+          // For decimal products, always use quantity 1 and calculate total price
           if (item.isDecimalUnit) {
-            // Price per unit should be divided by 20 to account for the 20x quantity multiplier
-            customPrice = customPrice / 20.0;
+            // Calculate the total price for the decimal quantity
+            // displayQuantity is the actual amount (e.g., 0.25)
+            // customPrice is the unit price (e.g., 24895.19 per m³)
+            const totalPrice = customPrice * item.displayQuantity;
+            customPrice = totalPrice; // Set the total as the line price
+            apiQuantity = 1; // Always show as 1 unit for clarity
+            
+            console.log(`🟦 Decimal product pricing: ${item.displayQuantity} ${item.standardUnit} × ${customPrice / item.displayQuantity} = ${totalPrice}`);
           }
           
           // Create custom line item without variant_id to allow custom pricing
@@ -263,7 +267,7 @@ export async function action({ request }) {
             custom: true,
             title: `${item.productTitle} - ${item.variantTitle}`,
             price: customPrice.toString(),
-            quantity: apiQuantity, // Always integer for API
+            quantity: apiQuantity,
             taxable: true,
             requires_shipping: true,
             sku: item.sku,
