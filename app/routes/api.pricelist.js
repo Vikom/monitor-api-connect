@@ -1,6 +1,7 @@
 import { json } from "@remix-run/node";
 import PDFDocument from "pdfkit";
 import https from "https";
+import { sendPricelistEmail } from "~/utils/email";
 
 // HTTPS agent to handle self-signed certificates
 const agent = new https.Agent({ rejectUnauthorized: false });
@@ -154,28 +155,49 @@ export async function action({ request }) {
 
     console.log(`Generated pricing data for ${priceData.length} items`);
 
-    // Generate file based on format
+    // Generate file and send via email
     if (format === 'pdf') {
       const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
       
-      return new Response(pdfBuffer, {
+      // Send email with PDF attachment
+      const emailResult = await sendPricelistEmail(
+        customer_email, 
+        customer_company, 
+        pdfBuffer, 
+        'pdf', 
+        priceData
+      );
+      
+      return json({ 
+        success: true, 
+        message: 'Prislistan har skickats till din e-postadress',
+        messageId: emailResult.messageId,
+        filename: emailResult.filename
+      }, { 
         status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="price-list-${Date.now()}.pdf"`,
-          ...corsHeaders()
-        }
+        headers: corsHeaders()
       });
     } else if (format === 'csv') {
       const csvData = generateCSV(priceData);
+      const csvBuffer = Buffer.from(csvData, 'utf8');
       
-      return new Response(csvData, {
+      // Send email with CSV attachment
+      const emailResult = await sendPricelistEmail(
+        customer_email, 
+        customer_company, 
+        csvBuffer, 
+        'csv', 
+        priceData
+      );
+      
+      return json({ 
+        success: true, 
+        message: 'Prislistan har skickats till din e-postadress',
+        messageId: emailResult.messageId,
+        filename: emailResult.filename
+      }, { 
         status: 200,
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="price-list-${Date.now()}.csv"`,
-          ...corsHeaders()
-        }
+        headers: corsHeaders()
       });
     } else {
       return json({ error: 'Invalid format. Use "pdf" or "csv"' }, { 
