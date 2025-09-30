@@ -502,21 +502,11 @@ async function fetchProductsByIds(products, shop, accessToken) {
             const fetchedProduct = data.data.product;
             console.log(`Product ${fetchedProduct.id} (${fetchedProduct.title}) has ${fetchedProduct.variants?.edges?.length || 0} variants`);
             
-            // Log variant details (reduced logging to avoid rate limits)
-            if (fetchedProduct.variants?.edges) {
-              fetchedProduct.variants.edges.forEach((variantEdge, index) => {
-                const variant = variantEdge.node;
-                const monitorId = variant.monitorIdMetafield?.value;
-                console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
-              });
-            }
-            
-            // If we have a product Monitor ID from the frontend, we could use it for optimization
-            // For now, we still fetch individual variant Monitor IDs as before
+            // Add product to results
             fetchedProducts.push(fetchedProduct);
-            console.log(`Fetched product: ${fetchedProduct.title}`);
+            console.log(`✅ Fetched product: ${fetchedProduct.title} (${fetchedProduct.variants?.edges?.length || 0} variants)`);
           } else if (data.errors) {
-            console.error(`GraphQL errors for product ${productId}:`, data.errors);
+            console.error(`❌ GraphQL errors for product ${productId}:`, data.errors[0]?.message || 'Unknown error');
           } else {
             console.log(`No product found for ${productId}`);
           }
@@ -1328,7 +1318,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
     }
     
     const prices = await res.json();
-    console.log(`Price list API response for part ${partId}, price list ${priceListId}:`, prices);
+    console.log(`💰 Price list lookup: ${prices?.length || 0} results for part ${partId.slice(-8)}, list ${priceListId.slice(-8)}`);
     
     if (!Array.isArray(prices)) {
       console.log(`Price list response is not an array`);

@@ -27,7 +27,7 @@ function getTransporter() {
       throw new Error('EMAIL_PASSWORD environment variable is required for email sending');
     }
     
-    transporter = nodemailer.createTransporter(emailConfig);
+    transporter = nodemailer.createTransport(emailConfig);
   }
   return transporter;
 }
