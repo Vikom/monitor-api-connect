@@ -1,7 +1,7 @@
 import { json } from "@remix-run/node";
 import PDFDocument from "pdfkit";
 import https from "https";
-import { sendPricelistEmail } from "~/utils/email";
+import { sendPricelistEmail } from "../utils/email.js";
 
 // HTTPS agent to handle self-signed certificates
 const agent = new https.Agent({ rejectUnauthorized: false });
