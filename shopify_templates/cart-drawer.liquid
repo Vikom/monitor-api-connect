@@ -947,13 +947,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
-          cartTotal += priceData.price * item.quantity;
+          // Calculate actual quantity for decimal products
+          let actualQuantity = item.quantity;
+          const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
+          if (quantityInput) {
+            // This is a decimal product, convert integer quantity back to decimal
+            actualQuantity = item.quantity / 20.0; // Convert back from integer to decimal
+          }
           
-          console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr`);
+          const lineTotal = priceData.price * actualQuantity;
+          cartTotal += lineTotal;
+          
+          console.log(`Price for ${item.variant_id}: ${priceData.price} kr × ${actualQuantity} = ${lineTotal} kr`);
           
           // Find the specific cart item by data-variant-id
           const cartItem = document.querySelector(`li[data-variant-id="${item.variant_id}"]`);
           if (cartItem) {
+            // Calculate the correct line total for display
+            let displayQuantity = item.quantity;
+            const quantityInput = cartItem.querySelector('input[data-decimal="true"]');
+            if (quantityInput) {
+              // This is a decimal product, convert integer quantity back to decimal
+              displayQuantity = item.quantity / 20.0;
+            }
+            
+            const lineTotal = priceData.price * displayQuantity;
+            
             // Update the main price display - target the .price element specifically
             const priceElement = cartItem.querySelector('.cart-item__prices .price');
             if (priceElement) {
@@ -963,11 +982,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.textContent = `${priceData.price} kr`;
+                  salePriceSpan.textContent = `${lineTotal.toFixed(2)} kr`;
                 }
               } else {
                 // Update the regular price
-                priceElement.innerHTML = `${priceData.price} kr`;
+                priceElement.innerHTML = `${lineTotal.toFixed(2)} kr`;
               }
             }
           }
@@ -977,8 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update cart total display
       const totalElement = document.querySelector('.totals__subtotal-value');
       if (totalElement && cartTotal > 0) {
-        totalElement.textContent = `${cartTotal} kr`;
-        console.log(`Updated cart total: ${cartTotal} kr`);
+        totalElement.textContent = `${cartTotal.toFixed(2)} kr`;
+        console.log(`Updated cart total: ${cartTotal.toFixed(2)} kr`);
       }
       
     } catch (error) {
@@ -1071,11 +1090,19 @@ document.addEventListener('DOMContentLoaded', () => {
           const cartResponse = await fetch('/cart.js');
           const cart = await cartResponse.json();
           
-          // Create items array
-          const items = cart.items.map(item => ({
-            variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
-            quantity: item.quantity
-          }));
+          // Create items array with corrected decimal quantities
+          const items = cart.items.map(item => {
+            let actualQuantity = item.quantity;
+            const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
+            if (quantityInput) {
+              // This is a decimal product, convert integer quantity back to decimal
+              actualQuantity = item.quantity / 20.0;
+            }
+            return {
+              variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
+              quantity: actualQuantity
+            };
+          });
           
           console.log('Creating draft order with items:', items);
           
