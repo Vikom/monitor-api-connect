@@ -5,12 +5,13 @@ const emailConfig = {
   host: 'smtp.office365.com',
   port: 587,
   secure: false, // true for 465, false for other ports
+  requireTLS: true,
   auth: {
     user: process.env.EMAIL_USER || 'webshop@sonsab.com',
     pass: process.env.EMAIL_PASSWORD // This needs to be set in environment variables
   },
   tls: {
-    ciphers: 'SSLv3'
+    rejectUnauthorized: false
   }
 };
 
@@ -41,11 +42,17 @@ function getTransporter() {
  */
 export async function sendPricelistEmail(customerEmail, customerCompany, attachment, format, priceData) {
   try {
+    console.log('📧 Starting email send process...');
+    console.log(`📧 Email config: host=${emailConfig.host}, port=${emailConfig.port}, user=${emailConfig.auth.user}`);
+    console.log(`📧 Email password set: ${!!process.env.EMAIL_PASSWORD}`);
+    
     const transporter = getTransporter();
+    console.log('📧 Transporter created successfully');
     
     // Generate filename
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
     const filename = `prislista-${timestamp}.${format}`;
+    console.log(`📧 Generated filename: ${filename}`);
     
     // Email content
     const subject = `Din prislista från Sonsa Business AB`;
@@ -129,13 +136,14 @@ webshop@sonsab.com
       ]
     };
 
-    console.log(`Sending pricelist email to: ${customerEmail}`);
-    console.log(`Attachment: ${filename} (${attachment.length} bytes)`);
+    console.log(`📧 Sending pricelist email to: ${customerEmail}`);
+    console.log(`📧 Attachment: ${filename} (${attachment.length} bytes)`);
+    console.log(`📧 Mail options prepared, sending...`);
     
     // Send email
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('Email sent successfully:', info.messageId);
+    console.log('✅ Email sent successfully:', info.messageId);
     return {
       success: true,
       messageId: info.messageId,
@@ -143,7 +151,10 @@ webshop@sonsab.com
     };
     
   } catch (error) {
-    console.error('Error sending pricelist email:', error);
+    console.error('❌ Error sending pricelist email:', error);
+    console.error('❌ Error type:', error.constructor.name);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error command:', error.command);
     throw new Error(`Failed to send email: ${error.message}`);
   }
 }

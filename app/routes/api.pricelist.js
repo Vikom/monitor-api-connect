@@ -157,8 +157,11 @@ export async function action({ request }) {
 
     // Generate file and send via email
     if (format === 'pdf') {
+      console.log('🔄 Starting PDF generation...');
       const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
+      console.log(`✅ PDF generated successfully: ${pdfBuffer.length} bytes`);
       
+      console.log(`📧 Sending email to: ${customer_email}`);
       // Send email with PDF attachment
       const emailResult = await sendPricelistEmail(
         customer_email, 
@@ -167,6 +170,7 @@ export async function action({ request }) {
         'pdf', 
         priceData
       );
+      console.log(`✅ Email sent successfully: ${emailResult.messageId}`);
       
       return json({ 
         success: true, 
@@ -178,9 +182,12 @@ export async function action({ request }) {
         headers: corsHeaders()
       });
     } else if (format === 'csv') {
+      console.log('🔄 Starting CSV generation...');
       const csvData = generateCSV(priceData);
       const csvBuffer = Buffer.from(csvData, 'utf8');
+      console.log(`✅ CSV generated successfully: ${csvBuffer.length} bytes`);
       
+      console.log(`📧 Sending email to: ${customer_email}`);
       // Send email with CSV attachment
       const emailResult = await sendPricelistEmail(
         customer_email, 
@@ -189,6 +196,7 @@ export async function action({ request }) {
         'csv', 
         priceData
       );
+      console.log(`✅ Email sent successfully: ${emailResult.messageId}`);
       
       return json({ 
         success: true, 
@@ -207,8 +215,26 @@ export async function action({ request }) {
     }
 
   } catch (error) {
-    console.error('Error generating price list:', error);
-    return json({ error: 'Failed to generate price list', details: error.message }, { 
+    console.error('❌ Error generating price list:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to generate price list';
+    if (error.message.includes('EMAIL_PASSWORD')) {
+      errorMessage = 'Email configuration error - missing password';
+    } else if (error.message.includes('SMTP') || error.message.includes('Authentication')) {
+      errorMessage = 'Email sending failed - authentication error';
+    } else if (error.message.includes('PDF') || error.message.includes('generatePDF')) {
+      errorMessage = 'PDF generation failed';
+    } else if (error.message.includes('CSV') || error.message.includes('generateCSV')) {
+      errorMessage = 'CSV generation failed';
+    }
+    
+    return json({ 
+      error: errorMessage, 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { 
       status: 500,
       headers: corsHeaders()
     });
