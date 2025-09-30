@@ -258,9 +258,9 @@ export async function action({ request }) {
           if (item.isDecimalUnit) {
             // Calculate the total price for the decimal quantity
             // displayQuantity is the actual amount (e.g., 0.25)
-            // customPrice might be in öre, so let's check if we need to convert
-            const unitPriceInKronor = customPrice > 1000 ? customPrice / 100 : customPrice;
-            const totalPrice = unitPriceInKronor * item.displayQuantity;
+            // customPrice should be the unit price in kronor (e.g., 24895.19)
+            const unitPrice = customPrice; // Keep the price as is - it should already be in kronor
+            const totalPrice = unitPrice * item.displayQuantity;
             
             // Round to 2 decimal places for Swedish currency
             const roundedTotalPrice = Math.round(totalPrice * 100) / 100;
@@ -268,7 +268,7 @@ export async function action({ request }) {
             customPrice = roundedTotalPrice; // Set the total as the line price
             apiQuantity = 1; // Always show as 1 unit for clarity
             
-            console.log(`🟦 Decimal product pricing: Original price: ${item.customPrice}, Unit price in SEK: ${unitPriceInKronor}, Quantity: ${item.displayQuantity} ${item.standardUnit}, Total: ${totalPrice} → rounded to ${roundedTotalPrice}`);
+            console.log(`🟦 Decimal product pricing: Original price: ${item.customPrice}, Unit price: ${unitPrice}, Quantity: ${item.displayQuantity} ${item.standardUnit}, Total: ${totalPrice} → rounded to ${roundedTotalPrice}`);
           }
           
           // Create custom line item without variant_id to allow custom pricing
