@@ -200,6 +200,8 @@ export async function action({ request }) {
         });
         
         let finalPrice = parseFloat(variant.price);
+        console.log(`🟦 Original variant price from GraphQL: ${variant.price} (type: ${typeof variant.price})`);
+        
         if (pricingResponse.ok) {
           const pricingData = await pricingResponse.json();
           if (pricingData.price !== null && pricingData.price !== undefined) {
@@ -211,6 +213,8 @@ export async function action({ request }) {
         } else {
           console.log(`🟦 Pricing API error, using original price: ${finalPrice}`);
         }
+        
+        console.log(`🟦 Final price before line item creation: ${finalPrice}`);
         
         lineItems.push({
           variantId: variantId,
@@ -254,12 +258,17 @@ export async function action({ request }) {
           if (item.isDecimalUnit) {
             // Calculate the total price for the decimal quantity
             // displayQuantity is the actual amount (e.g., 0.25)
-            // customPrice is the unit price (e.g., 24895.19 per m³)
-            const totalPrice = customPrice * item.displayQuantity;
-            customPrice = totalPrice; // Set the total as the line price
+            // customPrice might be in öre, so let's check if we need to convert
+            const unitPriceInKronor = customPrice > 1000 ? customPrice / 100 : customPrice;
+            const totalPrice = unitPriceInKronor * item.displayQuantity;
+            
+            // Round to 2 decimal places for Swedish currency
+            const roundedTotalPrice = Math.round(totalPrice * 100) / 100;
+            
+            customPrice = roundedTotalPrice; // Set the total as the line price
             apiQuantity = 1; // Always show as 1 unit for clarity
             
-            console.log(`🟦 Decimal product pricing: ${item.displayQuantity} ${item.standardUnit} × ${customPrice / item.displayQuantity} = ${totalPrice}`);
+            console.log(`🟦 Decimal product pricing: Original price: ${item.customPrice}, Unit price in SEK: ${unitPriceInKronor}, Quantity: ${item.displayQuantity} ${item.standardUnit}, Total: ${totalPrice} → rounded to ${roundedTotalPrice}`);
           }
           
           // Create custom line item without variant_id to allow custom pricing
