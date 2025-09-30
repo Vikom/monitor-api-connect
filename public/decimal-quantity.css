@@ -49,9 +49,28 @@
   /*width: 80px; */
 }
 
+/* Main cart decimal quantity input width adjustments */
+.cart .quantity__input[data-decimal="true"],
+.main-cart .quantity__input[data-decimal="true"],
+main-cart .quantity__input[data-decimal="true"] {
+  min-width: 100px;
+}
+
+/* Ensure template content is visible in main cart */
+main-cart template,
+.cart template {
+  display: block !important;
+}
+
 /* Ensure decimal values are fully visible in cart drawer */
 .cart-drawer .quantity,
 .cart-drawer-item .quantity {
+  min-width: fit-content;
+}
+
+/* Main cart quantity adjustments */
+.cart .quantity,
+main-cart .quantity {
   min-width: fit-content;
 }
 
@@ -60,6 +79,14 @@
   .cart-drawer .quantity__input[data-decimal="true"],
   .cart-drawer-item .quantity__input[data-decimal="true"],
   .cart-quantity .quantity__input[data-decimal="true"] {
+    min-width: 75px;
+    width: 75px;
+    font-size: 0.875rem;
+  }
+  
+  /* Main cart mobile adjustments */
+  .cart .quantity__input[data-decimal="true"],
+  main-cart .quantity__input[data-decimal="true"] {
     min-width: 75px;
     width: 75px;
     font-size: 0.875rem;

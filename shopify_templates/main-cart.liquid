@@ -361,10 +361,14 @@
                                 <div class="flex items-center gap-2">
                                   {%- unless is_gift_wrap_item -%}
                                     {%- assign is_decimal_unit = false -%}
+                                    {%- assign quantity_unit = 'items' -%}
                                     {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                       {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                      {%- if unit == 'lm' or unit == 'm2' or unit == 'm3' or unit == 'kg' or unit == 'l' -%}
+                                      {%- if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
                                         {%- assign is_decimal_unit = true -%}
+                                        {%- assign quantity_unit = unit -%}
+                                      {%- else -%}
+                                        {%- assign quantity_unit = unit -%}
                                       {%- endif -%}
                                     {%- endif -%}
                                     
@@ -376,23 +380,38 @@
                                         </svg>
                                       </button>
                                       <input class="quantity__input"
-                                        type="number"
-                                        name="updates[]"
-                                        value="{% if is_decimal_unit %}{{ item.quantity | divided_by: 20.0 | round: 2 }}{% else %}{{ item.quantity }}{% endif %}"
+                                        {% if is_decimal_unit %}type="text"{% else %}type="number"{% endif %}
+                                        {% if is_decimal_unit %}
+                                          name="quantity_decimal_{{ item.variant.id }}"
+                                          data-cart-updates-name="updates[]"
+                                          data-cart-updates-index="{{ item.index }}"
+                                          value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                        {% else %}
+                                          name="updates[]"
+                                          value="{{ item.quantity }}"
+                                        {% endif %}
                                         aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
                                         id="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}"
                                         data-index="{{ item.index | plus: 1 }}"
-                                        size="2"
-                                        inputmode="{% if is_decimal_unit %}decimal{% else %}numeric{% endif %}"
+                                        {% unless is_decimal_unit %}size="2"{% endunless %}
+                                        inputmode="numeric"
                                         autocomplete="off"
                                         data-quantity-variant-id="{{ item.variant.id }}"
                                         data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
-                                        min="{% if is_decimal_unit %}0.05{% else %}0{% endif %}"
-                                        data-min="{% if is_decimal_unit %}0.05{% else %}{{ item.variant.quantity_rule.min }}{% endif %}"
-                                        {% if item.variant.quantity_rule.max != null %}
-                                          max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                        data-decimal="{% if is_decimal_unit %}true{% else %}false{% endif %}"
+                                        {% if is_decimal_unit %}
+                                          step="0,05"
+                                          data-min="0,05"
+                                          min="0,05"
+                                          data-unit="{{ quantity_unit }}"
+                                        {% else %}
+                                          step="{{ item.variant.quantity_rule.increment }}"
+                                          data-min="{{ item.variant.quantity_rule.min }}"
+                                          min="{{ item.variant.quantity_rule.min }}"
                                         {% endif %}
-                                        step="{% if is_decimal_unit %}0.05{% else %}{{ item.variant.quantity_rule.increment }}{% endif %}"
+                                        {% if item.variant.quantity_rule.max != null %}
+                                          max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                        {% endif %}
                                       />
                                       <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
                                         <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -401,6 +420,10 @@
                                         </svg>
                                       </button>
                                     </quantity-input>
+                                    
+                                    {% if quantity_unit != blank and quantity_unit != 'items' %}
+                                      <span class="quantity-unit">{{ quantity_unit }}</span>  
+                                    {% endif %}
                                   {%- else -%}
                                     <div class="cart-quantity quantity cart-quantity-gift-wrap">
                                       <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
@@ -549,10 +572,14 @@
                             <div class="flex items-center gap-2">
                               {%- unless is_gift_wrap_item -%}
                                 {%- assign is_decimal_unit = false -%}
+                                {%- assign quantity_unit = 'items' -%}
                                 {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                   {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                  {%- if unit == 'lm' or unit == 'm2' or unit == 'm3' or unit == 'kg' or unit == 'l' -%}
+                                  {%- if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
                                     {%- assign is_decimal_unit = true -%}
+                                    {%- assign quantity_unit = unit -%}
+                                  {%- else -%}
+                                    {%- assign quantity_unit = unit -%}
                                   {%- endif -%}
                                 {%- endif -%}
                                 
@@ -564,23 +591,38 @@
                                     </svg>
                                   </button>
                                   <input class="quantity__input"
-                                    type="number"
-                                    name="updates[]"
-                                    value="{% if is_decimal_unit %}{{ item.quantity | divided_by: 20.0 | round: 2 }}{% else %}{{ item.quantity }}{% endif %}"
+                                    {% if is_decimal_unit %}type="text"{% else %}type="number"{% endif %}
+                                    {% if is_decimal_unit %}
+                                      name="quantity_decimal_{{ item.variant.id }}"
+                                      data-cart-updates-name="updates[]"
+                                      data-cart-updates-index="{{ item.index }}"
+                                      value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                    {% else %}
+                                      name="updates[]"
+                                      value="{{ item.quantity }}"
+                                    {% endif %}
                                     aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
                                     id="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}"
                                     data-index="{{ item.index | plus: 1 }}"
-                                    size="2"
-                                    inputmode="{% if is_decimal_unit %}decimal{% else %}numeric{% endif %}"
+                                    {% unless is_decimal_unit %}size="2"{% endunless %}
+                                    inputmode="numeric"
                                     autocomplete="off"
                                     data-quantity-variant-id="{{ item.variant.id }}"
                                     data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
-                                    min="{% if is_decimal_unit %}0.05{% else %}0{% endif %}"
-                                    data-min="{% if is_decimal_unit %}0.05{% else %}{{ item.variant.quantity_rule.min }}{% endif %}"
-                                    {% if item.variant.quantity_rule.max != null %}
-                                      max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                    data-decimal="{% if is_decimal_unit %}true{% else %}false{% endif %}"
+                                    {% if is_decimal_unit %}
+                                      step="0,05"
+                                      data-min="0,05"
+                                      min="0,05"
+                                      data-unit="{{ quantity_unit }}"
+                                    {% else %}
+                                      step="{{ item.variant.quantity_rule.increment }}"
+                                      data-min="{{ item.variant.quantity_rule.min }}"
+                                      min="{{ item.variant.quantity_rule.min }}"
                                     {% endif %}
-                                    step="{% if is_decimal_unit %}0.05{% else %}{{ item.variant.quantity_rule.increment }}{% endif %}"
+                                    {% if item.variant.quantity_rule.max != null %}
+                                      max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                    {% endif %}
                                   />
                                   <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
                                     <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -589,6 +631,10 @@
                                     </svg>
                                   </button>
                                 </quantity-input>
+                                
+                                {% if quantity_unit != blank and quantity_unit != 'items' %}
+                                  <span class="quantity-unit">{{ quantity_unit }}</span>
+                                {% endif %}
                               {%- else -%}
                                 <div class="cart-quantity quantity cart-quantity-gift-wrap">
                                   <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
@@ -677,7 +723,7 @@
                             assign is_decimal_unit = false
                             if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value
                               assign unit = item.variant.metafields.custom.standard_unit.value
-                              if unit == 'lm' or unit == 'm2' or unit == 'm3' or unit == 'kg' or unit == 'l'
+                              if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l'
                                 assign is_decimal_unit = true
                               endif
                             endif
@@ -951,6 +997,7 @@ window.cartItemsMetafields = {
     "{{ item.variant_id }}": {
       monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
       customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      standardUnit: "{{ item.variant.metafields.custom.standard_unit }}",
       {% assign is_outlet = false %}
       {% for collection in item.product.collections %}
         {% if collection.handle == 'outlet' %}
@@ -1039,10 +1086,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
-          // Check if this is a decimal unit product
-          const isDecimalUnit = item.variant_metafields && 
-            item.variant_metafields['custom.standard_unit'] && 
-            ['lm', 'm2', 'm3', 'kg', 'l'].includes(item.variant_metafields['custom.standard_unit']);
+          // Get metafields from pre-populated data
+          const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+          
+          // Check if this is a decimal unit product using pre-populated metafields
+          const isDecimalUnit = itemMetafields.standardUnit && 
+            ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+          
+          console.log(`Variant ${item.variant_id} - Unit: ${itemMetafields.standardUnit}, IsDecimal: ${isDecimalUnit}, Quantity: ${item.quantity}`);
           
           // For decimal products, convert quantity for cart total calculation
           const displayQuantity = isDecimalUnit ? item.quantity / 20.0 : item.quantity;
