@@ -101,19 +101,7 @@ export async function action({ request }) {
       });
     }
 
-    console.log('=== PRICELIST REQUEST DEBUG ===');
-    console.log('Raw request body:', JSON.stringify(body, null, 2));
-    console.log('Parsed fields:');
-    console.log('  - Customer ID:', customer_id);
-    console.log('  - Customer Email:', customer_email);
-    console.log('  - Customer Company:', customer_company);
-    console.log('  - Monitor ID:', monitor_id);
-    console.log('  - Format:', format);
-    console.log('  - Selection method:', selection_method);
-    console.log('  - Collections:', collections);
-    console.log('  - Products:', products);
-    console.log('  - Shop:', shop);
-    console.log('=== END PRICELIST REQUEST DEBUG ===');
+    console.log(`📋 Pricelist request: ${customer_email} (${customer_company || 'No company'}) - ${format.toUpperCase()} - ${selection_method} - ${collections?.length || products?.length || 0} items`);
 
     // For private apps, use direct API credentials from environment
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -150,105 +138,34 @@ export async function action({ request }) {
 
     console.log(`Found ${productList.length} products to process`);
 
-    // Get pricing for all products with global timeout
-    console.log('🔄 Starting pricing fetch with 2-minute timeout...');
-    let priceData = [];
+    // Return immediate response and process email in background
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`🚀 Starting background processing for request: ${requestId}`);
     
-    try {
-      priceData = await Promise.race([
-        fetchPricingForProducts(productList, customer_id, shop, accessToken, monitor_id),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Pricing fetch timed out after 2 minutes')), 120000)
-        )
-      ]);
-      console.log(`✅ Generated pricing data for ${priceData.length} items`);
-    } catch (pricingError) {
-      console.error('⚠️ Pricing fetch failed, creating fallback price data:', pricingError.message);
-      
-      // Create fallback price data with original prices
-      priceData = [];
-      for (const product of productList) {
-        if (product.variants?.edges) {
-          for (const variantEdge of product.variants.edges) {
-            const variant = variantEdge.node;
-            priceData.push({
-              productTitle: product.title,
-              variantTitle: variant.title || 'Default',
-              sku: variant.sku || '',
-              originalPrice: parseFloat(variant.price) || 0,
-              customerPrice: null,
-              priceSource: "pricing-error",
-              monitorId: variant.monitorIdMetafield?.value || '',
-              standardUnit: variant.standardUnitMetafield?.value || 'st',
-              width: variant.widthMetafield?.value || '',
-              depth: variant.depthMetafield?.value || '',
-              length: variant.lengthMetafield?.value || '',
-              formattedPrice: 'Prisfel - kontakta oss'
-            });
-          }
-        }
-      }
-      console.log(`⚠️ Created fallback pricing data for ${priceData.length} items`);
-    }
+    // Start background processing (don't await)
+    processAndSendPricelist({
+      requestId,
+      productList,
+      customer_id,
+      shop,
+      accessToken,
+      monitor_id,
+      customer_email,
+      customer_company,
+      format
+    }).catch(error => {
+      console.error(`❌ Background processing failed for ${requestId}:`, error.message);
+    });
 
-    // Generate file and send via email
-    if (format === 'pdf') {
-      console.log('🔄 Starting PDF generation...');
-      const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
-      console.log(`✅ PDF generated successfully: ${pdfBuffer.length} bytes`);
-      
-      console.log(`📧 Sending email to: ${customer_email}`);
-      // Send email with PDF attachment
-      const emailResult = await sendPricelistEmail(
-        customer_email, 
-        customer_company, 
-        pdfBuffer, 
-        'pdf', 
-        priceData
-      );
-      console.log(`✅ Email sent successfully: ${emailResult.messageId}`);
-      
-      return json({ 
-        success: true, 
-        message: 'Prislistan har skickats till din e-postadress',
-        messageId: emailResult.messageId,
-        filename: emailResult.filename
-      }, { 
-        status: 200,
-        headers: corsHeaders()
-      });
-    } else if (format === 'csv') {
-      console.log('🔄 Starting CSV generation...');
-      const csvData = generateCSV(priceData);
-      const csvBuffer = Buffer.from(csvData, 'utf8');
-      console.log(`✅ CSV generated successfully: ${csvBuffer.length} bytes`);
-      
-      console.log(`📧 Sending email to: ${customer_email}`);
-      // Send email with CSV attachment
-      const emailResult = await sendPricelistEmail(
-        customer_email, 
-        customer_company, 
-        csvBuffer, 
-        'csv', 
-        priceData
-      );
-      console.log(`✅ Email sent successfully: ${emailResult.messageId}`);
-      
-      return json({ 
-        success: true, 
-        message: 'Prislistan har skickats till din e-postadress',
-        messageId: emailResult.messageId,
-        filename: emailResult.filename
-      }, { 
-        status: 200,
-        headers: corsHeaders()
-      });
-    } else {
-      return json({ error: 'Invalid format. Use "pdf" or "csv"' }, { 
-        status: 400,
-        headers: corsHeaders()
-      });
-    }
+    // Return immediate success response
+    return json({ 
+      success: true, 
+      message: 'Din begäran har tagits emot. Prislistan skickas till din e-postadress inom några minuter.',
+      requestId: requestId
+    }, { 
+      status: 200,
+      headers: corsHeaders()
+    });
 
   } catch (error) {
     console.error('❌ Error generating price list:', error);
@@ -274,6 +191,101 @@ export async function action({ request }) {
       status: 500,
       headers: corsHeaders()
     });
+  }
+}
+
+/**
+ * Process pricelist generation and email sending in background
+ */
+async function processAndSendPricelist({
+  requestId,
+  productList,
+  customer_id,
+  shop,
+  accessToken,
+  monitor_id,
+  customer_email,
+  customer_company,
+  format
+}) {
+  try {
+    console.log(`🔄 [${requestId}] Starting pricing fetch with 2-minute timeout...`);
+    let priceData = [];
+    
+    try {
+      priceData = await Promise.race([
+        fetchPricingForProducts(productList, customer_id, shop, accessToken, monitor_id),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Pricing fetch timed out after 2 minutes')), 120000)
+        )
+      ]);
+      console.log(`✅ [${requestId}] Generated pricing data for ${priceData.length} items`);
+    } catch (pricingError) {
+      console.error(`⚠️ [${requestId}] Pricing fetch failed, creating fallback price data:`, pricingError.message);
+      
+      // Create fallback price data with original prices
+      priceData = [];
+      for (const product of productList) {
+        if (product.variants?.edges) {
+          for (const variantEdge of product.variants.edges) {
+            const variant = variantEdge.node;
+            priceData.push({
+              productTitle: product.title,
+              variantTitle: variant.title || 'Default',
+              sku: variant.sku || '',
+              originalPrice: parseFloat(variant.price) || 0,
+              customerPrice: null,
+              priceSource: "pricing-error",
+              monitorId: variant.monitorIdMetafield?.value || '',
+              standardUnit: variant.standardUnitMetafield?.value || 'st',
+              width: variant.widthMetafield?.value || '',
+              depth: variant.depthMetafield?.value || '',
+              length: variant.lengthMetafield?.value || '',
+              formattedPrice: 'Prisfel - kontakta oss'
+            });
+          }
+        }
+      }
+      console.log(`⚠️ [${requestId}] Created fallback pricing data for ${priceData.length} items`);
+    }
+
+    // Generate file and send via email
+    if (format === 'pdf') {
+      console.log(`🔄 [${requestId}] Starting PDF generation...`);
+      const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
+      console.log(`✅ [${requestId}] PDF generated: ${pdfBuffer.length} bytes`);
+      
+      console.log(`📧 [${requestId}] Sending email to: ${customer_email}`);
+      const emailResult = await sendPricelistEmail(
+        customer_email, 
+        customer_company, 
+        pdfBuffer, 
+        'pdf', 
+        priceData
+      );
+      console.log(`✅ [${requestId}] Email sent: ${emailResult.messageId}`);
+      
+    } else if (format === 'csv') {
+      console.log(`🔄 [${requestId}] Starting CSV generation...`);
+      const csvData = generateCSV(priceData);
+      const csvBuffer = Buffer.from(csvData, 'utf8');
+      console.log(`✅ [${requestId}] CSV generated: ${csvBuffer.length} bytes`);
+      
+      console.log(`📧 [${requestId}] Sending email to: ${customer_email}`);
+      const emailResult = await sendPricelistEmail(
+        customer_email, 
+        customer_company, 
+        csvBuffer, 
+        'csv', 
+        priceData
+      );
+      console.log(`✅ [${requestId}] Email sent: ${emailResult.messageId}`);
+    }
+    
+    console.log(`🎉 [${requestId}] Background processing completed successfully`);
+    
+  } catch (error) {
+    console.error(`❌ [${requestId}] Background processing failed:`, error.message);
   }
 }
 
@@ -308,7 +320,9 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
           continue;
         }
         
-        console.log(`Fetching products from collection ${collectionId}${collectionMonitorId ? ` (Monitor ID: ${collectionMonitorId})` : ''}`);
+                  console.log(`📦 Fetching collection ${collectionId}${collectionMonitorId ? ` (Monitor: ${collectionMonitorId})` : ''}`);
+        
+        // Use GraphQL to fetch products from collection
         
         // Use GraphQL to fetch products from collection
         const query = `
@@ -373,29 +387,13 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
           const data = await response.json();
           
           if (data.data?.collection?.products?.edges) {
-            const collectionProducts = data.data.collection.products.edges.map(edge => {
-              const product = edge.node;
-              console.log(`Product ${product.id} (${product.title}) has ${product.variants?.edges?.length || 0} variants`);
-              
-              // Log variant details (reduced logging to avoid rate limits)
-              if (product.variants?.edges) {
-                product.variants.edges.forEach((variantEdge, index) => {
-                  const variant = variantEdge.node;
-                  const monitorId = variant.monitorIdMetafield?.value;
-                  console.log(`  Variant ${index + 1}: ID=${variant.id}, SKU=${variant.sku}, MonitorID=${monitorId || 'NONE'}`);
-                });
-              }
-              
-              // If we have a collection Monitor ID, we could potentially use it for optimization
-              // For now, we still fetch individual variant Monitor IDs as before
-              return product;
-            });
+            const collectionProducts = data.data.collection.products.edges.map(edge => edge.node);
             products.push(...collectionProducts);
-            console.log(`Added ${collectionProducts.length} products from collection ${collectionId}`);
+            console.log(`✅ Added ${collectionProducts.length} products from collection ${collectionId}`);
           } else if (data.errors) {
-            console.error(`GraphQL errors for collection ${collectionId}:`, data.errors);
+            console.error(`❌ GraphQL errors for collection ${collectionId}:`, data.errors[0]?.message || 'Unknown error');
           } else {
-            console.log(`No products found in collection ${collectionId}`);
+            console.log(`⚠️ No products found in collection ${collectionId}`);
           }
         } else {
           const errorText = await response.text();
@@ -673,11 +671,11 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         const depth = variant.depthMetafield?.value || '';
         const length = variant.lengthMetafield?.value || '';
         
-        console.log(`Processing variant ${variant.id}: SKU=${variant.sku}, monitorId=${monitorId || 'MISSING'}, unit=${standardUnit}, dimensions=${width}x${depth}x${length}, isOutlet=${isOutletProduct}, customerMonitorId=${finalCustomerMonitorId}`);
+        console.log(`🔍 Processing variant ${variant.sku}: ${monitorId ? 'Monitor:' + monitorId.slice(-8) : 'NO-MONITOR'}`);
         
         // Skip variants without Monitor IDs since they can't be priced
         if (!monitorId) {
-          console.log(`Skipping variant ${variant.id} - no Monitor ID found`);
+          console.log(`⏭️ Skipping ${variant.sku} - no Monitor ID`);
           // Still add to results but with a note that Monitor ID is missing
           priceData.push({
             productTitle: product.title,
@@ -703,9 +701,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
           
           if (monitorId) {
             if (isOutletProduct) {
-              console.log(`Getting outlet price for Monitor ID: ${monitorId}`);
               try {
-                // Add timeout wrapper for outlet price
                 const outletPrice = await Promise.race([
                   fetchOutletPrice(monitorId),
                   new Promise((_, reject) => 
@@ -715,18 +711,16 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
                 if (outletPrice !== null && outletPrice > 0) {
                   price = outletPrice;
                   priceSource = "outlet";
-                  console.log(`Found outlet price: ${outletPrice}`);
+                  console.log(`💰 Outlet price: ${outletPrice} for ${variant.sku}`);
                 } else {
-                  console.log(`No outlet price found for Monitor ID: ${monitorId}`);
+                  console.log(`⚠️ No outlet price for ${variant.sku}`);
                 }
               } catch (outletError) {
-                console.error(`Error fetching outlet price for ${monitorId}:`, outletError.message);
+                console.error(`❌ Outlet price error for ${variant.sku}:`, outletError.message);
                 priceSource = "outlet-error";
               }
             } else if (finalCustomerMonitorId) {
-              console.log(`Getting customer-specific price for customer ${finalCustomerMonitorId}, part ${monitorId}`);
               try {
-                // Add timeout wrapper for customer price
                 const customerPrice = await Promise.race([
                   fetchCustomerPartPrice(finalCustomerMonitorId, monitorId),
                   new Promise((_, reject) => 
@@ -736,12 +730,12 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
                 if (customerPrice !== null && customerPrice > 0) {
                   price = customerPrice;
                   priceSource = "customer-specific";
-                  console.log(`Found customer-specific price: ${customerPrice}`);
+                  console.log(`💰 Customer price: ${customerPrice} for ${variant.sku}`);
                 } else {
-                  console.log(`No customer-specific price found for customer ${finalCustomerMonitorId}, part ${monitorId}`);
+                  console.log(`⚠️ No customer price for ${variant.sku}`);
                 }
               } catch (customerError) {
-                console.error(`Error fetching customer price for ${finalCustomerMonitorId}, part ${monitorId}:`, customerError.message);
+                console.error(`❌ Customer price error for ${variant.sku}:`, customerError.message);
                 priceSource = "customer-error";
               }
             } else {
@@ -1173,7 +1167,7 @@ async function fetchCustomerPartPrice(customerId, partId) {
       
       if (retryRes.status === 200) {
         const retryData = await retryRes.json();
-        console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, retryData);
+        console.log(`🔍 Customer part links (retry): ${retryData?.length || 0} results for customer ${customerId.slice(-8)}, part ${partId.slice(-8)}`);
         if (Array.isArray(retryData) && retryData.length > 0) {
           const specificPrice = retryData[0].Price;
           console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
@@ -1186,7 +1180,7 @@ async function fetchCustomerPartPrice(customerId, partId) {
       }
     } else if (res.status === 200) {
       const data = await res.json();
-      console.log(`Customer part links API response for customer ${customerId}, part ${partId}:`, data);
+      console.log(`🔍 Customer part links: ${data?.length || 0} results for customer ${customerId.slice(-8)}, part ${partId.slice(-8)}`);
       if (Array.isArray(data) && data.length > 0) {
         const specificPrice = data[0].Price;
         console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
@@ -1268,7 +1262,7 @@ async function fetchCustomerPriceListId(customerId) {
     }
     
     const customers = await res.json();
-    console.log(`Customer lookup API response for ${customerId}:`, customers);
+    console.log(`📋 Customer lookup result: ${customers?.length || 0} customers found for ${customerId}`);
     
     if (!Array.isArray(customers)) {
       console.log(`Customer response is not an array`);

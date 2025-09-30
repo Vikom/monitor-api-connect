@@ -69,7 +69,7 @@
 
   <!-- Loading State -->
   <div id="loadingState" class="loading-state" style="display: none;">
-    <p>Skapar och skickar din prislista...</p>
+    <p>Skickar begäran...</p>
     <div class="loading-spinner"></div>
   </div>
 </div>
@@ -265,18 +265,18 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
-        console.log('Response successful, email sent...');
+        console.log('Response successful, request accepted...');
         const result = await response.json();
-        console.log('Email result:', result);
+        console.log('Result:', result);
         
         if (result.success) {
-          alert(`Prislistan har skickats till ${payload.customer_email}!\n\nFil: ${result.filename}`);
+          alert(`Din begäran har tagits emot!\n\nPrislistan kommer att skickas till ${payload.customer_email} inom några minuter.\n\nBegäran-ID: ${result.requestId}`);
         } else {
-          throw new Error(result.message || 'Okänt fel vid e-postutskick');
+          throw new Error(result.message || 'Okänt fel vid begäran');
         }
       } else {
         console.error('API request failed with status:', response.status);
-        let errorMessage = 'Failed to generate price list';
+        let errorMessage = 'Failed to submit request';
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (error) {
       console.error('Request error:', error);
-      alert(`Error generating price list: ${error.message}`);
+      alert(`Error submitting request: ${error.message}`);
     } finally {
       // Hide loading state
       form.style.display = 'block';
