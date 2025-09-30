@@ -150,10 +150,46 @@ export async function action({ request }) {
 
     console.log(`Found ${productList.length} products to process`);
 
-    // Get pricing for all products
-    const priceData = await fetchPricingForProducts(productList, customer_id, shop, accessToken, monitor_id);
-
-    console.log(`Generated pricing data for ${priceData.length} items`);
+    // Get pricing for all products with global timeout
+    console.log('🔄 Starting pricing fetch with 2-minute timeout...');
+    let priceData = [];
+    
+    try {
+      priceData = await Promise.race([
+        fetchPricingForProducts(productList, customer_id, shop, accessToken, monitor_id),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Pricing fetch timed out after 2 minutes')), 120000)
+        )
+      ]);
+      console.log(`✅ Generated pricing data for ${priceData.length} items`);
+    } catch (pricingError) {
+      console.error('⚠️ Pricing fetch failed, creating fallback price data:', pricingError.message);
+      
+      // Create fallback price data with original prices
+      priceData = [];
+      for (const product of productList) {
+        if (product.variants?.edges) {
+          for (const variantEdge of product.variants.edges) {
+            const variant = variantEdge.node;
+            priceData.push({
+              productTitle: product.title,
+              variantTitle: variant.title || 'Default',
+              sku: variant.sku || '',
+              originalPrice: parseFloat(variant.price) || 0,
+              customerPrice: null,
+              priceSource: "pricing-error",
+              monitorId: variant.monitorIdMetafield?.value || '',
+              standardUnit: variant.standardUnitMetafield?.value || 'st',
+              width: variant.widthMetafield?.value || '',
+              depth: variant.depthMetafield?.value || '',
+              length: variant.lengthMetafield?.value || '',
+              formattedPrice: 'Prisfel - kontakta oss'
+            });
+          }
+        }
+      }
+      console.log(`⚠️ Created fallback pricing data for ${priceData.length} items`);
+    }
 
     // Generate file and send via email
     if (format === 'pdf') {
@@ -603,9 +639,10 @@ async function fetchAllProducts(shop, accessToken) {
  * Fetch pricing for multiple products using existing pricing logic
  */
 async function fetchPricingForProducts(products, customerId, shop, accessToken, customerMonitorId = null) {
-  console.log(`Fetching pricing for ${products.length} products`);
-  console.log(`Using customer Monitor ID: ${customerMonitorId}`);
+  console.log(`🔄 Fetching pricing for ${products.length} products`);
+  console.log(`🔑 Using customer Monitor ID: ${customerMonitorId}`);
   const priceData = [];
+  let processedCount = 0;
   
   // Use provided customerMonitorId or fetch from Shopify metafields as fallback
   let finalCustomerMonitorId = customerMonitorId;
@@ -618,7 +655,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
   for (const product of products) {
     try {
       const isOutletProduct = product.tags?.includes('outlet') || false;
-      console.log(`Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
+      console.log(`🔄 Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
       
       // Check if product has variants
       if (!product.variants?.edges || product.variants.edges.length === 0) {
@@ -660,32 +697,52 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         }
         
         try {
-          // Use existing pricing logic
+          // Use existing pricing logic with timeout
           let price = null;
           let priceSource = "no-price";
           
           if (monitorId) {
             if (isOutletProduct) {
               console.log(`Getting outlet price for Monitor ID: ${monitorId}`);
-              // Get outlet price
-              const outletPrice = await fetchOutletPrice(monitorId);
-              if (outletPrice !== null && outletPrice > 0) {
-                price = outletPrice;
-                priceSource = "outlet";
-                console.log(`Found outlet price: ${outletPrice}`);
-              } else {
-                console.log(`No outlet price found for Monitor ID: ${monitorId}`);
+              try {
+                // Add timeout wrapper for outlet price
+                const outletPrice = await Promise.race([
+                  fetchOutletPrice(monitorId),
+                  new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Outlet price fetch timeout')), 30000)
+                  )
+                ]);
+                if (outletPrice !== null && outletPrice > 0) {
+                  price = outletPrice;
+                  priceSource = "outlet";
+                  console.log(`Found outlet price: ${outletPrice}`);
+                } else {
+                  console.log(`No outlet price found for Monitor ID: ${monitorId}`);
+                }
+              } catch (outletError) {
+                console.error(`Error fetching outlet price for ${monitorId}:`, outletError.message);
+                priceSource = "outlet-error";
               }
             } else if (finalCustomerMonitorId) {
               console.log(`Getting customer-specific price for customer ${finalCustomerMonitorId}, part ${monitorId}`);
-              // Get customer-specific price
-              const customerPrice = await fetchCustomerPartPrice(finalCustomerMonitorId, monitorId);
-              if (customerPrice !== null && customerPrice > 0) {
-                price = customerPrice;
-                priceSource = "customer-specific";
-                console.log(`Found customer-specific price: ${customerPrice}`);
-              } else {
-                console.log(`No customer-specific price found for customer ${finalCustomerMonitorId}, part ${monitorId}`);
+              try {
+                // Add timeout wrapper for customer price
+                const customerPrice = await Promise.race([
+                  fetchCustomerPartPrice(finalCustomerMonitorId, monitorId),
+                  new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Customer price fetch timeout')), 30000)
+                  )
+                ]);
+                if (customerPrice !== null && customerPrice > 0) {
+                  price = customerPrice;
+                  priceSource = "customer-specific";
+                  console.log(`Found customer-specific price: ${customerPrice}`);
+                } else {
+                  console.log(`No customer-specific price found for customer ${finalCustomerMonitorId}, part ${monitorId}`);
+                }
+              } catch (customerError) {
+                console.error(`Error fetching customer price for ${finalCustomerMonitorId}, part ${monitorId}:`, customerError.message);
+                priceSource = "customer-error";
               }
             } else {
               console.log(`No customer Monitor ID available for pricing lookup`);
@@ -728,8 +785,11 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         }
       }
     } catch (error) {
-      console.error(`Error processing product ${product.id}:`, error);
+      console.error(`❌ Error processing product ${product.id}:`, error);
     }
+    
+    processedCount++;
+    console.log(`📊 Progress: ${processedCount}/${products.length} products processed`);
   }
   
   console.log(`Generated pricing data for ${priceData.length} variants`);
