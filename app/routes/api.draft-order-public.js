@@ -83,6 +83,9 @@ export async function action({ request }) {
                   }
                 }
               }
+              standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
+                value
+              }
               product {
                 id
                 title
@@ -131,7 +134,14 @@ export async function action({ request }) {
           edge => edge.node.handle === 'outlet'
         );
         
-        console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}`);
+        // Extract standard unit to determine if this is a decimal product
+        const standardUnit = variant.standardUnitMetafield?.value;
+        const isDecimalUnit = standardUnit && ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
+        
+        // Convert quantity for decimal products (stored as integer × 20, need to display as decimal)
+        const displayQuantity = isDecimalUnit ? quantity / 20.0 : quantity;
+        
+        console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, StoredQty: ${quantity}, DisplayQty: ${displayQuantity}`);
         
         // Get customer Monitor ID using GraphQL
         const customerQuery = `
@@ -204,15 +214,17 @@ export async function action({ request }) {
         
         lineItems.push({
           variantId: variantId,
-          quantity: quantity,
+          quantity: displayQuantity,
           customPrice: finalPrice.toString(),
           productTitle: variant.product.title,
           variantTitle: variant.title || 'Default',
           sku: variant.sku || '',
-          vendor: variant.product.vendor || 'Sonsab'
+          vendor: variant.product.vendor || 'Sonsab',
+          standardUnit: standardUnit || 'st',
+          isDecimalUnit: isDecimalUnit
         });
         
-        console.log(`🟦 Added line item: variant ${variantId}, quantity ${quantity}, price ${finalPrice}`);
+        console.log(`🟦 Added line item: variant ${variantId}, quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}`);
         
       } catch (error) {
         console.error(`🟦 Error processing item ${item.variantId}:`, error);
