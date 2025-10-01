@@ -1,9 +1,9 @@
 /* Decimal Quantity Styling */
 
 .quantity-unit {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   color: currentColor;
-  margin-left: 0.5rem;
+  margin-left: 0.25rem;
   font-weight: 500;
   white-space: nowrap;
 }

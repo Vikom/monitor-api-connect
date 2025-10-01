@@ -76,26 +76,36 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
     return;
   }
 
+  // Find all price containers to manage loading states
+  const priceContainers = document.querySelectorAll('.f-price');
+  
+  // Set loading state - hide prices while fetching
+  priceContainers.forEach(container => {
+    container.classList.add('f-price--loading');
+    container.classList.remove('f-price--loaded', 'f-price--no-custom-pricing');
+  });
+
   try {
-    // console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
-    // console.log('Variant ID:', variantId);
-    // console.log('Price selector:', priceSelector);
-    // console.log('Customer ID:', customerId);
+    console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
+    console.log('Variant ID:', variantId);
+    console.log('Price selector:', priceSelector);
+    console.log('Customer ID:', customerId);
+    console.log('Price containers found:', priceContainers.length);
     
     const priceData = await getCustomerPrice(variantId, customerId);
-    // console.log('Received price data:', priceData);
+    console.log('Received price data:', priceData);
     
     const priceElement = document.querySelector(priceSelector);
-    // console.log('Found price element:', priceElement);
+    console.log('Found price element:', priceElement);
     
     if (priceElement && priceData.price) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
-      // console.log('Formatted price:', formattedPrice);
-      // console.log('Old price text:', priceElement.textContent);
+      console.log('Formatted price:', formattedPrice);
+      console.log('Old price text:', priceElement.textContent);
       
       priceElement.textContent = formattedPrice;
-      // console.log('New price text:', priceElement.textContent);
+      console.log('New price text:', priceElement.textContent);
       
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {
@@ -103,18 +113,53 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
       
-      // console.log('Price update completed successfully');
+      // Show prices - remove loading state and add loaded state
+      priceContainers.forEach(container => {
+        console.log('Updating container classes:', container.className);
+        container.classList.remove('f-price--loading');
+        container.classList.add('f-price--loaded');
+        console.log('Updated container classes:', container.className);
+      });
+      
+      console.log('Price update completed successfully');
     } else {
       console.log('Price element not found or no price data:', { 
         priceElement: !!priceElement, 
         priceData: priceData,
         priceValue: priceData?.price 
       });
+      
+      // Still remove loading state even if no price data
+      priceContainers.forEach(container => {
+        container.classList.remove('f-price--loading');
+        container.classList.add('f-price--loaded');
+      });
     }
-    // console.log('=== END PRICE DISPLAY DEBUG ===');
+    console.log('=== END PRICE DISPLAY DEBUG ===');
   } catch (error) {
     console.error('Error updating price display:', error);
+    
+    // Remove loading state on error
+    priceContainers.forEach(container => {
+      container.classList.remove('f-price--loading');
+      container.classList.add('f-price--loaded');
+    });
   }
+}
+
+/**
+ * Set price loading state - useful for variant changes
+ */
+function setPriceLoading() {
+  console.log('setPriceLoading called');
+  const priceContainers = document.querySelectorAll('.f-price');
+  console.log('Found price containers:', priceContainers.length);
+  priceContainers.forEach((container, index) => {
+    console.log(`Setting loading state for container ${index}:`, container.className);
+    container.classList.add('f-price--loading');
+    container.classList.remove('f-price--loaded', 'f-price--no-custom-pricing');
+    console.log(`Updated container ${index} classes:`, container.className);
+  });
 }
 
 /**
@@ -161,4 +206,5 @@ function formatPrice(price) {
 // Make functions available globally for Shopify themes
 window.getCustomerPrice = getCustomerPrice;
 window.updatePriceDisplay = updatePriceDisplay;
+window.setPriceLoading = setPriceLoading;
 window.formatPrice = formatPrice;
