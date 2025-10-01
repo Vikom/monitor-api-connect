@@ -37,7 +37,7 @@
               {% unless collection.handle == 'frontpage' or collection.handle == 'all' %}
                 {
                   "id": "{{ collection.id }}",
-                  "title": "{{ collection.title | escape }}",
+                  "title": "{{ collection.title }}",
                   "products_count": {{ collection.products_count }},
                   "monitor_id": "{{ collection.metafields.custom.monitor_id | default: '' }}"
                 }{% unless forloop.last %},{% endunless %}
@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'Genomfärgad Mdf',
         'Fanerad Mdf',
         'Melaminbelagd Mdf',
-        'Tjock Mdf'
+        'Tjock mdf'
       ],
       'Amerikanska trävaror': [
         'Alm',
@@ -316,6 +316,148 @@ document.addEventListener('DOMContentLoaded', function() {
         'Rödek',
         'Valnöt',
         'Amerikansk Vitek'
+      ],
+      'Plywood & OSB': [
+        'Konstruktionsplywood',
+        'Plywood övrigt',
+        'Formplywood',
+        'Filmbelagd Björkplywood',
+        'Slitskyddsplywood',
+        'Laminerad Plywood',
+        'Byggplywood',
+        'Björkplywood',
+        'Furuplywood',
+        'Poppelplywood',
+        'Fanerad Plywood',
+        'Profilerad Plywood',
+        'Flexible Plywood',
+        'OSB'
+      ],
+      'Lamellskivor & Limfog': [
+        'Fanerlamell',
+        'HDF-lamell',
+        'MF-lamell',
+        'Limfog Hobbyskivor',
+        'Limfog Bänkskivor',
+        'Limfog Snickeriskivor fingerskarv',
+        'Limfog Snickeriskivor Helstav',
+        'Limfog Trappämnen',
+        'Lamellskivor & Limfog övrigt'
+      ],
+      'Oorganiska skivor & ytbeläggningar': [
+        'Gipsskivor',
+        'Fibergips',
+        'Kantlist ABS',
+        'Kantlist Faner',
+        'Faner',
+        'Fogat faner',
+        'Fibercement',
+        'Spåncement',
+        'Kompositskivor',
+        'Laminat',
+        'Kompaktlaminat'
+      ],
+      'Isolering': [
+        'Mineralull',
+        'Cellplast',
+        'Kantelement',
+        'Cellulosaisolering'
+      ],
+      'Tätning': [
+        'Underlagspapp',
+        'Ytpapp',
+        'Papprodukter övrigt',
+        'Plastfolie',
+        'Tejp',
+        'Tätskiktssystem'
+      ],
+      'Metallvaror': [
+        'Tunnplåtsprofiler'
+      ],
+      'Kemiskt tekniska varor': [
+        'Asfalts- och tätmassor',
+        'Kitt och spackel',
+        'Oljor och fett',
+        'Lim',
+        'Fäst och Fogmassa'
+      ],
+      'Byggelement': [
+        'Takprodukter',
+        'Markläggning'
+      ],
+      'Europeiska trävaror': [
+        'Al',
+        'Björk kantad',
+        'Björk okantad',
+        'Bok kantad',
+        'Bok okantad',
+        'Europeisk Ek kantad',
+        'Europeisk Ek okantad',
+        'Furu osorterad',
+        'Furu sidobrädor',
+        'Furu scantling',
+        'Furu stamvara',
+        'Furu Thermobehandlad',
+        'Gran sågad'
+      ],
+      'Afrikanska trävaror': [
+        'Teak',
+        'Iroko',
+        'Mahogny',
+        'Merbau',
+        'Wenge'
+      ],
+      'Balk': [
+        'Limträbalk',
+        'Limträpelare',
+        'LVL'
+      ],
+      'Utemiljö': [
+        'Thermo Furu Övriga profiler',
+        'Thermo Ask Trall',
+        'Komposit Trall',
+        'Utemiljö tillbehör',
+        'Thermo Furu Trall',
+        'Thermo Furu Regel',
+        'Thermo Furu Panel',
+        'Thermo Gran Panel'
+      ],
+      'Byggvirke': [
+        'Underlagsspont'
+      ],
+      'List & Panel': [
+        'FIBO Panel',
+        'Takpanel',
+        'List & Panel övrigt',
+        'Planhyvlat Trä',
+        'Trälist obehandlad',
+        'Trälist behandlad',
+        'Mdflist',
+        'Interiörpanel',
+        'Bastupanel',
+        'Övrig list'
+      ],
+      'Golvvaror': [
+        'Golvvaror övrigt'
+      ],
+      'Dörrar & Fönster': [
+        'Fönstersmygar',
+        'Dörromfattning',
+        'Garageportar och tillbehör'
+      ],
+      'Rumsutrustning': [
+        'Trappor',
+        'Skåp',
+        'Insektsnät'
+      ],
+      'Kakel & Klinker': [
+        'Kakel',
+        'Kakel Bas',
+        'Kakel vit bas',
+        'Klinker Bas',
+        'Klinker Utomhus',
+        'Klinker',
+        'Mosaik'
       ]
     };
 
@@ -345,11 +487,14 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // Add remaining collections to ungrouped, but exclude group name collections
+    // Add remaining collections to ungrouped, but exclude group name collections and irrelevant collections
     const groupNameCollections = Object.keys(collectionGroups);
+    const irrelevantCollections = ['Skivor', 'Byggmaterial', 'Trävaror', 'Interiör', 'Kakel & Klinker'];
+    const collectionsToExclude = [...groupNameCollections, ...irrelevantCollections];
+    
     collectionMap.forEach(collection => {
-      // Don't include collections that match our group names
-      if (!groupNameCollections.includes(collection.title)) {
+      // Don't include collections that match our group names or are irrelevant
+      if (!collectionsToExclude.includes(collection.title)) {
         ungrouped.push(collection);
       }
     });
