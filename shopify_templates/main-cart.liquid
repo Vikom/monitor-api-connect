@@ -1104,11 +1104,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.textContent = `${priceData.price} kr`;
+                  salePriceSpan.textContent = `${priceData.price.toFixed(2)} kr`;
                 }
               } else {
                 // Update the regular price - replace entire content
-                priceElement.innerHTML = `${priceData.price} kr`;
+                priceElement.innerHTML = `${priceData.price.toFixed(2)} kr`;
               }
             });
             
@@ -1116,8 +1116,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const lineTotalCell = cartRow.querySelector('.cart-item__total .font-body-bolder');
             if (lineTotalCell) {
               const lineTotal = priceData.price * displayQuantity;
-              lineTotalCell.textContent = `${lineTotal} kr`;
-              console.log(`Updated line total for item ${itemNumber}: ${lineTotal} kr (${priceData.price} × ${displayQuantity})`);
+              lineTotalCell.textContent = `${lineTotal.toFixed(2)} kr`;
+              console.log(`Updated line total for item ${itemNumber}: ${lineTotal.toFixed(2)} kr (${priceData.price} × ${displayQuantity})`);
             }
           } else {
             console.warn(`Could not find cart row for item ${itemNumber}`);
@@ -1128,8 +1128,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update cart total display
       const totalElement = document.querySelector('.totals__subtotal-value');
       if (totalElement && cartTotal > 0) {
-        totalElement.textContent = `${cartTotal} kr`;
-        console.log(`Updated cart total: ${cartTotal} kr`);
+        totalElement.textContent = `${cartTotal.toFixed(2)} kr`;
+        console.log(`Updated cart total: ${cartTotal.toFixed(2)} kr`);
       }
       
     } catch (error) {
