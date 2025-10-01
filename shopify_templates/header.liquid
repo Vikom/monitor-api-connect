@@ -200,13 +200,17 @@
           {%- render 'icon-cart', size: 'large', name: settings.cart_icon -%}
           <span class="visually-hidden">{{ 'templates.cart.cart' | t }}</span>
           <cart-count
-            class="cart-count cart-count--absolute{% if cart.item_count > 99 %} cart-count--small-medium{% endif %}"
-            aria-label="{{ 'general.cart.cart_count' | t: count: cart.item_count | escape }}"
+            class="cart-count cart-count--absolute{% if cart.items.size > 99 %} cart-count--small-medium{% endif %}"
+            aria-label="{{ 'general.cart.cart_count' | t: count: cart.items.size | escape }}"
             {% if cart == empty %}
               hidden
             {% endif %}
           >
-            <span class="text-sm-extra">*</span>
+            {%- if cart.items.size < 100 -%}
+              {{- cart.items.size -}}
+            {%- else -%}
+              <span class="text-sm-extra">99+</span>
+            {%- endif -%}
           </cart-count>
         </a>
         {%- else -%}

@@ -1094,14 +1094,16 @@ class CartCount extends HTMLElement {
   onCartUpdate(event) {
     if (event.cart.errors) return;
 
-    let count = event.cart.item_count > 99 ? '99+' : event.cart.item_count;
+    // Count unique products instead of total quantity
+    const uniqueProductCount = event.cart.items ? event.cart.items.length : 0;
+    let count = uniqueProductCount > 99 ? '99+' : uniqueProductCount;
 
     if (this.type === 'blank') {
       count = `(${count})`;
     }
 
     if (this.classList.contains('cart-count--absolute')) {
-      if (event.cart.item_count > 99) {
+      if (uniqueProductCount > 99) {
         this.innerHTML = `<span class="text-sm-extra">${count}</span>`;
         this.classList.add('cart-count--small-medium');
       } else {
@@ -1112,7 +1114,7 @@ class CartCount extends HTMLElement {
       this.innerText = count;
     }
 
-    this.hidden = this.itemCount === 0 || event.cart.item_count === 0;
+    this.hidden = this.itemCount === 0 || uniqueProductCount === 0;
 
     const method = this.itemCount === 0 ? 'remove' : 'add';
     document.documentElement.classList[method]('cart-has-items');

@@ -1,8 +1,8 @@
 /* Decimal Quantity Styling */
 
 .quantity-unit {
-  font-size: 0.875rem;
-  color: var(--color-foreground-75, #666);
+  font-size: 1.2rem;
+  color: currentColor;
   margin-left: 0.5rem;
   font-weight: 500;
   white-space: nowrap;
@@ -17,7 +17,6 @@
 /* Style the quantity wrapper to accommodate unit display */
 .quantity {
   display: flex;
-  align-items: center;
 }
 
 /* For the first quantity section (with volume pricing) */

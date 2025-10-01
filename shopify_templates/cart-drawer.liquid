@@ -37,15 +37,15 @@
               <span>{{ 'general.cart.title' | t }}</span>
               <cart-count
                 class="cart-count cart-count--blank"
-                aria-label="{{ 'general.cart.cart_count' | t: count: cart.item_count | escape }}"
+                aria-label="{{ 'general.cart.cart_count' | t: count: cart.items.size | escape }}"
                 {% if cart == empty %}
                   hidden
                 {% endif %}
                 data-type="blank"
               >
                 (
-                {%- if cart.item_count < 100 -%}
-                  {{- cart.item_count -}}
+                {%- if cart.items.size < 100 -%}
+                  {{- cart.items.size -}}
                 {%- else -%}
                   99+
                 {%- endif -%}
