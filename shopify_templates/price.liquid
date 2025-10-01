@@ -13,26 +13,49 @@
 {% endcomment %}
 
 <style>
-/* Hide price items while loading custom pricing */
-.f-price--loading .f-price-item--regular,
-.f-price--loading .f-price-item--sale {
+/* Hide price sections while loading custom pricing */
+.f-price--loading .f-price__regular,
+.f-price--loading .f-price__sale {
   visibility: hidden;
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
 }
 
 /* Show prices when loaded */
-.f-price--loaded .f-price-item--regular,
-.f-price--loaded .f-price-item--sale {
+.f-price--loaded .f-price__regular,
+.f-price--loaded .f-price__sale {
   visibility: visible;
   opacity: 1;
 }
 
 /* Show prices immediately for non-logged-in customers */
-.f-price--no-custom-pricing .f-price-item--regular,
-.f-price--no-custom-pricing .f-price-item--sale {
+.f-price--no-custom-pricing .f-price__regular,
+.f-price--no-custom-pricing .f-price__sale {
   visibility: visible;
   opacity: 1;
+}
+
+/* Contact for price styling */
+.f-price__contact-for-price {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.f-price__contact-for-price a {
+  color: var(--color-text-heading);
+  text-decoration: none;
+}
+
+.f-price__contact-for-price a:hover {
+  color: var(--color-text-heading);
+  text-decoration: underline;
+}
+
+/* Disabled button styling */
+.btn--disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  pointer-events: none;
 }
 </style>
 {%- liquid
@@ -130,6 +153,11 @@
       {{- unit_price_separator -}}
       {{- unit_price_base_unit -}}
     </div>
+  </div>
+  
+  <!-- Contact for price message (hidden by default) -->
+  <div class="f-price__contact-for-price hidden">
+    <a href="mailto:test@sonsab.se">Fråga oss om pris</a>
   </div>
   <!-- END: Uncommented price -->
 

@@ -98,7 +98,11 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
     const priceElement = document.querySelector(priceSelector);
     console.log('Found price element:', priceElement);
     
-    if (priceElement && priceData.price) {
+    // Check if we have valid price data
+    const hasValidPrice = priceData && priceData.price && priceData.price > 0;
+    console.log('Has valid price:', hasValidPrice, 'Price value:', priceData?.price);
+    
+    if (priceElement && hasValidPrice) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
       console.log('Formatted price:', formattedPrice);
@@ -113,37 +117,70 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
       
-      // Show prices - remove loading state and add loaded state
+      // Show normal price display
       priceContainers.forEach(container => {
         console.log('Updating container classes:', container.className);
         container.classList.remove('f-price--loading');
         container.classList.add('f-price--loaded');
+        
+        // Show regular price sections and hide contact for price message
+        const priceRegular = container.querySelector('.f-price__regular');
+        const priceSale = container.querySelector('.f-price__sale');
+        const contactForPrice = container.querySelector('.f-price__contact-for-price');
+        
+        if (priceRegular) priceRegular.style.display = '';
+        if (priceSale) priceSale.style.display = '';
+        if (contactForPrice) contactForPrice.classList.add('hidden');
+        
         console.log('Updated container classes:', container.className);
       });
       
+      // Enable add to cart button
+      enableAddToCartButton();
+      
       console.log('Price update completed successfully');
     } else {
-      console.log('Price element not found or no price data:', { 
-        priceElement: !!priceElement, 
-        priceData: priceData,
-        priceValue: priceData?.price 
-      });
+      console.log('No valid price - showing contact for price message');
       
-      // Still remove loading state even if no price data
+      // Show "contact for price" message instead of price
       priceContainers.forEach(container => {
         container.classList.remove('f-price--loading');
         container.classList.add('f-price--loaded');
+        
+        // Hide regular price and show contact for price message
+        const priceRegular = container.querySelector('.f-price__regular');
+        const priceSale = container.querySelector('.f-price__sale');
+        const contactForPrice = container.querySelector('.f-price__contact-for-price');
+        
+        if (priceRegular) priceRegular.style.display = 'none';
+        if (priceSale) priceSale.style.display = 'none';
+        if (contactForPrice) contactForPrice.classList.remove('hidden');
       });
+      
+      // Disable add to cart button
+      disableAddToCartButton();
     }
     console.log('=== END PRICE DISPLAY DEBUG ===');
   } catch (error) {
     console.error('Error updating price display:', error);
     
-    // Remove loading state on error
+    // Remove loading state on error and show contact for price
     priceContainers.forEach(container => {
       container.classList.remove('f-price--loading');
       container.classList.add('f-price--loaded');
+      
+      // Hide regular price and show contact for price message on error
+      const priceRegular = container.querySelector('.f-price__regular');
+      const priceSale = container.querySelector('.f-price__sale');
+      const contactForPrice = container.querySelector('.f-price__contact-for-price');
+      
+      if (priceRegular) priceRegular.style.display = 'none';
+      if (priceSale) priceSale.style.display = 'none';
+      if (contactForPrice) contactForPrice.classList.remove('hidden');
     });
+    
+    // Disable add to cart button on error
+    disableAddToCartButton();
   }
 }
 
@@ -159,6 +196,37 @@ function setPriceLoading() {
     container.classList.add('f-price--loading');
     container.classList.remove('f-price--loaded', 'f-price--no-custom-pricing');
     console.log(`Updated container ${index} classes:`, container.className);
+  });
+}
+
+/**
+ * Enable the add to cart button
+ */
+function enableAddToCartButton() {
+  const addToCartButtons = document.querySelectorAll('button[name="add"], .product-form__submit');
+  console.log('Enabling add to cart buttons:', addToCartButtons.length);
+  
+  addToCartButtons.forEach(button => {
+    button.disabled = false;
+    button.classList.remove('btn--disabled');
+    
+    const btnText = button.querySelector('.btn__text');
+    if (btnText) {
+      btnText.textContent = 'Lägg till i varukorgen';
+    }
+  });
+}
+
+/**
+ * Disable the add to cart button when price is not available
+ */
+function disableAddToCartButton() {
+  const addToCartButtons = document.querySelectorAll('button[name="add"], .product-form__submit');
+  console.log('Disabling add to cart buttons:', addToCartButtons.length);
+  
+  addToCartButtons.forEach(button => {
+    button.disabled = true;
+    button.classList.add('btn--disabled');
   });
 }
 
@@ -207,4 +275,6 @@ function formatPrice(price) {
 window.getCustomerPrice = getCustomerPrice;
 window.updatePriceDisplay = updatePriceDisplay;
 window.setPriceLoading = setPriceLoading;
+window.enableAddToCartButton = enableAddToCartButton;
+window.disableAddToCartButton = disableAddToCartButton;
 window.formatPrice = formatPrice;
