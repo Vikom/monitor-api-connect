@@ -362,7 +362,7 @@ async function uploadFileToStaged(stagedTarget, imagePath) {
 }
 
 // Helper function to upload image to Shopify
-async function uploadImageToProduct(shop, accessToken, productId, imagePath, isFirst = false) {
+async function uploadImageToProduct(shop, accessToken, productId, imagePath) {
   const fetch = (await import('node-fetch')).default;
   
   try {
@@ -434,10 +434,8 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath, isF
       const uploadedMedia = result.data.productCreateMedia.media[0];
       console.log(`  ✅ Uploaded ${fileName} to product ${productId}`);
       
-      // If this is the first image, set it as featured image
-      if (isFirst) {
-        await setFeaturedImage(shop, accessToken, productId, uploadedMedia.id);
-      }
+      // Note: The first image uploaded to a product automatically becomes the featured image
+      // No need for a separate setFeaturedImage call as Shopify handles this automatically
       
       return uploadedMedia;
     } else if (result.data?.productCreateMedia?.mediaUserErrors?.length > 0) {
@@ -448,64 +446,6 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath, isF
   } catch (error) {
     console.error(`Error uploading image ${imagePath}:`, error);
     return null;
-  }
-}
-
-// Helper function to set featured image
-async function setFeaturedImage(shop, accessToken, productId, mediaId) {
-  const fetch = (await import('node-fetch')).default;
-
-  // Use productUpdate mutation to set featured media
-  const mutation = `mutation productUpdate($input: ProductInput!) {
-    productUpdate(input: $input) {
-      product {
-        id
-        featuredMedia {
-          id
-        }
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }`;
-
-  const variables = {
-    input: {
-      id: productId,
-      featuredMedia: mediaId
-    }
-  };
-
-  try {
-    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': accessToken,
-      },
-      body: JSON.stringify({ query: mutation, variables }),
-    });
-
-    const result = await response.json();
-
-    if (result.errors) {
-      console.error("GraphQL errors setting featured image:", JSON.stringify(result.errors, null, 2));
-      return false;
-    }
-
-    if (result.data?.productUpdate?.product) {
-      console.log(`  ✅ Set featured image for product ${productId}`);
-      return true;
-    } else if (result.data?.productUpdate?.userErrors?.length > 0) {
-      console.error("User errors setting featured image:", result.data.productUpdate.userErrors);
-    }
-
-    return false;
-  } catch (error) {
-    console.error("Error setting featured image:", error);
-    return false;
   }
 }
 
@@ -639,14 +579,12 @@ async function syncImages() {
         
         for (let i = 0; i < imagesToUpload.length; i++) {
           const imagePath = imagesToUpload[i];
-          const isFirst = i === 0; // First image becomes featured image
           
           await uploadImageToProduct(
             shop, 
             accessToken, 
             product.id, 
-            imagePath, 
-            isFirst
+            imagePath
           );
           
           // Add a small delay between uploads to avoid rate limiting
