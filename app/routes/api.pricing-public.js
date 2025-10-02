@@ -138,7 +138,7 @@ async function fetchCustomerPriceListId(customerId) {
     }
     
     const customers = await res.json();
-    console.log(`Customer lookup API response for ${customerId}:`, customers);
+    console.log(`Customer lookup API response for ${customerId}:`);
     
     if (!Array.isArray(customers)) {
       console.log(`Customer lookup response is not an array`);
