@@ -861,8 +861,9 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       
       // Data rows
       for (const item of priceData) {
-        // Check if we need a new page (landscape has more height)
-        if (yPosition > 520) {
+        // Check if we need a new page (leave space for footer)
+        // A4 landscape height is ~595pts, with margins we have ~535pts usable
+        if (yPosition > 500) {
           doc.addPage();
           yPosition = 80;
         }
@@ -875,15 +876,18 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
         doc.text(item.length || '', colPositions.length, yPosition, { width: 45 });
         doc.text(item.formattedPrice, colPositions.price, yPosition, { width: 65 });
         doc.text(item.standardUnit || 'st', colPositions.unit, yPosition);
-        
+
         yPosition += 18;
       }
-      
-      // Footer (positioned for landscape layout - full width)
+
+      // Add footer at the bottom of the current page, not at a fixed position
+      const currentY = doc.y;
+      const finalY = Math.max(currentY, yPosition + 20);
+
       doc.fontSize(8).text(
-        `Genererad: ${new Date().toLocaleString('sv-SE')} | Sidor: ${doc.bufferedPageRange().count}`,
+        `Genererad: ${new Date().toLocaleString('sv-SE')}`,
         30,
-        560,
+        finalY,
         { align: 'center', width: 750 }
       );
       
