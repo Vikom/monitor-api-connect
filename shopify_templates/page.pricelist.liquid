@@ -191,16 +191,7 @@
     padding-top: 0;
   }
 
-  .ungrouped-collections {
-    margin-top: 20px;
-  }
 
-  .ungrouped-header {
-    font-size: 14px;
-    font-weight: bold;
-    color: #666;
-    margin-bottom: 10px;
-  }
 
   /* Responsive grid layout for larger screens */
   @media (min-width: 768px) {
@@ -554,12 +545,16 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderUngroupedCollections(container, collections) {
     if (collections.length === 0) return;
     
-    const ungroupedDiv = document.createElement('div');
-    ungroupedDiv.className = 'ungrouped-collections';
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'collection-group';
     
     const header = document.createElement('div');
-    header.className = 'ungrouped-header';
-    header.textContent = 'Övriga kategorier';
+    header.className = 'group-header';
+    header.innerHTML = `
+      <span class="group-toggle">▼</span>
+      <span>Övriga kategorier</span>
+      <span class="group-select-all" data-group="ungrouped">Välj alla</span>
+    `;
     
     const checkboxGroup = document.createElement('div');
     checkboxGroup.className = 'checkbox-group';
@@ -568,15 +563,28 @@ document.addEventListener('DOMContentLoaded', function() {
       const label = document.createElement('label');
       label.className = 'checkbox-label';
       label.innerHTML = `
-        <input type="checkbox" name="collections[]" value="${collection.id}" data-monitor-id="${collection.monitor_id}">
+        <input type="checkbox" name="collections[]" value="${collection.id}" data-monitor-id="${collection.monitor_id}" data-group="ungrouped">
         ${collection.title} (${collection.products_count} produkter)
       `;
       checkboxGroup.appendChild(label);
     });
     
-    ungroupedDiv.appendChild(header);
-    ungroupedDiv.appendChild(checkboxGroup);
-    container.appendChild(ungroupedDiv);
+    groupDiv.appendChild(header);
+    groupDiv.appendChild(checkboxGroup);
+    container.appendChild(groupDiv);
+    
+    // Add click handlers
+    header.addEventListener('click', function(e) {
+      if (e.target.classList.contains('group-select-all')) {
+        e.stopPropagation(); // Prevent group collapse when clicking select all
+        toggleGroupSelection('ungrouped');
+      } else {
+        toggleGroupCollapse(header, checkboxGroup);
+      }
+    });
+
+    // Initialize group select all text
+    updateGroupSelectAllText('ungrouped');
   }
 
   function toggleGroupCollapse(header, checkboxGroup) {
@@ -682,7 +690,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadingState.style.display = 'block';
 
     try {
-      console.log('Making request to API...');
       const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/pricelist', {
         method: 'POST',
         headers: {
@@ -691,13 +698,8 @@ document.addEventListener('DOMContentLoaded', function() {
         body: JSON.stringify(payload)
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
       if (response.ok) {
-        console.log('Response successful, request accepted...');
         const result = await response.json();
-        console.log('Result:', result);
         
         if (result.success) {
           alert(`Prislistan kommer att skickas till ${payload.customer_email} inom några minuter.`);
