@@ -996,6 +996,11 @@ window.cartItemsMetafields = {
 
 // Enhanced checkout for dynamic pricing - Cart Page
 document.addEventListener('DOMContentLoaded', () => {
+  // Helper function to format price with Swedish comma decimal separator
+  function formatPrice(price) {
+    return price.toFixed(2).replace('.', ',');
+  }
+  
   // Cache to prevent multiple API calls for the same variant
   const priceCache = new Map();
   
@@ -1104,11 +1109,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.textContent = `${priceData.price.toFixed(2)} kr`;
+                  salePriceSpan.textContent = `${formatPrice(priceData.price)} kr`;
                 }
               } else {
                 // Update the regular price - replace entire content
-                priceElement.innerHTML = `${priceData.price.toFixed(2)} kr`;
+                priceElement.innerHTML = `${formatPrice(priceData.price)} kr`;
               }
             });
             
@@ -1116,8 +1121,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const lineTotalCell = cartRow.querySelector('.cart-item__total .font-body-bolder');
             if (lineTotalCell) {
               const lineTotal = priceData.price * displayQuantity;
-              lineTotalCell.textContent = `${lineTotal.toFixed(2)} kr`;
-              console.log(`Updated line total for item ${itemNumber}: ${lineTotal.toFixed(2)} kr (${priceData.price} × ${displayQuantity})`);
+              lineTotalCell.textContent = `${formatPrice(lineTotal)} kr`;
+              console.log(`Updated line total for item ${itemNumber}: ${formatPrice(lineTotal)} kr (${priceData.price} × ${displayQuantity})`);
             }
           } else {
             console.warn(`Could not find cart row for item ${itemNumber}`);
@@ -1128,8 +1133,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update cart total display
       const totalElement = document.querySelector('.totals__subtotal-value');
       if (totalElement && cartTotal > 0) {
-        totalElement.textContent = `${cartTotal.toFixed(2)} kr`;
-        console.log(`Updated cart total: ${cartTotal.toFixed(2)} kr`);
+        totalElement.textContent = `${formatPrice(cartTotal)} kr`;
+        console.log(`Updated cart total: ${formatPrice(cartTotal)} kr`);
       }
       
     } catch (error) {

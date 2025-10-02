@@ -866,6 +866,11 @@ window.cartItemsMetafields = {
 
 // Enhanced checkout for dynamic pricing - Cart Drawer
 document.addEventListener('DOMContentLoaded', () => {
+  // Helper function to format price with Swedish comma decimal separator
+  function formatPrice(price) {
+    return price.toFixed(2).replace('.', ',');
+  }
+  
   // Cache to prevent multiple API calls for the same variant
   const priceCache = new Map();
   
@@ -982,11 +987,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the sale price span
                 const salePriceSpan = priceElement.querySelector('.price__regular');
                 if (salePriceSpan) {
-                  salePriceSpan.textContent = `${lineTotal.toFixed(2)} kr`;
+                  salePriceSpan.textContent = `${formatPrice(lineTotal)} kr`;
                 }
               } else {
                 // Update the regular price
-                priceElement.innerHTML = `${lineTotal.toFixed(2)} kr`;
+                priceElement.innerHTML = `${formatPrice(lineTotal)} kr`;
               }
             }
           }
@@ -996,8 +1001,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update cart total display
       const totalElement = document.querySelector('.totals__subtotal-value');
       if (totalElement && cartTotal > 0) {
-        totalElement.textContent = `${cartTotal.toFixed(2)} kr`;
-        console.log(`Updated cart total: ${cartTotal.toFixed(2)} kr`);
+        totalElement.textContent = `${formatPrice(cartTotal)} kr`;
+        console.log(`Updated cart total: ${formatPrice(cartTotal)} kr`);
       }
       
     } catch (error) {
