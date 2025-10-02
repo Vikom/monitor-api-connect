@@ -4,6 +4,35 @@ import prisma from "../db.server.js";
 import fetch from "node-fetch";
 import https from "https";
 
+// Global array to track failed ARTFSC fetches
+export const failedARTFSCFetches = [];
+
+// Function to clear failed ARTFSC fetches (call at start of sync)
+export function clearFailedARTFSCFetches() {
+  failedARTFSCFetches.length = 0;
+}
+
+// Function to report failed ARTFSC fetches (call at end of sync)
+export function reportFailedARTFSCFetches() {
+  if (failedARTFSCFetches.length === 0) {
+    console.log("✅ All ARTFSC fetches completed successfully");
+    return;
+  }
+
+  console.log(`\n⚠️  ARTFSC Fetch Failures Report:`);
+  console.log(`   📊 Total failed fetches: ${failedARTFSCFetches.length}`);
+  console.log(`   📋 Failed product IDs:`);
+  
+  failedARTFSCFetches.forEach((failure, index) => {
+    console.log(`      ${index + 1}. Product ID: ${failure.productId}`);
+    console.log(`         Error: ${failure.error}`);
+    console.log(`         Time: ${failure.timestamp}`);
+  });
+  
+  console.log(`\n💡 These products were synced without ARTFSC metafields.`);
+  console.log(`   You can re-run the sync later to retry fetching ARTFSC data.`);
+}
+
 const monitorUrl = process.env.MONITOR_URL;
 const monitorUsername = process.env.MONITOR_USER;
 const monitorPassword = process.env.MONITOR_PASS;
@@ -705,7 +734,14 @@ export async function fetchARTFSCFromMonitor(productId) {
     return null;
   } catch (error) {
     console.error(`Error fetching ARTFSC for product ${productId}:`, error);
-    throw error;
+    // Add to failed fetches array for reporting at the end
+    failedARTFSCFetches.push({
+      productId: productId,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+    // Return null instead of throwing to allow sync to continue
+    return null;
   }
 }
 

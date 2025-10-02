@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor } from "./utils/monitor.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";
@@ -297,6 +297,9 @@ export async function syncProducts(isIncrementalSync = false) {
 
   console.log("✅ Store session is valid. Starting product sync...");
   
+  // Clear any previous failed ARTFSC fetches
+  clearFailedARTFSCFetches();
+  
   if (isIncrementalSync) {
     console.log("🔄 Running incremental sync (changes only)...");
   } else {
@@ -592,6 +595,9 @@ export async function syncProducts(isIncrementalSync = false) {
     } else {
       console.log(`\n⚠️  ${totalFailed} products could not be synced. Check the logs above for details.`);
     }
+    
+    // Report any failed ARTFSC fetches
+    reportFailedARTFSCFetches();
   } catch (err) {
     console.error("Failed to instantiate GraphqlClient:", err);
     throw err;
