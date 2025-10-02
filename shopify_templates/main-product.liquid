@@ -190,6 +190,13 @@ document.addEventListener('DOMContentLoaded', function () {
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
   window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
   
+  // Create a map of all variant IDs to their monitor IDs
+  window.variantMonitorIds = {
+    {% for variant in product.variants %}
+      "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  };
+  
   // Check if product is in outlet collection
   {% assign is_in_outlet = false %}
   {% for collection in product.collections %}
@@ -226,82 +233,97 @@ window.addEventListener('DOMContentLoaded', async () => {
   const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
-  console.log('Updating price for customer:', customerId);
   await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
 });
 
-// Function to handle variant price updates
-async function handleVariantPriceUpdate(variantId) {
+// Debounce mechanism to prevent multiple simultaneous price updates
+let priceUpdateTimeout = null;
+let currentPriceUpdatePromise = null;
+
+// Function to handle variant price updates with debouncing
+async function handleVariantPriceUpdate(variantId, source = 'unknown') {
   if (!window.customer?.id) return;
   
-  console.log('Handling variant price update for:', variantId);
+  // Clear any pending timeout
+  if (priceUpdateTimeout) {
+    clearTimeout(priceUpdateTimeout);
+  }
+  
+  // If there's already a price update in progress for the same variant, skip this one
+  if (currentPriceUpdatePromise && currentPriceUpdatePromise.variantId === variantId) {
+    return;
+  }
   
   // Set loading state immediately when variant changes
   if (typeof setPriceLoading !== 'undefined') {
     setPriceLoading();
-    console.log('Set loading state');
   }
   
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
   
-  try {
-    await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
-    console.log('Price update completed for variant:', variantId);
-  } catch (error) {
-    console.error('Error updating price for variant:', variantId, error);
-  }
+  // Create a promise to track this update
+  currentPriceUpdatePromise = {
+    variantId: variantId,
+    promise: (async () => {
+      try {
+        await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+      } catch (error) {
+        console.error('Error updating price for variant:', variantId, error);
+      } finally {
+        // Clear the current promise when done
+        if (currentPriceUpdatePromise && currentPriceUpdatePromise.variantId === variantId) {
+          currentPriceUpdatePromise = null;
+        }
+      }
+    })()
+  };
+  
+  await currentPriceUpdatePromise.promise;
 }
 
-// Handle variant changes - multiple event types
+// Debounced variant change handler
+function debounceVariantChange(variantId, source, delay = 150) {
+  if (priceUpdateTimeout) {
+    clearTimeout(priceUpdateTimeout);
+  }
+  
+  priceUpdateTimeout = setTimeout(() => {
+    handleVariantPriceUpdate(variantId, source);
+  }, delay);
+}
+
+// Get current variant ID from the form
+function getCurrentVariantId() {
+  const variantInput = document.querySelector('[name="id"]');
+  return variantInput ? `gid://shopify/ProductVariant/${variantInput.value}` : null;
+}
+
+// Handle variant changes - consolidated event handling
 document.addEventListener('variant:change', async (event) => {
-  console.log('variant:change event triggered', event.detail);
   const variantId = event.detail.variantId;
-  await handleVariantPriceUpdate(variantId);
+  debounceVariantChange(variantId, 'variant:change');
 });
 
 // Alternative event listener for themes that don't use 'variant:change'
 document.addEventListener('change', async (event) => {
   if (event.target.name === 'id' && window.customer?.id) {
-    console.log('Input change event triggered', event.target.value);
     const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
-    await handleVariantPriceUpdate(variantId);
+    debounceVariantChange(variantId, 'change');
   }
 });
 
-// Additional event listeners for variant selection
-document.addEventListener('click', async (event) => {
-  // Check if clicked element is a variant selector
-  if (event.target.matches('[name="id"]') || 
-      event.target.closest('.product-form__buttons') ||
-      event.target.matches('input[type="radio"][name*="option"]') ||
-      event.target.matches('.variant-selector input, .variant-selector label')) {
-    
-    // Small delay to let the form update
-    setTimeout(async () => {
-      const variantInput = document.querySelector('[name="id"]');
-      if (variantInput && variantInput.value && window.customer?.id) {
-        console.log('Click-triggered variant change:', variantInput.value);
-        const variantId = `gid://shopify/ProductVariant/${variantInput.value}`;
-        await handleVariantPriceUpdate(variantId);
-      }
-    }, 100);
-  }
-});
-
-// Failsafe: Watch for changes to the variant input field using MutationObserver
+// Watch for variant input changes using MutationObserver as fallback
 const variantInput = document.querySelector('[name="id"]');
 if (variantInput && window.customer?.id) {
-  const observer = new MutationObserver(async (mutations) => {
-    mutations.forEach(async (mutation) => {
-      if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
-        const newValue = mutation.target.value;
-        if (newValue) {
-          console.log('MutationObserver detected variant change:', newValue);
-          const variantId = `gid://shopify/ProductVariant/${newValue}`;
-          await handleVariantPriceUpdate(variantId);
-        }
-      }
-    });
+  let lastObservedValue = variantInput.value;
+  
+  const observer = new MutationObserver((mutations) => {
+    const currentValue = variantInput.value;
+    if (currentValue !== lastObservedValue && currentValue) {
+      lastObservedValue = currentValue;
+      const variantId = `gid://shopify/ProductVariant/${currentValue}`;
+      debounceVariantChange(variantId, 'mutation');
+    }
   });
   
   observer.observe(variantInput, { 
@@ -309,16 +331,14 @@ if (variantInput && window.customer?.id) {
     attributeFilter: ['value'] 
   });
   
-  // Also watch for property changes
-  let lastValue = variantInput.value;
+  // Property change detection as final fallback
+  let lastPolledValue = variantInput.value;
   setInterval(() => {
-    if (variantInput.value !== lastValue) {
-      console.log('Polling detected variant change:', variantInput.value);
-      lastValue = variantInput.value;
-      if (variantInput.value) {
-        const variantId = `gid://shopify/ProductVariant/${variantInput.value}`;
-        handleVariantPriceUpdate(variantId);
-      }
+    const currentValue = variantInput.value;
+    if (currentValue !== lastPolledValue && currentValue) {
+      lastPolledValue = currentValue;
+      const variantId = `gid://shopify/ProductVariant/${currentValue}`;
+      debounceVariantChange(variantId, 'polling');
     }
   }, 500);
 }

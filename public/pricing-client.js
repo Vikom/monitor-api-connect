@@ -8,9 +8,10 @@
  * Get dynamic price for a single variant for a logged-in customer
  * @param {string} variantId - Shopify variant ID (gid://shopify/ProductVariant/...)
  * @param {string} customerId - Shopify customer ID (required)
+ * @param {string} monitorId - Monitor ID for the specific variant (optional)
  * @returns {Promise<{price: number, metadata?: object}>}
  */
-async function getCustomerPrice(variantId, customerId) {
+async function getCustomerPrice(variantId, customerId, monitorId = null) {
   if (!customerId) {
     throw new Error('Customer ID is required - no anonymous pricing allowed');
   }
@@ -25,7 +26,7 @@ async function getCustomerPrice(variantId, customerId) {
       variantId,
       customerId,
       shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
-      monitorId: window.currentVariantMonitorId || null,
+      monitorId: monitorId || window.currentVariantMonitorId || null,
       isOutletProduct: window.isOutletProduct || false,
       customerMonitorId: window.customerMonitorId || null
     };
@@ -64,6 +65,31 @@ async function getCustomerPrice(variantId, customerId) {
   }
 }
 
+// Track active price requests to prevent race conditions
+let activePriceRequests = new Map();
+
+/**
+ * Get the monitor ID for a specific variant from the pre-built variant map
+ * @param {string} variantId - Shopify variant ID (gid://shopify/ProductVariant/123456)
+ * @returns {string|null} The monitor ID for the variant, or null if not found
+ */
+function getVariantMonitorId(variantId) {
+  try {
+    // Extract numeric variant ID from the gid format
+    const numericVariantId = variantId.replace('gid://shopify/ProductVariant/', '');
+    
+    // Get the monitor ID from the pre-built map
+    if (window.variantMonitorIds && window.variantMonitorIds[numericVariantId]) {
+      const monitorId = window.variantMonitorIds[numericVariantId];
+      return monitorId;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting variant monitor ID:', error);
+    return null;
+  }
+}
+
 /**
  * Update price display on a product page for a logged-in customer
  * @param {string} variantId - Shopify variant ID
@@ -76,6 +102,18 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
     return;
   }
 
+  // Create a unique key for this request
+  const requestKey = `${variantId}-${customerId}`;
+  
+  // If there's already a request for this variant/customer combo, cancel it
+  if (activePriceRequests.has(requestKey)) {
+    activePriceRequests.get(requestKey).cancelled = true;
+  }
+  
+  // Create a new request tracker
+  const requestTracker = { cancelled: false };
+  activePriceRequests.set(requestKey, requestTracker);
+
   // Find all price containers to manage loading states
   const priceContainers = document.querySelectorAll('.f-price');
   
@@ -86,30 +124,30 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
   });
 
   try {
-    console.log('=== PRICE DISPLAY UPDATE DEBUG ===');
-    console.log('Variant ID:', variantId);
-    console.log('Price selector:', priceSelector);
-    console.log('Customer ID:', customerId);
-    console.log('Price containers found:', priceContainers.length);
+    // Get the specific monitor ID for this variant
+    const variantMonitorId = getVariantMonitorId(variantId);
     
-    const priceData = await getCustomerPrice(variantId, customerId);
-    console.log('Received price data:', priceData);
+    const priceData = await getCustomerPrice(variantId, customerId, variantMonitorId);
+    
+    // Check if this request was cancelled while we were fetching
+    if (requestTracker.cancelled) {
+      return;
+    }
     
     const priceElement = document.querySelector(priceSelector);
-    console.log('Found price element:', priceElement);
     
     // Check if we have valid price data
     const hasValidPrice = priceData && priceData.price && priceData.price > 0;
-    console.log('Has valid price:', hasValidPrice, 'Price value:', priceData?.price);
     
     if (priceElement && hasValidPrice) {
+      // Check again if request was cancelled before updating UI
+      if (requestTracker.cancelled) {
+        return;
+      }
+      
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
-      console.log('Formatted price:', formattedPrice);
-      console.log('Old price text:', priceElement.textContent);
-      
       priceElement.textContent = formattedPrice;
-      console.log('New price text:', priceElement.textContent);
       
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {
@@ -119,7 +157,6 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
       
       // Show normal price display
       priceContainers.forEach(container => {
-        console.log('Updating container classes:', container.className);
         container.classList.remove('f-price--loading');
         container.classList.add('f-price--loaded');
         
@@ -131,16 +168,15 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
         if (priceRegular) priceRegular.style.display = '';
         if (priceSale) priceSale.style.display = '';
         if (contactForPrice) contactForPrice.classList.add('hidden');
-        
-        console.log('Updated container classes:', container.className);
       });
       
       // Enable add to cart button
       enableAddToCartButton();
-      
-      console.log('Price update completed successfully');
     } else {
-      console.log('No valid price - showing contact for price message');
+      // Check again if request was cancelled before updating UI
+      if (requestTracker.cancelled) {
+        return;
+      }
       
       // Show "contact for price" message instead of price
       priceContainers.forEach(container => {
@@ -160,9 +196,13 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
       // Disable add to cart button
       disableAddToCartButton();
     }
-    console.log('=== END PRICE DISPLAY DEBUG ===');
   } catch (error) {
     console.error('Error updating price display:', error);
+    
+    // Check if this request was cancelled while we were processing
+    if (requestTracker.cancelled) {
+      return;
+    }
     
     // Remove loading state on error and show contact for price
     priceContainers.forEach(container => {
@@ -181,6 +221,9 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
     
     // Disable add to cart button on error
     disableAddToCartButton();
+  } finally {
+    // Clean up the request tracker
+    activePriceRequests.delete(requestKey);
   }
 }
 
@@ -188,14 +231,10 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
  * Set price loading state - useful for variant changes
  */
 function setPriceLoading() {
-  console.log('setPriceLoading called');
   const priceContainers = document.querySelectorAll('.f-price');
-  console.log('Found price containers:', priceContainers.length);
-  priceContainers.forEach((container, index) => {
-    console.log(`Setting loading state for container ${index}:`, container.className);
+  priceContainers.forEach(container => {
     container.classList.add('f-price--loading');
     container.classList.remove('f-price--loaded', 'f-price--no-custom-pricing');
-    console.log(`Updated container ${index} classes:`, container.className);
   });
 }
 
@@ -204,7 +243,6 @@ function setPriceLoading() {
  */
 function enableAddToCartButton() {
   const addToCartButtons = document.querySelectorAll('button[name="add"], .product-form__submit');
-  console.log('Enabling add to cart buttons:', addToCartButtons.length);
   
   addToCartButtons.forEach(button => {
     button.disabled = false;
@@ -222,7 +260,6 @@ function enableAddToCartButton() {
  */
 function disableAddToCartButton() {
   const addToCartButtons = document.querySelectorAll('button[name="add"], .product-form__submit');
-  console.log('Disabling add to cart buttons:', addToCartButtons.length);
   
   addToCartButtons.forEach(button => {
     button.disabled = true;
@@ -274,6 +311,7 @@ function formatPrice(price) {
 
 // Make functions available globally for Shopify themes
 window.getCustomerPrice = getCustomerPrice;
+window.getVariantMonitorId = getVariantMonitorId;
 window.updatePriceDisplay = updatePriceDisplay;
 window.setPriceLoading = setPriceLoading;
 window.enableAddToCartButton = enableAddToCartButton;
