@@ -149,6 +149,13 @@
 
     <div class="header__icons header__icons--right flex justify-end z-1">
       <div class="header__buttons flex items-center justify-center">
+        <a
+          href="/pages/prislistor"
+          class="cusstom-button flex items-center justify-center gap-2 reversed-link"
+          aria-label="Prislistor"
+        >
+          <span class="reversed-link__text hidden sm:block lg:hidden xl:block whitespace-nowrap">Prislitor</span>
+        </a>
         {%- if custom_link and custom_link.settings.label != blank -%}
           <a
             href="{{ custom_link.settings.link | default: "#" }}"
