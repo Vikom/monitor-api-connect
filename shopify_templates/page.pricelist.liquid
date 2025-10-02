@@ -25,7 +25,6 @@
     <form id="priceListForm">
       <!-- Collections Selection -->
       <div id="collectionsSelection" class="selection-section">
-        <h3>Välj kategorier för din prislista:</h3>
         <div id="groupedCollections">
           <!-- Collections will be grouped and rendered here by JavaScript -->
         </div>
@@ -87,7 +86,7 @@
 
   .page-header {
     text-align: center;
-    margin-bottom: 30px;
+    margin: 3.5rem 0
   }
 
   .email-info {
@@ -114,9 +113,6 @@
 
   .selection-section, .format-selection {
     margin-bottom: 25px;
-    padding: 20px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
   }
 
   .radio-group {
@@ -161,9 +157,9 @@
   }
 
   .group-select-all {
-    font-size: 11px;
+    font-size: 1.2rem;
     font-weight: normal;
-    color: #666;
+    color: #1D349A;
     margin-left: auto;
     text-decoration: underline;
     cursor: pointer;
@@ -269,7 +265,7 @@
 
   .form-actions {
     text-align: center;
-    margin-top: 30px;
+    margin: 3.5rem 0;
   }
 </style>
 
@@ -704,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Result:', result);
         
         if (result.success) {
-          alert(`Din begäran har tagits emot!\n\nPrislistan kommer att skickas till ${payload.customer_email} inom några minuter.\n\nBegäran-ID: ${result.requestId}`);
+          alert(`Prislistan kommer att skickas till ${payload.customer_email} inom några minuter.`);
         } else {
           throw new Error(result.message || 'Okänt fel vid begäran');
         }

@@ -55,7 +55,7 @@ export async function sendPricelistEmail(customerEmail, customerCompany, attachm
     console.log(`📧 Generated filename: ${filename}`);
     
     // Email content
-    const subject = `Din prislista från Sonsa Business AB`;
+    const subject = `Din prislista från Sonsab`;
     
     const htmlContent = `
       <html>
@@ -87,7 +87,7 @@ export async function sendPricelistEmail(customerEmail, customerCompany, attachm
             
             <p style="font-size: 12px; color: #666;">
               Med vänliga hälsningar,<br>
-              <strong>Webshop Sonsa Business AB</strong><br>
+              <strong>Webshop Sonsab</strong><br>
               webshop@sonsab.com
             </p>
           </div>
@@ -96,7 +96,7 @@ export async function sendPricelistEmail(customerEmail, customerCompany, attachm
     `;
     
     const textContent = `
-Din prislista från Sonsa Business AB
+Din prislista från Sonsab
 
 Hej${customerCompany ? ` ${customerCompany}` : ''},
 
@@ -113,14 +113,14 @@ Har du frågor?
 Kontakta oss gärna om du har frågor om prislistan eller våra produkter.
 
 Med vänliga hälsningar,
-Webshop Sonsa Business AB
+Webshop Sonsab
 webshop@sonsab.com
     `;
 
     // Mail options
     const mailOptions = {
       from: {
-        name: 'Webshop Sonsa Business AB',
+        name: 'Webshop Sonsab',
         address: emailConfig.auth.user
       },
       to: customerEmail,
