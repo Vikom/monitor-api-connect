@@ -803,7 +803,11 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       try {
         const logoPath = path.join(process.cwd(), 'app', 'assets', 'Sonsab-Logotype.png');
         if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, 30, 30, { width: 120, height: 40 });
+          // Original ratio: 3000x543 = 5.525:1
+          // Use width of 120px, calculate height to maintain ratio
+          const logoWidth = 120;
+          const logoHeight = logoWidth / 5.525; // ~21.7px
+          doc.image(logoPath, 30, 30, { width: logoWidth, height: logoHeight });
         }
       } catch (logoError) {
         console.log('Could not load logo:', logoError.message);
@@ -825,16 +829,17 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       const tableTop = doc.y;
       doc.fontSize(9);
       
-      // Define column positions for landscape layout with new columns
+      // Define column positions for landscape layout - full width utilization
+      // A4 landscape: 842pts width, with 30pt margins = 782pts usable width
       const colPositions = {
-        sku: 30,
-        product: 110,
-        variant: 210,
-        width: 300,
-        depth: 350,
-        length: 400,
-        price: 450,
-        unit: 520
+        sku: 30,        // Start position
+        product: 130,   // 100pts width for SKU
+        variant: 280,   // 150pts width for Product
+        width: 380,     // 100pts width for Variant
+        depth: 450,     // 70pts width for Width
+        length: 520,    // 70pts width for Depth
+        price: 590,     // 70pts width for Length
+        unit: 690       // 100pts width for Price, remaining ~120pts for Unit
       };
       
       // Headers
@@ -848,8 +853,8 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       doc.text('Pris', colPositions.price, tableTop);
       doc.text('Enhet', colPositions.unit, tableTop);
       
-      // Line under headers (extended for landscape)
-      doc.moveTo(30, tableTop + 15).lineTo(580, tableTop + 15).stroke();
+      // Line under headers (full width)
+      doc.moveTo(30, tableTop + 15).lineTo(780, tableTop + 15).stroke();
       
       let yPosition = tableTop + 25;
       doc.font('Helvetica');
@@ -874,12 +879,12 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
         yPosition += 18;
       }
       
-      // Footer (positioned for landscape layout)
+      // Footer (positioned for landscape layout - full width)
       doc.fontSize(8).text(
         `Genererad: ${new Date().toLocaleString('sv-SE')} | Sidor: ${doc.bufferedPageRange().count}`,
         30,
         560,
-        { align: 'center', width: 550 }
+        { align: 'center', width: 750 }
       );
       
       doc.end();
