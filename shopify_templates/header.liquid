@@ -149,15 +149,6 @@
 
     <div class="header__icons header__icons--right flex justify-end z-1">
       <div class="header__buttons flex items-center justify-center">
-        {%- if shop.customer_accounts_enabled and customer -%}
-          <a
-            href="{{'/pages/prislistor?country=SE&sso=silent' | default: "#" }}"
-            class="cusstom-button flex items-center justify-center gap-2 reversed-link"
-            aria-label="Prislistor"
-          >
-            <span class="reversed-link__text hidden sm:block lg:hidden xl:block whitespace-nowrap">Prislistor</span>
-          </a>
-        {%- endif -%}
         {%- if custom_link and custom_link.settings.label != blank -%}
           <a
             href="{{ custom_link.settings.link | default: "#" }}"
@@ -178,6 +169,17 @@
             <span class="reversed-link__text hidden sm:block lg:hidden xl:block whitespace-nowrap">
               {{ custom_link.settings.label }}
             </span>
+          </a>
+        {%- endif -%}
+        {%- if shop.customer_accounts_enabled and customer -%}
+          <a
+            href="{{'/pages/prislistor?country=SE&sso=silent' | default: "#" }}"
+            class="cusstom-button flex items-center justify-center gap-2 reversed-link"
+            aria-label="Prislistor"
+          >
+            <span class="icon icon--{{ custom_link.settings.icon_size }}">
+              <img src="{{ 'prislista-icon.svg' | asset_url }}" width="30" height="auto" alt="Prislistor ikon"/></span>
+            <span class="reversed-link__text hidden sm:block lg:hidden xl:block whitespace-nowrap">Prislistor</span>
           </a>
         {%- endif -%}
         {%- if shop.customer_accounts_enabled -%}
