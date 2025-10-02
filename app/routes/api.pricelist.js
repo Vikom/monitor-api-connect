@@ -1,6 +1,8 @@
 import { json } from "@remix-run/node";
 import PDFDocument from "pdfkit";
 import https from "https";
+import path from "path";
+import fs from "fs";
 import { sendPricelistEmail } from "../utils/email.js";
 
 // HTTPS agent to handle self-signed certificates
@@ -797,11 +799,27 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
       
-      // Header
+      // Add logo in top left corner
+      try {
+        const logoPath = path.join(process.cwd(), 'app', 'assets', 'Sonsab-Logotype.png');
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, 30, 30, { width: 120, height: 40 });
+        }
+      } catch (logoError) {
+        console.log('Could not load logo:', logoError.message);
+        // Continue without logo if there's an error
+      }
+      
+      // Header (adjusted position to account for logo)
       doc.fontSize(20).text('Prislista', { align: 'center' });
       doc.fontSize(12).text(`Kund: ${customerCompany}`, { align: 'center' });
       doc.text(`Datum: ${new Date().toLocaleDateString('sv-SE')}`, { align: 'center' });
       doc.moveDown(2);
+      
+      // Ensure we're below the logo area
+      if (doc.y < 80) {
+        doc.y = 80;
+      }
       
       // Table headers
       const tableTop = doc.y;
