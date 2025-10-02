@@ -233,6 +233,17 @@
                             <a class="cart-item__media blocks-radius-sm media-wrapper" href="{{ item.url }}" tabindex="-1" aria-label="{{ item.title | escape }}">
                               {{- item.image | image_url: width: item.image.width | image_tag: loading: 'lazy', widths: '180,360,540', is: 'image-lazy' -}}
                             </a>
+                          {%- else -%}
+                            <a class="cart-item__media blocks-radius-sm media-wrapper" href="{{ item.url }}" tabindex="-1" aria-label="{{ item.title | escape }}">
+                              <img 
+                                src="https://cdn.shopify.com/s/files/1/0908/2804/6670/files/square-bildkommer_41fdbdd7-eb36-462b-b879-5ae871f39315.jpg?v=1754924924" 
+                                alt="Default product image"
+                                width="180"
+                                height="180"
+                                class="w-full h-auto"
+                                loading="lazy"
+                              >
+                            </a>
                           {%- endif -%}
                           <div class="cart-item__product--info flex flex-col items-start gap-3 flex-grow">
                             <div class="flex justify-between w-full md:grid gap-3">

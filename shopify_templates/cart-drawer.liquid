@@ -188,6 +188,17 @@
                             is: 'image-lazy' 
                           -}}
                         </a>
+                      {%- else -%}
+                        <a class="cart-item__media blocks-radius-sm media-wrapper" href="{{ item.url }}" tabindex="-1" aria-label="{{ item.title }}">
+                          <img 
+                            src="https://cdn.shopify.com/s/files/1/0908/2804/6670/files/square-bildkommer_41fdbdd7-eb36-462b-b879-5ae871f39315.jpg?v=1754924924" 
+                            alt="Default product image"
+                            width="100"
+                            height="100"
+                            class="w-full h-auto"
+                            loading="lazy"
+                          >
+                        </a>
                       {%- endif -%}
                       <div class="cart-item__details flex-grow flex flex-col gap-3">
                         <div class="flex justify-between gap-3">
