@@ -76,10 +76,10 @@ function setupCronJobs() {
   // });
 
   // Product sync every hour (incremental)
-  // cron.schedule("0 * * * *", () => {
-  //   console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
-  //   runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
-  // });
+  cron.schedule("0 * * * *", () => {
+    console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
+    runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
+  });
 
   // Customer sync every hour (incremental)
   // cron.schedule("5 * * * *", () => { // 5 minutes after product sync to avoid conflicts
@@ -90,7 +90,7 @@ function setupCronJobs() {
   // console.log("📅 Worker cron jobs scheduled:");
   // console.log("  - Order polling: every 5 minutes");
   // console.log("  - Inventory sync: every 30 minutes");
-  // console.log("  - Product sync: every hour (at :00)");
+  console.log("  - Product sync: every hour (at :00)");
   // console.log("  - Customer sync: every hour (at :05)");
 }
 
