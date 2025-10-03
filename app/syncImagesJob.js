@@ -155,8 +155,8 @@ function findImageFile(category, variantSku = null) {
       }
     }
 
-    // Fallback: If variantSku is provided, look for [variantSku].jpg in produktbilder directory
-    if (variantSku) {
+    // Fallback: Only look in produktbilder directory if we're in kakel mode
+    if (variantSku && useKakelMode) {
       const produktbilderDir = path.join(process.cwd(), "images-sync", "produktbilder");
       try {
         const produktbilderFiles = fs.readdirSync(produktbilderDir);
