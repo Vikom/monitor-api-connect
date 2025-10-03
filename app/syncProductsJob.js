@@ -300,6 +300,9 @@ export async function syncProducts(isIncrementalSync = false) {
   // Clear any previous failed ARTFSC fetches
   clearFailedARTFSCFetches();
   
+  // Initialize tracking for products with failed variant creation
+  global.productsWithFailedVariants = [];
+  
   if (isIncrementalSync) {
     console.log("🔄 Running incremental sync (changes only)...");
   } else {
@@ -435,7 +438,22 @@ export async function syncProducts(isIncrementalSync = false) {
       try {
         if (existingProduct) {
           console.log(`Product "${productName}" already exists, adding new variations if needed`);
-          await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+          const variationsAdded = await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+          
+          if (!variationsAdded) {
+            console.error(`❌ Failed to add variations to existing product ${existingProduct.id}. Some variants may be missing.`);
+            // Track this for reporting
+            if (!global.productsWithFailedVariants) {
+              global.productsWithFailedVariants = [];
+            }
+            global.productsWithFailedVariants.push({
+              productId: existingProduct.id,
+              productName,
+              variationCount: variations.length,
+              timestamp: new Date().toISOString(),
+              isExistingProduct: true
+            });
+          }
           
           // Add product to all collections
           for (const collectionId of collectionIds) {
@@ -525,7 +543,23 @@ export async function syncProducts(isIncrementalSync = false) {
           
           if (existingProduct) {
             console.log(`Product "${productName}" already exists, adding new variations if needed`);
-            await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+            const variationsAdded = await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
+            
+            if (!variationsAdded) {
+              console.error(`❌ [Retry] Failed to add variations to existing product ${existingProduct.id}. Some variants may be missing.`);
+              // Track this for reporting
+              if (!global.productsWithFailedVariants) {
+                global.productsWithFailedVariants = [];
+              }
+              global.productsWithFailedVariants.push({
+                productId: existingProduct.id,
+                productName,
+                variationCount: variations.length,
+                timestamp: new Date().toISOString(),
+                isExistingProduct: true,
+                isRetryAttempt: true
+              });
+            }
             
             // Add product to all collections
             for (const collectionId of collectionIds) {
@@ -596,6 +630,42 @@ export async function syncProducts(isIncrementalSync = false) {
       console.log(`\n⚠️  ${totalFailed} products could not be synced. Check the logs above for details.`);
     }
     
+    // Report products with failed variant creation
+    if (global.productsWithFailedVariants && global.productsWithFailedVariants.length > 0) {
+      console.log(`\n🚨 Products with Failed Variant Creation:`);
+      console.log(`   Found ${global.productsWithFailedVariants.length} products with variant creation failures:`);
+      console.log(`   These products may have "inventory not tracked" issues and need manual attention.\n`);
+      
+      const newProducts = global.productsWithFailedVariants.filter(p => !p.isExistingProduct);
+      const existingProducts = global.productsWithFailedVariants.filter(p => p.isExistingProduct);
+      
+      if (newProducts.length > 0) {
+        console.log(`   📦 New Products with Failed Variants (${newProducts.length}):`);
+        newProducts.forEach((product, index) => {
+          console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
+          console.log(`         - Expected ${product.variationCount} variants`);
+          console.log(`         - Failed at: ${product.timestamp}`);
+          console.log(`         - Issue: Product created but NO variants - will have "inventory not tracked"`);
+          console.log(`         - Action: Create variants manually in Shopify admin\n`);
+        });
+      }
+      
+      if (existingProducts.length > 0) {
+        console.log(`   🔄 Existing Products with Failed Variant Additions (${existingProducts.length}):`);
+        existingProducts.forEach((product, index) => {
+          console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
+          console.log(`         - Expected to add ${product.variationCount} variants`);
+          console.log(`         - Failed at: ${product.timestamp}`);
+          console.log(`         - Issue: Failed to add new variants to existing product`);
+          console.log(`         - Action: Check if variants were partially created or need manual addition\n`);
+        });
+      }
+      
+      console.log(`⚠️  IMPORTANT: These ${global.productsWithFailedVariants.length} products need manual review in Shopify admin.`);
+      console.log(`   - New products without variants will show "inventory not tracked"`);
+      console.log(`   - Existing products may be missing some expected variants`);
+    }
+    
     // Report any failed ARTFSC fetches
     reportFailedARTFSCFetches();
   } catch (err) {
@@ -663,6 +733,8 @@ async function findExistingProductByName(shop, accessToken, productName) {
   
   return null;
 }
+
+
 
 // Helper function to create a new product with all its variations
 async function createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId) {
@@ -733,7 +805,22 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
     console.log(`Created product: ${json.data.productCreate.product.title} with ID: ${productId}`);
     
     // Now create variants using productVariantsBulkCreate (this will automatically create the option)
-    await createProductVariants(shop, accessToken, productId, variations);
+    const variantsCreated = await createProductVariants(shop, accessToken, productId, variations);
+    
+    if (!variantsCreated) {
+      console.error(`❌ Failed to create variants for product ${productId}. Product created but variants failed - this will cause "inventory not tracked" issue.`);
+      // Track this product for reporting at the end instead of deleting
+      if (!global.productsWithFailedVariants) {
+        global.productsWithFailedVariants = [];
+      }
+      global.productsWithFailedVariants.push({
+        productId,
+        productName,
+        variationCount: variations.length,
+        timestamp: new Date().toISOString()
+      });
+      return productId; // Still return the product ID so collections can be assigned
+    }
     
     return productId;
   } else if (json.data?.productCreate?.userErrors) {
@@ -848,7 +935,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
     variantOption = await createProductOption(shop, accessToken, productId, "Variation");
     if (!variantOption) {
       console.error("Failed to create product option");
-      return;
+      return false;
     }
   }
   
@@ -937,7 +1024,7 @@ async function createProductVariants(shop, accessToken, productId, variations) {
 
   if (json.errors) {
     console.error("Shopify GraphQL errors creating variants:", JSON.stringify(json.errors, null, 2));
-    return;
+    return false;
   }
 
   if (json.data?.productVariantsBulkCreate?.productVariants) {
@@ -962,11 +1049,14 @@ async function createProductVariants(shop, accessToken, productId, variations) {
     createdVariants.forEach((variant, index) => {
       console.log(`  Variant ${index + 1}: ${variant.title} (ID: ${variant.id})`);
     });
+    return true;
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
     console.log(`❌ User error creating variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
     console.log('Full user errors:', JSON.stringify(json.data.productVariantsBulkCreate.userErrors, null, 2));
+    return false;
   } else {
     console.log("Unknown error creating variants:", JSON.stringify(json));
+    return false;
   }
 }
 
@@ -983,7 +1073,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   
   if (newVariations.length === 0) {
     console.log(`All variations already exist for product ${productId}`);
-    return;
+    return true;
   }
 
   // Get the product options to find the option IDs we need
@@ -998,7 +1088,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     variantOption = await createProductOption(shop, accessToken, productId, "Variation");
     if (!variantOption) {
       console.error("Failed to create product option");
-      return;
+      return false;
     }
   }
 
@@ -1075,6 +1165,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
 
   if (json.errors) {
     console.error("Shopify GraphQL errors adding variants:", JSON.stringify(json.errors, null, 2));
+    return false;
   } else if (json.data?.productVariantsBulkCreate?.productVariants) {
     console.log(`Added ${json.data.productVariantsBulkCreate.productVariants.length} new variants to product ${productId}`);
     const createdVariants = json.data.productVariantsBulkCreate.productVariants;
@@ -1093,8 +1184,13 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
       const locationForUpdate = inventoryLocations.length > 0 ? inventoryLocations[0] : null;
       await updateVariantInventoryAndWeight(shop, accessToken, variant.id, variation, locationForUpdate);
     }
+    return true;
   } else if (json.data?.productVariantsBulkCreate?.userErrors) {
     console.log(`User error adding variants: ${json.data.productVariantsBulkCreate.userErrors.map(e => e.message).join(", ")}`);
+    return false;
+  } else {
+    console.log("Unknown error adding variants:", JSON.stringify(json));
+    return false;
   }
 }
 
