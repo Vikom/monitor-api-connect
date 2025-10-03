@@ -9,9 +9,11 @@ dotenv.config();
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
 const useKakelMode = args.includes('--kakel');
+const forceAssignImages = args.includes('--force-assign') || args.includes('-f');
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
 console.log(`📁 Mode: ${useKakelMode ? 'Kakel (images-sonsab-2.csv)' : 'Standard (images-sonsab.csv)'}`);
+console.log(`🔧 Force assign images: ${forceAssignImages ? 'Yes' : 'No'}`);
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -362,7 +364,7 @@ async function uploadFileToStaged(stagedTarget, imagePath) {
 }
 
 // Helper function to upload image to Shopify
-async function uploadImageToProduct(shop, accessToken, productId, imagePath) {
+async function uploadImageToProduct(shop, accessToken, productId, imagePath, skuForImage) {
   const fetch = (await import('node-fetch')).default;
   
   try {
@@ -407,7 +409,7 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath) {
       productId: productId,
       media: [
         {
-          alt: fileName.replace(/\.(webp|jpg|jpeg)$/i, ''),
+          alt: skuForImage ? `${skuForImage} - ${fileName.replace(/\.(webp|jpg|jpeg)$/i, '')}` : fileName.replace(/\.(webp|jpg|jpeg)$/i, ''),
           mediaContentType: "IMAGE",
           originalSource: resourceUrl
         }
@@ -447,6 +449,92 @@ async function uploadImageToProduct(shop, accessToken, productId, imagePath) {
     console.error(`Error uploading image ${imagePath}:`, error);
     return null;
   }
+}
+
+// Helper function to assign image to variants using REST API
+async function assignImageToVariants(shop, accessToken, productId, variantIds, imageId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  console.log(`    Assigning image ${imageId} to ${variantIds.length} variants...`);
+  
+  for (const variantId of variantIds) {
+    try {
+      // Extract numeric ID from GraphQL ID
+      const numericVariantId = variantId.split('/').pop();
+      const numericImageId = imageId.split('/').pop();
+      
+      const response = await fetch(`https://${shop}/admin/api/2025-01/variants/${numericVariantId}.json`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken,
+        },
+        body: JSON.stringify({
+          variant: {
+            id: parseInt(numericVariantId),
+            image_id: parseInt(numericImageId)
+          }
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`      ✅ Assigned image to variant ${numericVariantId}`);
+      } else {
+        const errorText = await response.text();
+        console.error(`      ❌ Failed to assign image to variant ${numericVariantId}: ${response.status} ${response.statusText}`);
+        console.error(`      Response: ${errorText}`);
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      console.error(`      Error assigning image to variant ${variantId}:`, error);
+    }
+  }
+}
+
+// Helper function to process products that already have images but need variant assignments
+async function assignExistingImagesToVariants(shop, accessToken, product, imageMapping) {
+  console.log(`  Product has ${product.images.edges.length} existing images, checking variant assignments...`);
+  
+  // Check if any variants are missing image assignments
+  let variantsNeedingImages = [];
+  const skuToVariantIds = new Map();
+  
+  for (const variantEdge of product.variants.edges) {
+    const variant = variantEdge.node;
+    if (variant.sku && imageMapping.has(variant.sku)) {
+      if (!skuToVariantIds.has(variant.sku)) {
+        skuToVariantIds.set(variant.sku, []);
+      }
+      skuToVariantIds.get(variant.sku).push(variant.id);
+      variantsNeedingImages.push(variant);
+    }
+  }
+  
+  if (variantsNeedingImages.length === 0) {
+    console.log(`    No variants with matching SKUs found, skipping...`);
+    return false;
+  }
+  
+  // Use the first image for all variants that have matching SKUs
+  // This is a simple approach - you could make it more sophisticated later
+  const firstImage = product.images.edges[0]?.node;
+  if (!firstImage) {
+    console.log(`    No valid images found on product`);
+    return false;
+  }
+  
+  console.log(`    Assigning first image (${firstImage.id}) to ${variantsNeedingImages.length} variants with matching SKUs...`);
+  
+  // Group variants by SKU and assign the first image to all of them
+  for (const [sku, variantIds] of skuToVariantIds) {
+    console.log(`    Processing SKU: ${sku} with ${variantIds.length} variants`);
+    await assignImageToVariants(shop, accessToken, product.id, variantIds, firstImage.id);
+  }
+  
+  return true;
 }
 
 async function syncImages() {
@@ -529,15 +617,40 @@ async function syncImages() {
       
       // Check if product already has images
       const existingImages = product.images.edges || [];
-      if (existingImages.length > 0) {
-        console.log(`  Product already has ${existingImages.length} images, skipping...`);
+      if (existingImages.length > 0 && !forceAssignImages) {
+        console.log(`  Product already has ${existingImages.length} images, checking if variants need image assignments...`);
+        const wasProcessed = await assignExistingImagesToVariants(shop, accessToken, product, imageMapping);
+        if (wasProcessed) {
+          productsWithImages++;
+        }
+        continue;
+      } else if (existingImages.length > 0 && forceAssignImages) {
+        console.log(`  Product already has ${existingImages.length} images, but force assign is enabled, will assign to variants...`);
+        const wasProcessed = await assignExistingImagesToVariants(shop, accessToken, product, imageMapping);
+        if (wasProcessed) {
+          productsWithImages++;
+        }
         continue;
       }
 
-      // Find images for this product's variants
+      // Find images for this product's variants and create mapping
       const imagesToUpload = [];
+      const skuToImageMapping = new Map(); // Maps SKU to image path
+      const skuToVariantIds = new Map(); // Maps SKU to variant IDs that should use that image
       const variantSkus = new Set();
 
+      // First pass: collect all variants and their SKUs
+      for (const variantEdge of product.variants.edges) {
+        const variant = variantEdge.node;
+        if (variant.sku) {
+          if (!skuToVariantIds.has(variant.sku)) {
+            skuToVariantIds.set(variant.sku, []);
+          }
+          skuToVariantIds.get(variant.sku).push(variant.id);
+        }
+      }
+
+      // Second pass: find images for unique SKUs
       for (const variantEdge of product.variants.edges) {
         const variant = variantEdge.node;
         if (variant.sku && !variantSkus.has(variant.sku)) {
@@ -565,30 +678,58 @@ async function syncImages() {
               }
             }
             
-            if (imagePath && fs.existsSync(imagePath) && !imagesToUpload.includes(imagePath)) {
-              imagesToUpload.push(imagePath);
+            if (imagePath && fs.existsSync(imagePath) && !imagesToUpload.some(item => item.path === imagePath)) {
+              imagesToUpload.push({
+                path: imagePath,
+                sku: variant.sku,
+                fileName: imageFileName
+              });
+              skuToImageMapping.set(variant.sku, imagePath);
               console.log(`  Found image for SKU ${variant.sku}: ${imageFileName}`);
             }
           }
         }
       }
 
-      // Upload images if found
+      // Upload images and assign to variants
       if (imagesToUpload.length > 0) {
-        console.log(`  Uploading ${imagesToUpload.length} images...`);
+        console.log(`  Uploading ${imagesToUpload.length} images and assigning to variants...`);
         
-        for (let i = 0; i < imagesToUpload.length; i++) {
-          const imagePath = imagesToUpload[i];
-          
-          await uploadImageToProduct(
+        const uploadedImages = new Map(); // Maps image path to uploaded media object
+        
+        // Upload all images first
+        for (const imageInfo of imagesToUpload) {
+          const uploadedMedia = await uploadImageToProduct(
             shop, 
             accessToken, 
             product.id, 
-            imagePath
+            imageInfo.path,
+            imageInfo.sku
           );
+          
+          if (uploadedMedia) {
+            uploadedImages.set(imageInfo.path, uploadedMedia);
+          }
           
           // Add a small delay between uploads to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+        
+        // Now assign images to variants
+        for (const imageInfo of imagesToUpload) {
+          const uploadedMedia = uploadedImages.get(imageInfo.path);
+          if (uploadedMedia) {
+            const variantIds = skuToVariantIds.get(imageInfo.sku) || [];
+            if (variantIds.length > 0) {
+              await assignImageToVariants(
+                shop, 
+                accessToken, 
+                product.id, 
+                variantIds, 
+                uploadedMedia.id
+              );
+            }
+          }
         }
         
         productsWithImages++;
@@ -619,16 +760,19 @@ if (args.includes('--help') || args.includes('-h')) {
 To sync to development store (OAuth):
   node app/syncImagesJob.js
   node app/syncImagesJob.js --kakel    (use images-sonsab-2.csv and produktbilder directory)
+  node app/syncImagesJob.js --force-assign    (assign images to variants even if products have images)
 
 To sync to Advanced store:
   node app/syncImagesJob.js --advanced
   node app/syncImagesJob.js --advanced --kakel
   node app/syncImagesJob.js -a
   node app/syncImagesJob.js -a --kakel
+  node app/syncImagesJob.js -a --force-assign
 
 Flags:
-  --kakel         Use images-sonsab-2.csv and look for [Artikelnummer].jpg in produktbilder directory
-  --advanced, -a  Use Advanced store configuration
+  --kakel               Use images-sonsab-2.csv and look for [Artikelnummer].jpg in produktbilder directory
+  --advanced, -a        Use Advanced store configuration
+  --force-assign, -f    Assign images to variants even if products already have images
 
 Configuration:
   Development store: Uses Prisma session from OAuth flow

@@ -640,14 +640,46 @@ export async function syncProducts(isIncrementalSync = false) {
       const existingProducts = global.productsWithFailedVariants.filter(p => p.isExistingProduct);
       
       if (newProducts.length > 0) {
-        console.log(`   📦 New Products with Failed Variants (${newProducts.length}):`);
-        newProducts.forEach((product, index) => {
-          console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
-          console.log(`         - Expected ${product.variationCount} variants`);
-          console.log(`         - Failed at: ${product.timestamp}`);
-          console.log(`         - Issue: Product created but NO variants - will have "inventory not tracked"`);
-          console.log(`         - Action: Create variants manually in Shopify admin\n`);
-        });
+        const criticalFailures = newProducts.filter(p => p.criticalFailure);
+        const fallbackProducts = newProducts.filter(p => p.fallbackUsed && !p.criticalFailure);
+        const completeFailures = newProducts.filter(p => !p.fallbackUsed && !p.criticalFailure);
+        
+        if (criticalFailures.length > 0) {
+          console.log(`\n🚨🚨🚨 CRITICAL: Products with NO VARIANTS Created (${criticalFailures.length}): 🚨🚨🚨`);
+          console.log(`   These products exist in Shopify but have ZERO variants with Monitor data!`);
+          criticalFailures.forEach((product, index) => {
+            console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
+            console.log(`         - Expected ${product.variationCount} variants, created ${product.createdVariants} variants`);
+            console.log(`         - Failed at: ${product.timestamp}`);
+            console.log(`         - Issue: Both bulk creation AND fallback variant creation failed`);
+            console.log(`         - Status: Product shows "inventory not tracked" - NO Monitor data linked`);
+            console.log(`         - Action: URGENT - Check product data and create variants manually\n`);
+          });
+          console.log(`🚨🚨🚨 ${criticalFailures.length} PRODUCTS NEED IMMEDIATE ATTENTION! 🚨🚨🚨\n`);
+        }
+        
+        if (fallbackProducts.length > 0) {
+          console.log(`   📦 New Products with Fallback Variants (${fallbackProducts.length}):`);
+          fallbackProducts.forEach((product, index) => {
+            console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
+            console.log(`         - Expected ${product.variationCount} variants, created ${product.createdVariants} fallback variant`);
+            console.log(`         - Failed at: ${product.timestamp}`);
+            console.log(`         - Issue: Bulk variant creation failed, used fallback with first variation`);
+            console.log(`         - Status: Product has 1 working variant with Monitor data`);
+            console.log(`         - Action: Check remaining ${product.variationCount - 1} variants need manual creation\n`);
+          });
+        }
+        
+        if (completeFailures.length > 0) {
+          console.log(`   ❌ New Products with Other Variant Failures (${completeFailures.length}):`);
+          completeFailures.forEach((product, index) => {
+            console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
+            console.log(`         - Expected ${product.variationCount} variants`);
+            console.log(`         - Failed at: ${product.timestamp}`);
+            console.log(`         - Issue: Product created but variant creation failed in unexpected way`);
+            console.log(`         - Action: Check product status and create variants manually\n`);
+          });
+        }
       }
       
       if (existingProducts.length > 0) {
@@ -664,6 +696,15 @@ export async function syncProducts(isIncrementalSync = false) {
       console.log(`⚠️  IMPORTANT: These ${global.productsWithFailedVariants.length} products need manual review in Shopify admin.`);
       console.log(`   - New products without variants will show "inventory not tracked"`);
       console.log(`   - Existing products may be missing some expected variants`);
+      
+      // Count and highlight critical failures at the end
+      const criticalFailures = global.productsWithFailedVariants.filter(p => p.criticalFailure);
+      if (criticalFailures.length > 0) {
+        console.log(`\n🚨🚨🚨 FINAL ALERT: ${criticalFailures.length} PRODUCTS HAVE ZERO VARIANTS! 🚨🚨🚨`);
+        console.log(`These products exist in Shopify but are completely disconnected from Monitor data.`);
+        console.log(`Product names: ${criticalFailures.map(p => `"${p.productName}"`).join(', ')}`);
+        console.log(`🚨🚨🚨 IMMEDIATE ACTION REQUIRED FOR ${criticalFailures.length} PRODUCTS! 🚨🚨🚨`);
+      }
     }
     
     // Report any failed ARTFSC fetches
@@ -804,12 +845,41 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
     const productId = json.data.productCreate.product.id;
     console.log(`Created product: ${json.data.productCreate.product.title} with ID: ${productId}`);
     
+    // First, rename the default "Title" option to "Storlek" using REST API
+    const optionRenamed = await renameProductOptionToStorlek(shop, accessToken, productId);
+    if (!optionRenamed) {
+      console.warn(`⚠️  Failed to rename option to 'Storlek' for product ${productId}. Will use 'Title' instead.`);
+    }
+    
     // Now create variants using productVariantsBulkCreate (this will automatically create the option)
     const variantsCreated = await createProductVariants(shop, accessToken, productId, variations);
     
     if (!variantsCreated) {
-      console.error(`❌ Failed to create variants for product ${productId}. Product created but variants failed - this will cause "inventory not tracked" issue.`);
-      // Track this product for reporting at the end instead of deleting
+      console.error(`❌ Failed to create variants for product ${productId}. Attempting to create at least one variant...`);
+      
+      // Try to create at least one variant with the first variation's data
+      const fallbackVariantCreated = await createFallbackVariant(shop, accessToken, productId, variations[0]);
+      
+      if (!fallbackVariantCreated) {
+        console.error(`❌ Failed to create even a fallback variant for product ${productId}. Product will remain without variants - CRITICAL ISSUE.`);
+        // Track this as a critical failure but don't delete the product
+        if (!global.productsWithFailedVariants) {
+          global.productsWithFailedVariants = [];
+        }
+        global.productsWithFailedVariants.push({
+          productId,
+          productName,
+          variationCount: variations.length,
+          createdVariants: 0,
+          timestamp: new Date().toISOString(),
+          criticalFailure: true,
+          fallbackUsed: false
+        });
+        return productId; // Still return the product ID so collections can be assigned
+      }
+      
+      console.log(`✅ Created fallback variant for product ${productId}`);
+      // Track this product for reporting
       if (!global.productsWithFailedVariants) {
         global.productsWithFailedVariants = [];
       }
@@ -817,10 +887,14 @@ async function createNewProductWithVariations(shop, accessToken, productName, va
         productId,
         productName,
         variationCount: variations.length,
-        timestamp: new Date().toISOString()
+        createdVariants: 1,
+        timestamp: new Date().toISOString(),
+        fallbackUsed: true
       });
-      return productId; // Still return the product ID so collections can be assigned
     }
+    
+    // Clean up the default "Default Title" variant that Shopify automatically creates
+    await removeDefaultTitleVariant(shop, accessToken, productId);
     
     return productId;
   } else if (json.data?.productCreate?.userErrors) {
@@ -925,18 +999,20 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   const productOptions = await getProductOptions(shop, accessToken, productId);
   console.log('Product options for variant creation:', JSON.stringify(productOptions, null, 2));
   
-  // Find a suitable option for the variants (prefer "Variation" or "Title")
-  let variantOption = productOptions.find(option => option.name === "Variation") || 
-                     productOptions.find(option => option.name === "Title");
+  // Find "Storlek" option, or use "Title" option if it exists (for existing products)
+  let variantOption = productOptions.find(option => option.name === "Storlek");
   
-  // If no suitable option exists, we need to create one
+  // If "Storlek" option doesn't exist, use the existing "Title" option (for legacy products)
   if (!variantOption) {
-    console.log("No suitable option found, creating 'Variation' option...");
-    variantOption = await createProductOption(shop, accessToken, productId, "Variation");
-    if (!variantOption) {
-      console.error("Failed to create product option");
+    variantOption = productOptions.find(option => option.name === "Title");
+    if (variantOption) {
+      console.log("Using existing 'Title' option for variants (legacy product)");
+    } else {
+      console.error("No suitable option found for variants");
       return false;
     }
+  } else {
+    console.log("Using 'Storlek' option for variants");
   }
   
   console.log(`Found/created option with ID: ${variantOption.id}, name: ${variantOption.name}`);
@@ -960,33 +1036,92 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   }
   
   // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = await Promise.all(variations.map(async (variation) => {
-    const metafields = await generateMetafieldsForVariation(variation);
-
-    const variantData = {
-      price: variation.price != null ? variation.price.toString() : "0",
-      barcode: variation.barcode || "",
-      inventoryPolicy: "CONTINUE",
-      taxable: true,
-      optionValues: [
-        {
-          optionId: variantOption.id,
-          name: variation.productVariation || "Default"
+  // Add validation and sanitization for each variation
+  const variants = [];
+  
+  for (const variation of variations) {
+    try {
+      // Validate essential data
+      if (!variation || !variation.id) {
+        console.warn(`Skipping variation with missing ID:`, variation);
+        continue;
+      }
+      
+      // Sanitize price - ensure it's a valid number
+      let price = "0";
+      if (variation.price != null && !isNaN(Number(variation.price)) && Number(variation.price) >= 0) {
+        price = Number(variation.price).toFixed(2);
+      }
+      
+      // Sanitize barcode - remove any invalid characters
+      let barcode = "";
+      if (variation.barcode && typeof variation.barcode === 'string') {
+        barcode = variation.barcode.trim().replace(/[^\w-]/g, '');
+      }
+      
+      // Sanitize option value name - ensure it's not empty or too long
+      let optionValueName = "Default";
+      if (variation.productVariation && typeof variation.productVariation === 'string') {
+        optionValueName = variation.productVariation.trim();
+        // Shopify has a limit on option value length
+        if (optionValueName.length > 255) {
+          optionValueName = optionValueName.substring(0, 255);
         }
-      ],
-      metafields: metafields
-    };
+      }
+      
+      // Get metafields with error handling
+      let metafields = [];
+      try {
+        metafields = await generateMetafieldsForVariation(variation);
+      } catch (metafieldError) {
+        console.warn(`Failed to generate metafields for variation ${variation.id}: ${metafieldError.message}`);
+        // Create at least the monitor_id metafield
+        metafields = [{
+          namespace: "custom",
+          key: "monitor_id",
+          value: variation.id.toString(),
+          type: "single_line_text_field"
+        }];
+      }
 
-    // Add inventory quantities for all available locations
-    if (inventoryLocations.length > 0) {
-      variantData.inventoryQuantities = inventoryLocations.map(location => ({
-        availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
-        locationId: location.id
-      }));
+      const variantData = {
+        price: price,
+        barcode: barcode,
+        inventoryPolicy: "CONTINUE",
+        taxable: true,
+        optionValues: [
+          {
+            optionId: variantOption.id,
+            name: optionValueName
+          }
+        ],
+        metafields: metafields
+      };
+
+      // Add inventory quantities for all available locations
+      if (inventoryLocations.length > 0) {
+        variantData.inventoryQuantities = inventoryLocations.map(location => ({
+          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+          locationId: location.id
+        }));
+      }
+
+      variants.push(variantData);
+      
+    } catch (variationError) {
+      console.error(`Error processing variation ${variation?.id}: ${variationError.message}`);
+      console.warn(`Skipping problematic variation:`, variation);
+      continue;
     }
-
-    return variantData;
-  }));
+  }
+  
+  // Ensure we have at least one variant to create
+  if (variants.length === 0) {
+    console.error(`No valid variants could be created from ${variations.length} variations`);
+    return false;
+  }
+  
+  console.log(`Successfully prepared ${variants.length} out of ${variations.length} variants for creation`);
 
   console.log(`Prepared ${variants.length} variants:`, JSON.stringify(variants, null, 2));
 
@@ -1060,6 +1195,276 @@ async function createProductVariants(shop, accessToken, productId, variations) {
   }
 }
 
+// Helper function to create a fallback variant when bulk creation fails
+async function createFallbackVariant(shop, accessToken, productId, variation) {
+  const fetch = (await import('node-fetch')).default;
+  
+  try {
+    console.log(`Creating fallback variant for product ${productId}...`);
+    
+    // Validate variation data first
+    if (!variation || !variation.id) {
+      console.error("Invalid variation data for fallback variant");
+      return false;
+    }
+    
+    // Get the product options first
+    const productOptions = await getProductOptions(shop, accessToken, productId);
+    let variantOption = productOptions.find(option => option.name === "Storlek") || 
+                       productOptions.find(option => option.name === "Title");
+    
+    if (!variantOption) {
+      console.error("No suitable option found for fallback variant");
+      return false;
+    }
+    
+    // Get metafields for the variation with fallback to minimal data
+    let metafields = [];
+    try {
+      metafields = await generateMetafieldsForVariation(variation);
+    } catch (metafieldError) {
+      console.warn(`Failed to generate full metafields for fallback variant: ${metafieldError.message}`);
+      // Ensure we at least have the monitor_id metafield
+      metafields = [{
+        namespace: "custom",
+        key: "monitor_id",
+        value: variation.id.toString(),
+        type: "single_line_text_field"
+      }];
+    }
+    
+    // Get locations for inventory
+    const { mappedLocations, fallbackLocation } = await getAllLocationsForInventory(shop, accessToken);
+    let inventoryLocations = [];
+    if (mappedLocations.length > 0) {
+      inventoryLocations = mappedLocations;
+    } else if (fallbackLocation) {
+      inventoryLocations = [fallbackLocation];
+    }
+    
+    // Sanitize data similar to main variant creation
+    let price = "0";
+    if (variation.price != null && !isNaN(Number(variation.price)) && Number(variation.price) >= 0) {
+      price = Number(variation.price).toFixed(2);
+    }
+    
+    let barcode = "";
+    if (variation.barcode && typeof variation.barcode === 'string') {
+      barcode = variation.barcode.trim().replace(/[^\w-]/g, '');
+    }
+    
+    let optionValueName = "Default";
+    if (variation.productVariation && typeof variation.productVariation === 'string') {
+      optionValueName = variation.productVariation.trim();
+      if (optionValueName.length > 255) {
+        optionValueName = optionValueName.substring(0, 255);
+      }
+    }
+    
+    // Create single variant using productVariantsBulkCreate
+    const variantData = {
+      price: price,
+      barcode: barcode,
+      inventoryPolicy: "CONTINUE",
+      taxable: true,
+      optionValues: [
+        {
+          optionId: variantOption.id,
+          name: optionValueName
+        }
+      ],
+      metafields: metafields
+    };
+
+    // Add inventory quantities if locations available
+    if (inventoryLocations.length > 0) {
+      variantData.inventoryQuantities = inventoryLocations.map(location => ({
+        availableQuantity: 0,
+        locationId: location.id
+      }));
+    }
+
+    const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkCreate(productId: $productId, variants: $variants) {
+        productVariants {
+          id
+          sku
+          title
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+
+    const variables = {
+      productId: productId,
+      variants: [variantData]
+    };
+
+    const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const json = await fetchRes.json();
+
+    if (json.errors) {
+      console.error("GraphQL errors creating fallback variant:", JSON.stringify(json.errors, null, 2));
+      return false;
+    }
+
+    if (json.data?.productVariantsBulkCreate?.productVariants?.length > 0) {
+      const createdVariant = json.data.productVariantsBulkCreate.productVariants[0];
+      console.log(`✅ Created fallback variant: ${createdVariant.title} (ID: ${createdVariant.id})`);
+      
+      // Update SKU and inventory management
+      if (variation.sku) {
+        await updateVariantSku(shop, accessToken, createdVariant.id, variation.sku);
+      }
+      
+      const locationForUpdate = inventoryLocations.length > 0 ? inventoryLocations[0] : null;
+      await updateVariantInventoryAndWeight(shop, accessToken, createdVariant.id, variation, locationForUpdate);
+      
+      return true;
+    } else if (json.data?.productVariantsBulkCreate?.userErrors?.length > 0) {
+      console.error("User errors creating fallback variant:", json.data.productVariantsBulkCreate.userErrors);
+      return false;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error(`Error creating fallback variant: ${error.message}`);
+    return false;
+  }
+}
+
+
+
+// Helper function to remove the default "Default Title" variant that Shopify creates automatically
+async function removeDefaultTitleVariant(shop, accessToken, productId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  try {
+    // Get all variants for the product
+    const variants = await getExistingVariants(shop, accessToken, productId);
+    
+    // Find the variant with "Default Title" or similar default names
+    const defaultVariant = variants.find(variant => {
+      // Check if this variant doesn't have a monitor_id (meaning it's the default one we didn't create)
+      return !variant.monitorId;
+    });
+    
+    if (!defaultVariant) {
+      console.log(`    No default variant found to remove for product ${productId}`);
+      return true;
+    }
+    
+    // Extract the numeric ID from the GraphQL ID
+    const numericVariantId = defaultVariant.id.split('/').pop();
+    
+    // Delete the default variant using REST API
+    const deleteResponse = await fetch(`https://${shop}/admin/api/2025-01/variants/${numericVariantId}.json`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+    });
+
+    if (!deleteResponse.ok) {
+      const errorText = await deleteResponse.text();
+      console.error(`Failed to delete default variant ${defaultVariant.id}: ${deleteResponse.status} ${errorText}`);
+      return false;
+    }
+
+    console.log(`    ✅ Removed default variant for product ${productId}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`Error removing default variant: ${error.message}`);
+    return false;
+  }
+}
+
+// Helper function to rename the default "Title" option to "Storlek" using REST API
+async function renameProductOptionToStorlek(shop, accessToken, productId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  // Extract the numeric ID from the GraphQL ID
+  const numericProductId = productId.split('/').pop();
+  
+  try {
+    // First, get the product to find the option ID
+    const getResponse = await fetch(`https://${shop}/admin/api/2025-01/products/${numericProductId}.json`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+    });
+
+    if (!getResponse.ok) {
+      console.error(`Failed to get product for option rename: ${getResponse.status}`);
+      return false;
+    }
+
+    const productData = await getResponse.json();
+    const product = productData.product;
+    
+    if (!product.options || product.options.length === 0) {
+      console.error("No options found on product");
+      return false;
+    }
+
+    // Find the "Title" option
+    const titleOption = product.options.find(opt => opt.name === "Title");
+    if (!titleOption) {
+      console.log("No 'Title' option found to rename");
+      return false;
+    }
+
+    // Update the option name to "Storlek"
+    const updateData = {
+      product: {
+        id: parseInt(numericProductId),
+        options: product.options.map(opt => ({
+          id: opt.id,
+          name: opt.name === "Title" ? "Storlek" : opt.name,
+          position: opt.position
+        }))
+      }
+    };
+
+    const updateResponse = await fetch(`https://${shop}/admin/api/2025-01/products/${numericProductId}.json`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`Failed to rename option: ${updateResponse.status} ${errorText}`);
+      return false;
+    }
+
+    console.log(`    ✅ Renamed 'Title' option to 'Storlek' for product ${productId}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`Error renaming option to 'Storlek': ${error.message}`);
+    return false;
+  }
+}
+
 // Helper function to add variations to an existing product
 async function addVariationsToExistingProduct(shop, accessToken, productId, variations) {
   const fetch = (await import('node-fetch')).default;
@@ -1079,17 +1484,19 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   // Get the product options to find the option IDs we need
   const productOptions = await getProductOptions(shop, accessToken, productId);
   
-  // Find a suitable option for the variants (prefer "Variation" or "Title")
-  let variantOption = productOptions.find(option => option.name === "Variation") || 
-                     productOptions.find(option => option.name === "Title");
+  // Find "Storlek" option, or use "Title" option if it exists (for existing products)
+  let variantOption = productOptions.find(option => option.name === "Storlek");
   
   if (!variantOption) {
-    console.log("No suitable option found, creating 'Variation' option...");
-    variantOption = await createProductOption(shop, accessToken, productId, "Variation");
-    if (!variantOption) {
-      console.error("Failed to create product option");
+    variantOption = productOptions.find(option => option.name === "Title");
+    if (variantOption) {
+      console.log("Using existing 'Title' option for variants (legacy product)");
+    } else {
+      console.error("No suitable option found for variants");
       return false;
     }
+  } else {
+    console.log("Using 'Storlek' option for variants");
   }
 
   // Get all locations for inventory tracking
@@ -1104,34 +1511,92 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
     inventoryLocations = [fallbackLocation];
   }
 
-  // Create variants array for bulk creation (without SKU - we'll update it after creation)
-  const variants = await Promise.all(newVariations.map(async (variation) => {
-    const metafields = await generateMetafieldsForVariation(variation);
-
-    const variantData = {
-      price: variation.price != null ? variation.price.toString() : "0",
-      barcode: variation.barcode || "",
-      inventoryPolicy: "CONTINUE",
-      taxable: true,
-      optionValues: [
-        {
-          optionId: variantOption.id,
-          name: variation.productVariation || "Default"
+  // Create variants array for bulk creation with validation (same as createProductVariants)
+  const variants = [];
+  
+  for (const variation of newVariations) {
+    try {
+      // Validate essential data
+      if (!variation || !variation.id) {
+        console.warn(`Skipping variation with missing ID:`, variation);
+        continue;
+      }
+      
+      // Sanitize price - ensure it's a valid number
+      let price = "0";
+      if (variation.price != null && !isNaN(Number(variation.price)) && Number(variation.price) >= 0) {
+        price = Number(variation.price).toFixed(2);
+      }
+      
+      // Sanitize barcode - remove any invalid characters
+      let barcode = "";
+      if (variation.barcode && typeof variation.barcode === 'string') {
+        barcode = variation.barcode.trim().replace(/[^\w-]/g, '');
+      }
+      
+      // Sanitize option value name - ensure it's not empty or too long
+      let optionValueName = "Default";
+      if (variation.productVariation && typeof variation.productVariation === 'string') {
+        optionValueName = variation.productVariation.trim();
+        // Shopify has a limit on option value length
+        if (optionValueName.length > 255) {
+          optionValueName = optionValueName.substring(0, 255);
         }
-      ],
-      metafields: metafields
-    };
+      }
+      
+      // Get metafields with error handling
+      let metafields = [];
+      try {
+        metafields = await generateMetafieldsForVariation(variation);
+      } catch (metafieldError) {
+        console.warn(`Failed to generate metafields for variation ${variation.id}: ${metafieldError.message}`);
+        // Create at least the monitor_id metafield
+        metafields = [{
+          namespace: "custom",
+          key: "monitor_id",
+          value: variation.id.toString(),
+          type: "single_line_text_field"
+        }];
+      }
 
-    // Add inventory quantities for all available locations
-    if (inventoryLocations.length > 0) {
-      variantData.inventoryQuantities = inventoryLocations.map(location => ({
-        availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
-        locationId: location.id
-      }));
+      const variantData = {
+        price: price,
+        barcode: barcode,
+        inventoryPolicy: "CONTINUE",
+        taxable: true,
+        optionValues: [
+          {
+            optionId: variantOption.id,
+            name: optionValueName
+          }
+        ],
+        metafields: metafields
+      };
+
+      // Add inventory quantities for all available locations
+      if (inventoryLocations.length > 0) {
+        variantData.inventoryQuantities = inventoryLocations.map(location => ({
+          availableQuantity: 0, // Set initial quantity to 0, will be updated by inventory sync
+          locationId: location.id
+        }));
+      }
+
+      variants.push(variantData);
+      
+    } catch (variationError) {
+      console.error(`Error processing variation ${variation?.id}: ${variationError.message}`);
+      console.warn(`Skipping problematic variation:`, variation);
+      continue;
     }
-
-    return variantData;
-  }));
+  }
+  
+  // Ensure we have at least one variant to create
+  if (variants.length === 0) {
+    console.warn(`No valid variants could be created from ${newVariations.length} new variations for existing product ${productId}`);
+    return true; // Return true since this isn't a critical failure for existing products
+  }
+  
+  console.log(`Successfully prepared ${variants.length} out of ${newVariations.length} new variants for existing product`);
 
   const mutation = `mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
     productVariantsBulkCreate(productId: $productId, variants: $variants) {
@@ -1194,64 +1659,7 @@ async function addVariationsToExistingProduct(shop, accessToken, productId, vari
   }
 }
 
-// Helper function to create a product option
-async function createProductOption(shop, accessToken, productId, optionName) {
-  const fetch = (await import('node-fetch')).default;
-  
-  const mutation = `mutation productOptionCreate($productId: ID!, $option: OptionCreateInput!) {
-    productOptionCreate(productId: $productId, option: $option) {
-      productOption {
-        id
-        name
-        position
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }`;
 
-  const variables = {
-    productId: productId,
-    option: {
-      name: optionName,
-      values: [
-        {
-          name: "Default"
-        }
-      ]
-    }
-  };
-
-  const fetchRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken,
-    },
-    body: JSON.stringify({ query: mutation, variables }),
-  });
-
-  const json = await fetchRes.json();
-
-  if (json.errors) {
-    console.error("GraphQL errors creating product option:", JSON.stringify(json.errors, null, 2));
-    return null;
-  }
-
-  if (json.data?.productOptionCreate?.productOption) {
-    const option = json.data.productOptionCreate.productOption;
-    console.log(`Created product option: ${option.name} with ID: ${option.id}`);
-    return option;
-  } else if (json.data?.productOptionCreate?.userErrors) {
-    console.log(`User error creating product option: ${json.data.productOptionCreate.userErrors.map(e => e.message).join(", ")}`);
-    return null;
-  } else {
-    console.log("Unknown error creating product option:", JSON.stringify(json));
-    return null;
-  }
-}
 
 // Helper function to get product options
 async function getProductOptions(shop, accessToken, productId) {

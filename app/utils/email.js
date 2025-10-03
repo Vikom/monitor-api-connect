@@ -72,7 +72,6 @@ export async function sendPricelistEmail(customerEmail, customerCompany, attachm
               <ul>
                 <li><strong>Format:</strong> ${format.toUpperCase()}</li>
                 <li><strong>Antal produkter:</strong> ${priceData.length}</li>
-                <li><strong>Skapad:</strong> ${new Date().toLocaleDateString('sv-SE')} ${new Date().toLocaleTimeString('sv-SE')}</li>
               </ul>
             </div>
             
@@ -105,7 +104,6 @@ Din begärda prislista är nu klar och bifogad till detta e-postmeddelande.
 Prislistans innehåll:
 - Format: ${format.toUpperCase()}
 - Antal produkter: ${priceData.length}
-- Skapad: ${new Date().toLocaleDateString('sv-SE')} ${new Date().toLocaleTimeString('sv-SE')}
 
 Du hittar din prislista som bilaga till detta e-postmeddelande.
 
