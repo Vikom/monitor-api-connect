@@ -70,10 +70,10 @@ function setupCronJobs() {
   // });
 
   // Inventory sync every 30 minutes
-  // cron.schedule("*/30 * * * *", () => {
-  //   console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  //   runSyncJob("INVENTORY-SYNC", syncInventory);
-  // });
+  cron.schedule("*/30 * * * *", () => {
+    console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+    runSyncJob("INVENTORY-SYNC", syncInventory);
+  });
 
   // Product sync every hour (incremental)
   cron.schedule("0 * * * *", () => {

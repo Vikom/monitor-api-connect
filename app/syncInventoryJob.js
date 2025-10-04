@@ -577,7 +577,6 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
     return false;
   }
 
-  console.log(`    Successfully activated inventory at location`);
   return true;
 }
 
@@ -596,17 +595,13 @@ export async function syncInventory() {
 
       if (!shop || !accessToken) {
         console.log("❌ Advanced store configuration missing!");
-        console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
         return;
       }
-
-      console.log(`🔗 Using Advanced store: ${shop}`);
       
       // Validate the advanced store session
       const isValidSession = await validateSession(shop, accessToken);
       if (!isValidSession) {
         console.log("❌ Advanced store session is invalid.");
-        console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
         return;
       }
     } else {
@@ -616,7 +611,6 @@ export async function syncInventory() {
       
       if (!session) {
         console.log("No Shopify session found. Cannot sync inventory.");
-        console.log("Please visit your Shopify app to authenticate first.");
         return;
       }
 
@@ -630,19 +624,12 @@ export async function syncInventory() {
       const isValidSession = await validateSession(session.shop, session.accessToken);
       if (!isValidSession) {
         console.log("❌ Shopify session is invalid or expired.");
-        console.log("To fix this:");
-        console.log("1. Run 'npm run dev' to start the development server");
-        console.log("2. Visit the app in your browser to re-authenticate");
-        console.log("3. Once authenticated, you can run the sync job again");
         return;
       }
 
       shop = session.shop;
       accessToken = session.accessToken;
-      console.log(`🔗 Using development store: ${shop}`);
     }
-
-    console.log("✅ Store session is valid. Starting single test...");
     
     // Get 1 product from Shopify that has a monitor_id
     console.log("Fetching Shopify products with Monitor IDs...");
@@ -654,12 +641,10 @@ export async function syncInventory() {
     }
     
     const testProduct = shopifyProducts[0];
-    console.log(`🧪 Testing with Shopify product: ${testProduct.sku} (Monitor ID: ${testProduct.monitorId})`);
     
     try {
       // Get stock data for this product
       const allWarehouseStock = await getStockDataForAllWarehouses(testProduct.monitorId);
-      console.log(`📦 Current stock data:`, allWarehouseStock);
       
       // Get stock control data for this product
       const partData = await fetchPartByPartNumberFromMonitor(testProduct.sku);
@@ -668,12 +653,7 @@ export async function syncInventory() {
       // Determine stock status based on current stock and stock control
       const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
       
-      console.log('\n🎯 Generated Stock Control JSON:');
-      console.log(JSON.stringify(stockControlJson, null, 2));
-      console.log(`📊 Determined Stock Status: "${stockStatus}"`);
-      
       // Write metafields to Shopify
-      console.log('\n💾 Writing metafields to Shopify...');
       const metafieldSuccess = await updateVariantMetafields(
         shop,
         accessToken,
@@ -700,7 +680,7 @@ export async function syncInventory() {
           .join(', ');
         
         if (allUpdates) {
-          console.log(`📝 Updated metafields: ${allUpdates}`);
+          // console.log(`📝 Updated metafields: ${allUpdates}`);
         }
       } else {
         console.log('❌ Failed to update metafields in Shopify');
@@ -790,17 +770,13 @@ export async function syncInventory() {
 
     if (!shop || !accessToken) {
       console.log("❌ Advanced store configuration missing!");
-      console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
       return;
     }
-
-    console.log(`🔗 Using Advanced store: ${shop}`);
     
     // Validate the advanced store session
     const isValidSession = await validateSession(shop, accessToken);
     if (!isValidSession) {
       console.log("❌ Advanced store session is invalid.");
-      console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
       return;
     }
   } else {
@@ -810,7 +786,6 @@ export async function syncInventory() {
     
     if (!session) {
       console.log("No Shopify session found. Cannot sync inventory.");
-      console.log("Please visit your Shopify app to authenticate first.");
       return;
     }
 
@@ -824,10 +799,6 @@ export async function syncInventory() {
     const isValidSession = await validateSession(session.shop, session.accessToken);
     if (!isValidSession) {
       console.log("❌ Shopify session is invalid or expired.");
-      console.log("To fix this:");
-      console.log("1. Run 'npm run dev' to start the development server");
-      console.log("2. Visit the app in your browser to re-authenticate");
-      console.log("3. Once authenticated, you can run the sync job again");
       return;
     }
 
@@ -901,9 +872,6 @@ export async function syncInventory() {
         // Determine stock status based on current stock and stock control
         const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
         
-        console.log(`  Stock control: ${JSON.stringify(stockControlJson)}`);
-        console.log(`  Stock status: "${stockStatus}"`);
-        
         // Update variant metafields with stock data, stock control, and stock status
         const metafieldSuccess = await updateVariantMetafields(
           shop,
@@ -928,7 +896,7 @@ export async function syncInventory() {
             .join(', ');
           
           if (allUpdates) {
-            console.log(`  ✅ Updated metafields: ${allUpdates}`);
+            // console.log(`  ✅ Updated metafields: ${allUpdates}`);
           }
         } else {
           console.log(`  ⚠️  Failed to update metafields for ${displayName}`);
@@ -998,12 +966,6 @@ export async function syncInventory() {
     throw error;
   }
 }
-
-// Schedule to run every 30 minutes - now handled by main worker process
-// cron.schedule("*/30 * * * *", () => {
-//   console.log("[CRON] Syncing inventory from Monitor to Shopify...");
-//   syncInventory();
-// });
 
 // Only run when executed directly, not when imported
 if (import.meta.url === `file://${process.argv[1]}`) {
