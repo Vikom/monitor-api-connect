@@ -313,18 +313,27 @@ export async function action({ request }) {
             console.log(`🟦 Regular product: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
           }
           
-          // Create line item with variant_id AND custom pricing
-          // This approach should preserve the image while allowing custom pricing
+          // Create custom line item with custom pricing
+          // Cannot use variant_id with custom pricing - Shopify ignores the price
           const lineItem = {
-            variant_id: parseInt(item.variantId.replace('gid://shopify/ProductVariant/', '')),
-            quantity: apiQuantity,
+            title: `${item.productTitle}${item.variantTitle && item.variantTitle !== 'Default' ? ' - ' + item.variantTitle : ''}`,
             price: customPrice.toString(),
+            quantity: apiQuantity,
             taxable: true,
-            requires_shipping: true
+            requires_shipping: true,
+            vendor: item.vendor,
+            sku: item.sku,
+            grams: 600000 // Default weight
           };
           
           // Add custom properties to preserve decimal unit information and custom pricing
           const properties = [];
+          
+          // Always add variant ID for tracking
+          properties.push({
+            name: "_variant_id",
+            value: item.variantId.replace('gid://shopify/ProductVariant/', '')
+          });
           
           // Add decimal unit info if applicable
           if (item.isDecimalUnit) {
@@ -338,12 +347,18 @@ export async function action({ request }) {
             });
           }
           
-          // Add image fallback properties if needed
+          // Add image information as properties
           if (item.imageUrl) {
             properties.push({
               name: "_image_url",
               value: item.imageUrl
             });
+            if (item.imageAlt) {
+              properties.push({
+                name: "_image_alt",
+                value: item.imageAlt
+              });
+            }
           }
           
           if (properties.length > 0) {
