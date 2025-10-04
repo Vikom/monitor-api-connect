@@ -359,12 +359,22 @@
                                     {%- assign quantity_unit = 'items' -%}
                                     {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                       {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                      {%- if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
-                                        {%- assign is_decimal_unit = true -%}
-                                        {%- assign quantity_unit = unit -%}
-                                      {%- else -%}
-                                        {%- assign quantity_unit = unit -%}
-                                      {%- endif -%}
+                                      
+                                      {%- comment -%}
+                                      Use same logic as cart drawer: whitelist approach for whole number units
+                                      Units that require whole numbers: "st", "rle", "pkt", "pås", "Sk", "krt", "frp"
+                                      All other units (including "pal") are decimal units
+                                      {%- endcomment -%}
+                                      {%- assign whole_number_units = 'st,rle,pkt,pås,Sk,krt,frp' | split: ',' -%}
+                                      {%- assign is_decimal_unit = true -%}
+                                      {%- assign quantity_unit = unit -%}
+                                      
+                                      {%- for whole_unit in whole_number_units -%}
+                                        {%- if unit == whole_unit -%}
+                                          {%- assign is_decimal_unit = false -%}
+                                          {%- break -%}
+                                        {%- endif -%}
+                                      {%- endfor -%}
                                     {%- endif -%}
                                     
                                     <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
@@ -570,12 +580,20 @@
                                 {%- assign quantity_unit = 'items' -%}
                                 {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                   {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                  {%- if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
-                                    {%- assign is_decimal_unit = true -%}
-                                    {%- assign quantity_unit = unit -%}
-                                  {%- else -%}
-                                    {%- assign quantity_unit = unit -%}
-                                  {%- endif -%}
+                                  
+                                  {%- comment -%}
+                                  Use same logic as cart drawer: whitelist approach for whole number units
+                                  {%- endcomment -%}
+                                  {%- assign whole_number_units = 'st,rle,pkt,pås,Sk,krt,frp' | split: ',' -%}
+                                  {%- assign is_decimal_unit = true -%}
+                                  {%- assign quantity_unit = unit -%}
+                                  
+                                  {%- for whole_unit in whole_number_units -%}
+                                    {%- if unit == whole_unit -%}
+                                      {%- assign is_decimal_unit = false -%}
+                                      {%- break -%}
+                                    {%- endif -%}
+                                  {%- endfor -%}
                                 {%- endif -%}
                                 
                                 <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
@@ -716,11 +734,21 @@
                         <span class="font-body-bolder">
                           {%- liquid
                             assign is_decimal_unit = false
+                            assign quantity_unit = 'items'
                             if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value
                               assign unit = item.variant.metafields.custom.standard_unit.value
-                              if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l'
-                                assign is_decimal_unit = true
-                              endif
+                              assign quantity_unit = unit
+                              
+                              # Use same logic as cart drawer: whitelist approach for whole number units
+                              assign whole_number_units = 'st,rle,pkt,pås,Sk,krt,frp' | split: ','
+                              assign is_decimal_unit = true
+                              
+                              for whole_unit in whole_number_units
+                                if unit == whole_unit
+                                  assign is_decimal_unit = false
+                                  break
+                                endif
+                              endfor
                             endif
                             
                             if is_decimal_unit
@@ -1090,9 +1118,10 @@ document.addEventListener('DOMContentLoaded', () => {
           // Get metafields from pre-populated data
           const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
           
-          // Check if this is a decimal unit product using pre-populated metafields
+          // Check if this is a decimal unit product using same logic as Liquid template
+          const wholeNumberUnits = ['st', 'rle', 'pkt', 'pås', 'Sk', 'krt', 'frp'];
           const isDecimalUnit = itemMetafields.standardUnit && 
-            ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+            !wholeNumberUnits.includes(itemMetafields.standardUnit);
           
           console.log(`Variant ${item.variant_id} - Unit: ${itemMetafields.standardUnit}, IsDecimal: ${isDecimalUnit}, Quantity: ${item.quantity}`);
           
@@ -1132,6 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update line total (price × quantity) in the last column
             const lineTotalCell = cartRow.querySelector('.cart-item__total .font-body-bolder');
             if (lineTotalCell) {
+              // Use displayQuantity (already converted for decimal units)
               const lineTotal = priceData.price * displayQuantity;
               lineTotalCell.textContent = `${formatPrice(lineTotal)} kr`;
               console.log(`Updated line total for item ${itemNumber}: ${formatPrice(lineTotal)} kr (${priceData.price} × ${displayQuantity})`);
@@ -1244,10 +1274,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const items = cart.items.map((item, index) => {
             let actualQuantity = item.quantity;
             
-            // Check if this is a decimal product using pre-populated metafields
+            // Check if this is a decimal product using same logic as Liquid template
             const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+            const wholeNumberUnits = ['st', 'rle', 'pkt', 'pås', 'Sk', 'krt', 'frp'];
             const isDecimalUnit = itemMetafields.standardUnit && 
-              ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+              !wholeNumberUnits.includes(itemMetafields.standardUnit);
             
             if (isDecimalUnit) {
               // This is a decimal product, convert integer quantity back to decimal

@@ -863,6 +863,7 @@ window.cartItemsMetafields = {
     "{{ item.variant_id }}": {
       monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
       customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      standardUnit: "{{ item.variant.metafields.custom.standard_unit }}",
       {% assign is_outlet = false %}
       {% for collection in item.product.collections %}
         {% if collection.handle == 'outlet' %}
@@ -963,10 +964,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
+          // Get metafields from pre-populated data
+          const itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
+          
+          // Check if this is a decimal unit product using same logic as main cart
+          const wholeNumberUnits = ['st', 'rle', 'pkt', 'pås', 'Sk', 'krt', 'frp'];
+          const isDecimalUnit = itemMetafields.standardUnit && 
+            !wholeNumberUnits.includes(itemMetafields.standardUnit);
+          
           // Calculate actual quantity for decimal products
           let actualQuantity = item.quantity;
-          const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
-          if (quantityInput) {
+          if (isDecimalUnit) {
             // This is a decimal product, convert integer quantity back to decimal
             actualQuantity = item.quantity / 20.0; // Convert back from integer to decimal
           }
