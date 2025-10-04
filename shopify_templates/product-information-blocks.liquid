@@ -524,10 +524,39 @@
   <div class="product__block--divider-stock">
     <div class="product__divider no-empty"></div>
   </div>
-  <p class="product__inventory product__inventory--{{ inventory_status }} font-body-bolder">
-    <span class="product__inventory-icon"></span>
-    <span class="product__inventory-text">Totalt ({{ inventory_quantity }})</span>
-  </p>
+  
+  {%- if inventory_quantity == 0 -%}
+    {%- liquid
+      assign stock_control_json = current_variant.metafields.custom.stock_control
+      assign has_order_location = false
+      
+      if stock_control_json != blank
+        for warehouse in stock_control_json
+          if warehouse[1] == 'order'
+            assign has_order_location = true
+            break
+          endif
+        endfor
+      endif
+    -%}
+    
+    {%- if has_order_location -%}
+      <p class="product__inventory product__inventory--in-stock font-body-bolder">
+        <span class="product__inventory-icon"></span>
+        <span class="product__inventory-text">Beställningsvara</span>
+      </p>
+    {%- else -%}
+      <p class="product__inventory product__inventory--out-of-stock font-body-bolder">
+        <span class="product__inventory-icon"></span>
+        <span class="product__inventory-text">Slut i lager</span>
+      </p>
+    {%- endif -%}
+  {%- else -%}
+    <p class="product__inventory product__inventory--{{ inventory_status }} font-body-bolder">
+      <span class="product__inventory-icon"></span>
+      <span class="product__inventory-text">Totalt ({{ inventory_quantity }})</span>
+    </p>
+  {%- endif -%}
 </div>
 <!-- END: Custom stock output -->
 {%- comment -%}
