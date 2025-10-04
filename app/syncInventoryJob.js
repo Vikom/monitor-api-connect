@@ -584,84 +584,200 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
 export async function syncInventory() {
   // Handle single test mode
   if (isSingleTest) {
-    console.log('🧪 Single test mode - testing stock control logic');
+    console.log('🧪 Single test mode - testing stock control logic and writing to Shopify');
     
-    // Get 1 product from Monitor for testing
-    const testProducts = await fetchProductsFromMonitor();
-    if (testProducts.length === 0) {
-      console.log('❌ No products found for testing');
+    // Set up Shopify connection (same logic as main sync)
+    let shop, accessToken;
+
+    if (useAdvancedStore) {
+      // Use Advanced store configuration
+      shop = process.env.ADVANCED_STORE_DOMAIN;
+      accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+
+      if (!shop || !accessToken) {
+        console.log("❌ Advanced store configuration missing!");
+        console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
+        return;
+      }
+
+      console.log(`🔗 Using Advanced store: ${shop}`);
+      
+      // Validate the advanced store session
+      const isValidSession = await validateSession(shop, accessToken);
+      if (!isValidSession) {
+        console.log("❌ Advanced store session is invalid.");
+        console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
+        return;
+      }
+    } else {
+      // Use development store with OAuth (existing logic)
+      const prisma = (await import("./db.server.js")).default;
+      const session = await prisma.session.findFirst();
+      
+      if (!session) {
+        console.log("No Shopify session found. Cannot sync inventory.");
+        console.log("Please visit your Shopify app to authenticate first.");
+        return;
+      }
+
+      // Check if session has expired
+      if (session.expires && session.expires < new Date()) {
+        console.log("Shopify session has expired. Please re-authenticate your app.");
+        return;
+      }
+
+      // Validate the session by making a test API call
+      const isValidSession = await validateSession(session.shop, session.accessToken);
+      if (!isValidSession) {
+        console.log("❌ Shopify session is invalid or expired.");
+        console.log("To fix this:");
+        console.log("1. Run 'npm run dev' to start the development server");
+        console.log("2. Visit the app in your browser to re-authenticate");
+        console.log("3. Once authenticated, you can run the sync job again");
+        return;
+      }
+
+      shop = session.shop;
+      accessToken = session.accessToken;
+      console.log(`🔗 Using development store: ${shop}`);
+    }
+
+    console.log("✅ Store session is valid. Starting single test...");
+    
+    // Get 1 product from Shopify that has a monitor_id
+    console.log("Fetching Shopify products with Monitor IDs...");
+    const shopifyProducts = await getShopifyProductsWithMonitorIds(shop, accessToken);
+    
+    if (shopifyProducts.length === 0) {
+      console.log('❌ No Shopify products found with monitor_id metafields');
       return;
     }
     
-    const testProduct = testProducts[0];
-    console.log(`🧪 Testing with product: ${testProduct.sku} (${testProduct.name})`);
+    const testProduct = shopifyProducts[0];
+    console.log(`🧪 Testing with Shopify product: ${testProduct.sku} (Monitor ID: ${testProduct.monitorId})`);
     
-    // Test the new stock control logic
     try {
+      // Get stock data for this product
+      const allWarehouseStock = await getStockDataForAllWarehouses(testProduct.monitorId);
+      console.log(`📦 Current stock data:`, allWarehouseStock);
+      
+      // Get stock control data for this product
       const partData = await fetchPartByPartNumberFromMonitor(testProduct.sku);
-      if (partData) {
-        console.log('✅ Successfully fetched part data with planning information:');
-        console.log(`   Part ID: ${partData.Id}`);
-        console.log(`   Part Number: ${partData.PartNumber}`);
-        console.log(`   Description: ${partData.Description}`);
-        console.log(`   Planning Information:`, JSON.stringify(partData.PartPlanningInformations, null, 2));
+      const stockControlJson = partData ? generateStockControlJson(partData.PartPlanningInformations) : {};
+      
+      // Determine stock status based on current stock and stock control
+      const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
+      
+      console.log('\n🎯 Generated Stock Control JSON:');
+      console.log(JSON.stringify(stockControlJson, null, 2));
+      console.log(`📊 Determined Stock Status: "${stockStatus}"`);
+      
+      // Write metafields to Shopify
+      console.log('\n💾 Writing metafields to Shopify...');
+      const metafieldSuccess = await updateVariantMetafields(
+        shop,
+        accessToken,
+        testProduct.variantId,
+        allWarehouseStock,
+        stockControlJson,
+        stockStatus
+      );
+      
+      if (metafieldSuccess) {
+        console.log('✅ Successfully updated metafields in Shopify!');
         
-        // Generate and log the stock control JSON
-        const stockControlJson = generateStockControlJson(partData.PartPlanningInformations);
-        console.log('\n🎯 Generated Stock Control JSON:');
-        console.log(JSON.stringify(stockControlJson, null, 2));
+        // Show what was updated
+        const stockMetafieldUpdates = Object.entries(allWarehouseStock)
+          .filter(([warehouseId]) => WAREHOUSE_METAFIELD_MAPPING[warehouseId])
+          .map(([warehouseId, stock]) => `${WAREHOUSE_METAFIELD_MAPPING[warehouseId]}=${stock}`)
+          .join(', ');
         
-        // Show the LotSizingRule mapping for clarity
-        console.log('\n📋 LotSizingRule Analysis:');
-        partData.PartPlanningInformations.forEach(planningInfo => {
-          const warehouseId = planningInfo.WarehouseId;
-          const lotSizingRule = planningInfo.LotSizingRule;
-          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
-          
-          if (warehouseName) {
-            let controlValue;
-            if (lotSizingRule === 1 || lotSizingRule === 5) {
-              controlValue = 'order';
-            } else if (lotSizingRule === 2 || lotSizingRule === 3) {
-              controlValue = 'stock';
-            } else if (lotSizingRule === 4) {
-              controlValue = 'false';
-            } else {
-              controlValue = 'order (default)';
-            }
-            
-            console.log(`   ${warehouseName}: LotSizingRule ${lotSizingRule} → ${controlValue}`);
-          }
-        });
+        const controlUpdates = Object.keys(stockControlJson).length > 0 ? 'custom.stock_control=JSON' : '';
+        const statusUpdate = `custom.stock_status="${stockStatus}"`;
         
-        // Test stock status determination with mock stock data
-        console.log('\n📊 Stock Status Testing:');
+        const allUpdates = [stockMetafieldUpdates, controlUpdates, statusUpdate]
+          .filter(update => update !== '')
+          .join(', ');
         
-        // Test with no stock (empty stock data)
-        const noStockData = {};
-        const statusNoStock = determineStockStatus(noStockData, stockControlJson);
-        console.log(`   No stock + control JSON → "${statusNoStock}"`);
-        
-        // Test with some stock in one warehouse (using a warehouse ID from our mapping)
-        const someStockData = { '933125224426542349': 10 }; // Göteborg warehouse
-        const statusWithStock = determineStockStatus(someStockData, stockControlJson);
-        console.log(`   With stock (10 in göteborg) → "${statusWithStock}"`);
-        
-        // Test with stock control JSON having no 'order' values
-        const noOrderControlJson = { goteborg: 'stock', stockholm: 'false', lund: 'stock' };
-        const statusNoOrder = determineStockStatus(noStockData, noOrderControlJson);
-        console.log(`   No stock + no 'order' locations → "${statusNoOrder}"`);
-        
-        console.log('\n✅ Stock control and status logic ready for implementation!');
-        
+        if (allUpdates) {
+          console.log(`📝 Updated metafields: ${allUpdates}`);
+        }
       } else {
-        console.log('❌ No part data found');
+        console.log('❌ Failed to update metafields in Shopify');
       }
+      
+      // Also update Shopify inventory levels for each warehouse
+      console.log('\n📦 Updating Shopify inventory levels...');
+      
+      // Get Shopify locations with monitor_id mapping
+      const locations = await getShopifyLocations(shop, accessToken);
+      const locationMap = new Map();
+      
+      locations.forEach(location => {
+        if (location.monitorId) {
+          locationMap.set(location.monitorId, location);
+        }
+      });
+      
+      if (locationMap.size === 0) {
+        console.log("⚠️  No Shopify locations found with monitor_id metafields for inventory updates");
+      } else {
+        console.log(`Found ${locationMap.size} mapped locations`);
+        
+        let inventoryUpdated = false;
+        for (const [warehouseId, currentBalance] of Object.entries(allWarehouseStock)) {
+          console.log(`  Processing warehouse ${warehouseId} with balance: ${currentBalance}`);
+
+          // Find the corresponding Shopify location
+          const shopifyLocation = locationMap.get(warehouseId);
+          if (!shopifyLocation) {
+            console.log(`    ⚠️  No Shopify location mapped for Monitor warehouse ${warehouseId}`);
+            continue;
+          }
+
+          // Get inventory item ID for this variant
+          const inventoryItemId = await getInventoryItemId(shop, accessToken, testProduct.variantId);
+          if (!inventoryItemId) {
+            console.log(`    ❌ Could not get inventory item ID for variant ${testProduct.variantId}`);
+            continue;
+          }
+
+          // Ensure inventory item is stocked at location
+          const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
+          if (!isStocked) {
+            console.log(`    ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.id}`);
+            continue;
+          }
+
+          // Update inventory level in Shopify
+          const success = await updateShopifyInventoryLevel(
+            shop, 
+            accessToken, 
+            inventoryItemId, 
+            shopifyLocation.id, 
+            currentBalance
+          );
+
+          if (success) {
+            console.log(`    ✅ Updated inventory to ${Math.floor(currentBalance)} at location "${shopifyLocation.name}"`);
+            inventoryUpdated = true;
+          } else {
+            console.log(`    ❌ Failed to update inventory at location "${shopifyLocation.name}"`);
+          }
+        }
+        
+        if (inventoryUpdated) {
+          console.log('✅ Successfully updated inventory levels in Shopify!');
+        } else {
+          console.log('⚠️  No inventory levels were updated');
+        }
+      }
+      
     } catch (error) {
-      console.error('❌ Error testing stock control logic:', error);
+      console.error('❌ Error in single test:', error);
     }
     
-    console.log('🧪 Single test completed - exiting');
+    console.log('🧪 Single test completed');
     return;
   }
 
