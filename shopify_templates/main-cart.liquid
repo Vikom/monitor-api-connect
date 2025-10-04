@@ -1202,11 +1202,26 @@ document.addEventListener('DOMContentLoaded', () => {
           const cartResponse = await fetch('/cart.js');
           const cart = await cartResponse.json();
           
-          // Create items array
-          const items = cart.items.map(item => ({
-            variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
-            quantity: item.quantity
-          }));
+          // Create items array with corrected decimal quantities
+          const items = cart.items.map((item, index) => {
+            let actualQuantity = item.quantity;
+            
+            // Check if this is a decimal product using pre-populated metafields
+            const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
+            const isDecimalUnit = itemMetafields.standardUnit && 
+              ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+            
+            if (isDecimalUnit) {
+              // This is a decimal product, convert integer quantity back to decimal
+              actualQuantity = item.quantity / 20.0;
+              console.log(`Converting decimal quantity for ${item.variant_id}: ${item.quantity} -> ${actualQuantity} ${itemMetafields.standardUnit}`);
+            }
+            
+            return {
+              variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
+              quantity: actualQuantity
+            };
+          });
           
           console.log('Creating draft order with items:', items);
           
