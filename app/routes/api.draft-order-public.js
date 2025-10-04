@@ -66,7 +66,7 @@ export async function action({ request }) {
         const { variantId, quantity } = item;
         console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}`);
         
-        // Get variant details using GraphQL (this was working)
+        // Get variant details using GraphQL including image
         const variantQuery = `
           query getVariant($id: ID!) {
             productVariant(id: $id) {
@@ -74,6 +74,13 @@ export async function action({ request }) {
               title
               price
               sku
+              image {
+                id
+                url
+                altText
+                width
+                height
+              }
               metafields(first: 10) {
                 edges {
                   node {
@@ -90,6 +97,13 @@ export async function action({ request }) {
                 id
                 title
                 vendor
+                featuredImage {
+                  id
+                  url
+                  altText
+                  width
+                  height
+                }
                 collections(first: 50) {
                   edges {
                     node {
@@ -142,6 +156,14 @@ export async function action({ request }) {
         const displayQuantity = isDecimalUnit ? quantity / 20.0 : quantity;
         
         console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, StoredQty: ${quantity}, DisplayQty: ${displayQuantity}`);
+        
+        // Extract image information
+        const variantImage = variant.image;
+        const productImage = variant.product.featuredImage;
+        const imageUrl = variantImage?.url || productImage?.url;
+        const imageAlt = variantImage?.altText || productImage?.altText || variant.product.title;
+        
+        console.log(`🟦 Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
         
         // Get customer Monitor ID using GraphQL
         const customerQuery = `
@@ -222,10 +244,12 @@ export async function action({ request }) {
           sku: variant.sku || '',
           vendor: variant.product.vendor || 'Sonsab',
           standardUnit: standardUnit || 'st',
-          isDecimalUnit: isDecimalUnit
+          isDecimalUnit: isDecimalUnit,
+          imageUrl: imageUrl,
+          imageAlt: imageAlt
         });
         
-        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${quantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}`);
+        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${quantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
         
       } catch (error) {
         console.error(`🟦 Error processing item ${item.variantId}:`, error);
@@ -267,17 +291,44 @@ export async function action({ request }) {
             console.log(`🟦 Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${unitPrice} = ${roundedTotalPrice}`);
           }
           
-          // Create custom line item without variant_id to allow custom pricing
-          return {
-            custom: true,
-            title: `${item.productTitle} - ${item.variantTitle}`,
-            price: customPrice.toString(),
+          // Create line item with variant_id AND custom pricing
+          // This approach should preserve the image while allowing custom pricing
+          const lineItem = {
+            variant_id: item.variantId.replace('gid://shopify/ProductVariant/', ''),
             quantity: apiQuantity,
+            price: customPrice.toString(),
             taxable: true,
-            requires_shipping: true,
-            sku: item.sku,
-            vendor: item.vendor
+            requires_shipping: true
           };
+          
+          // Add custom properties to preserve decimal unit information and custom pricing
+          const properties = [];
+          
+          // Add decimal unit info if applicable
+          if (item.isDecimalUnit) {
+            properties.push({
+              name: "Enhet",
+              value: `${item.displayQuantity} ${item.standardUnit}`
+            });
+            properties.push({
+              name: "Anpassat pris",
+              value: "Ja - Dina priser tillämpade"
+            });
+          }
+          
+          // Add image fallback properties if needed
+          if (item.imageUrl) {
+            properties.push({
+              name: "_image_url",
+              value: item.imageUrl
+            });
+          }
+          
+          if (properties.length > 0) {
+            lineItem.properties = properties;
+          }
+          
+          return lineItem;
         })
       }
     };
