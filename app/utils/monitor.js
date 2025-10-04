@@ -243,6 +243,74 @@ class MonitorClient {
       return active && active.SelectedOptionId === "1062902127922128278";
     });
   }
+
+  /**
+   * Fetch a single part by PartNumber with planning information
+   * @param {string} partNumber - The part number to fetch
+   * @returns {Promise<Object|null>} The part data with planning information or null if not found
+   */
+  async fetchPartByPartNumber(partNumber) {
+    const sessionId = await this.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
+    url += `?$filter=PartNumber eq '${partNumber}'`;
+    url += '&$select=Id,PartNumber,Description,ExtraFields,PurchaseQuantityPerPackage,PartPlanningInformations';
+    url += '&$expand=PartPlanningInformations';
+    
+    console.log(`Fetching part by PartNumber: ${partNumber}`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchPartByPartNumber first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await this.login();
+      const newSessionId = await this.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchPartByPartNumber retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchPartByPartNumber failed after re-login");
+      }
+    }
+    
+    const parts = await res.json();
+    if (!Array.isArray(parts)) {
+      throw new Error("Monitor API returned unexpected data format for fetchPartByPartNumber");
+    }
+    
+    if (parts.length === 0) {
+      console.log(`No part found with PartNumber: ${partNumber}`);
+      return null;
+    }
+    
+    if (parts.length > 1) {
+      console.warn(`Multiple parts found with PartNumber: ${partNumber}, using first one`);
+    }
+    
+    const part = parts[0];
+    console.log(`Successfully fetched part: ${part.PartNumber} (ID: ${part.Id})`);
+    console.log(`PartPlanningInformations:`, JSON.stringify(part.PartPlanningInformations, null, 2));
+    
+    return part;
+  }
 }
 
 const monitorClient = new MonitorClient();
@@ -626,6 +694,15 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
 export async function fetchUsersFromMonitor() {
   // Wrapper for backward compatibility - now calls fetchCustomersFromMonitor
   return await fetchCustomersFromMonitor();
+}
+
+/**
+ * Fetch a single part by PartNumber with planning information from Monitor
+ * @param {string} partNumber - The part number to fetch
+ * @returns {Promise<Object|null>} The part data with planning information or null if not found
+ */
+export async function fetchPartByPartNumberFromMonitor(partNumber) {
+  return await monitorClient.fetchPartByPartNumber(partNumber);
 }
 
 export async function fetchStockTransactionsFromMonitor(partId) {

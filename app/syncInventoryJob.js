@@ -2,14 +2,18 @@ import "@shopify/shopify-api/adapters/node";
 // import cron from "node-cron"; // Now handled by main worker process
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
-import { fetchStockTransactionsFromMonitor } from "./utils/monitor.js";
+import { fetchStockTransactionsFromMonitor, fetchProductsFromMonitor, fetchPartByPartNumberFromMonitor } from "./utils/monitor.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const isSingleTest = args.includes('--single-test');
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+if (isSingleTest) {
+  console.log('🧪 Running in single test mode - no Shopify writes will be performed');
+}
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -34,8 +38,78 @@ const WAREHOUSE_METAFIELD_MAPPING = {
   '933126074830088482': 'custom.stock_stockholm'
 };
 
-// Helper function to update variant metafields with stock values
-async function updateVariantMetafields(shop, accessToken, variantId, stockData) {
+// Mapping of Monitor warehouse IDs to JSON property names (without custom. prefix)
+const WAREHOUSE_JSON_MAPPING = {
+  '933124852911871989': 'vittsjo',
+  '933124156053429919': 'ronas',
+  '1189106270728482943': 'lund',
+  '933126667535575191': 'sundsvall',
+  '933125224426542349': 'goteborg',
+  '933126074830088482': 'stockholm'
+};
+
+// Helper function to generate stock control JSON from PartPlanningInformations
+function generateStockControlJson(partPlanningInformations) {
+  const stockControl = {};
+  
+  if (!Array.isArray(partPlanningInformations)) {
+    return stockControl;
+  }
+  
+  // Process each planning information entry
+  partPlanningInformations.forEach(planningInfo => {
+    const warehouseId = planningInfo.WarehouseId;
+    const lotSizingRule = planningInfo.LotSizingRule;
+    
+    // Only process warehouses that are in our mapping
+    if (WAREHOUSE_JSON_MAPPING[warehouseId]) {
+      const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
+      
+      // Determine stock control value based on LotSizingRule
+      let controlValue;
+      if (lotSizingRule === 1 || lotSizingRule === 5) {
+        controlValue = 'order';
+      } else if (lotSizingRule === 2 || lotSizingRule === 3) {
+        controlValue = 'stock';
+      } else if (lotSizingRule === 4) {
+        controlValue = 'false';
+      } else {
+        // Default fallback for unknown rules
+        controlValue = 'order';
+      }
+      
+      stockControl[warehouseName] = controlValue;
+    }
+  });
+  
+  return stockControl;
+}
+
+// Helper function to determine stock status based on current stock and stock control settings
+function determineStockStatus(stockData, stockControlJson) {
+  // Check if there's stock in any of our tracked warehouses
+  const hasStockInAnyLocation = Object.entries(stockData).some(([warehouseId, stock]) => {
+    // Only check warehouses that are in our mapping
+    return WAREHOUSE_METAFIELD_MAPPING[warehouseId] && stock > 0;
+  });
+  
+  if (hasStockInAnyLocation) {
+    return 'I lager';
+  }
+  
+  // No stock - check if any location has 'order' in stock control
+  const hasOrderLocation = Object.values(stockControlJson).some(controlValue => controlValue === 'order');
+  
+  if (hasOrderLocation) {
+    return 'Beställningsvara';
+  }
+  
+  // No stock and no order locations - return empty string to clear the field
+  return '';
+}
+
+// Helper function to update variant metafields with stock values, stock control, and stock status
+async function updateVariantMetafields(shop, accessToken, variantId, stockData, stockControlJson, stockStatus) {
   const fetch = (await import('node-fetch')).default;
   
   // Prepare metafields array for each warehouse that has stock data
@@ -53,6 +127,24 @@ async function updateVariantMetafields(shop, accessToken, variantId, stockData) 
       });
     }
   }
+  
+  // Add stock_control JSON metafield if we have stock control data
+  if (stockControlJson && Object.keys(stockControlJson).length > 0) {
+    metafields.push({
+      namespace: "custom",
+      key: "stock_control",
+      value: JSON.stringify(stockControlJson),
+      type: "json"
+    });
+  }
+  
+  // Add stock_status metafield (always add this to ensure it's updated on each run)
+  metafields.push({
+    namespace: "custom",
+    key: "stock_status",
+    value: stockStatus || "", // Use empty string if stockStatus is falsy
+    type: "single_line_text_field"
+  });
   
   if (metafields.length === 0) {
     return true; // Nothing to update
@@ -490,6 +582,89 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
 }
 
 export async function syncInventory() {
+  // Handle single test mode
+  if (isSingleTest) {
+    console.log('🧪 Single test mode - testing stock control logic');
+    
+    // Get 1 product from Monitor for testing
+    const testProducts = await fetchProductsFromMonitor();
+    if (testProducts.length === 0) {
+      console.log('❌ No products found for testing');
+      return;
+    }
+    
+    const testProduct = testProducts[0];
+    console.log(`🧪 Testing with product: ${testProduct.sku} (${testProduct.name})`);
+    
+    // Test the new stock control logic
+    try {
+      const partData = await fetchPartByPartNumberFromMonitor(testProduct.sku);
+      if (partData) {
+        console.log('✅ Successfully fetched part data with planning information:');
+        console.log(`   Part ID: ${partData.Id}`);
+        console.log(`   Part Number: ${partData.PartNumber}`);
+        console.log(`   Description: ${partData.Description}`);
+        console.log(`   Planning Information:`, JSON.stringify(partData.PartPlanningInformations, null, 2));
+        
+        // Generate and log the stock control JSON
+        const stockControlJson = generateStockControlJson(partData.PartPlanningInformations);
+        console.log('\n🎯 Generated Stock Control JSON:');
+        console.log(JSON.stringify(stockControlJson, null, 2));
+        
+        // Show the LotSizingRule mapping for clarity
+        console.log('\n📋 LotSizingRule Analysis:');
+        partData.PartPlanningInformations.forEach(planningInfo => {
+          const warehouseId = planningInfo.WarehouseId;
+          const lotSizingRule = planningInfo.LotSizingRule;
+          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
+          
+          if (warehouseName) {
+            let controlValue;
+            if (lotSizingRule === 1 || lotSizingRule === 5) {
+              controlValue = 'order';
+            } else if (lotSizingRule === 2 || lotSizingRule === 3) {
+              controlValue = 'stock';
+            } else if (lotSizingRule === 4) {
+              controlValue = 'false';
+            } else {
+              controlValue = 'order (default)';
+            }
+            
+            console.log(`   ${warehouseName}: LotSizingRule ${lotSizingRule} → ${controlValue}`);
+          }
+        });
+        
+        // Test stock status determination with mock stock data
+        console.log('\n📊 Stock Status Testing:');
+        
+        // Test with no stock (empty stock data)
+        const noStockData = {};
+        const statusNoStock = determineStockStatus(noStockData, stockControlJson);
+        console.log(`   No stock + control JSON → "${statusNoStock}"`);
+        
+        // Test with some stock in one warehouse (using a warehouse ID from our mapping)
+        const someStockData = { '933125224426542349': 10 }; // Göteborg warehouse
+        const statusWithStock = determineStockStatus(someStockData, stockControlJson);
+        console.log(`   With stock (10 in göteborg) → "${statusWithStock}"`);
+        
+        // Test with stock control JSON having no 'order' values
+        const noOrderControlJson = { goteborg: 'stock', stockholm: 'false', lund: 'stock' };
+        const statusNoOrder = determineStockStatus(noStockData, noOrderControlJson);
+        console.log(`   No stock + no 'order' locations → "${statusNoOrder}"`);
+        
+        console.log('\n✅ Stock control and status logic ready for implementation!');
+        
+      } else {
+        console.log('❌ No part data found');
+      }
+    } catch (error) {
+      console.error('❌ Error testing stock control logic:', error);
+    }
+    
+    console.log('🧪 Single test completed - exiting');
+    return;
+  }
+
   let shop, accessToken;
 
   if (useAdvancedStore) {
@@ -603,22 +778,41 @@ export async function syncInventory() {
 
         console.log(`  Found stock data for warehouses: ${Object.keys(allWarehouseStock).join(', ')}`);
 
-        // Update variant metafields with stock data from all warehouses
+        // Get stock control data for this product
+        const partData = await fetchPartByPartNumberFromMonitor(product.sku);
+        const stockControlJson = partData ? generateStockControlJson(partData.PartPlanningInformations) : {};
+        
+        // Determine stock status based on current stock and stock control
+        const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
+        
+        console.log(`  Stock control: ${JSON.stringify(stockControlJson)}`);
+        console.log(`  Stock status: "${stockStatus}"`);
+        
+        // Update variant metafields with stock data, stock control, and stock status
         const metafieldSuccess = await updateVariantMetafields(
           shop,
           accessToken,
           product.variantId,
-          allWarehouseStock
+          allWarehouseStock,
+          stockControlJson,
+          stockStatus
         );
 
         if (metafieldSuccess) {
-          const metafieldUpdates = Object.entries(allWarehouseStock)
+          const stockMetafieldUpdates = Object.entries(allWarehouseStock)
             .filter(([warehouseId]) => WAREHOUSE_METAFIELD_MAPPING[warehouseId])
             .map(([warehouseId, stock]) => `${WAREHOUSE_METAFIELD_MAPPING[warehouseId]}=${stock}`)
             .join(', ');
           
-          if (metafieldUpdates) {
-            console.log(`  ✅ Updated metafields: ${metafieldUpdates}`);
+          const controlUpdates = Object.keys(stockControlJson).length > 0 ? 'custom.stock_control=JSON' : '';
+          const statusUpdate = `custom.stock_status="${stockStatus}"`;
+          
+          const allUpdates = [stockMetafieldUpdates, controlUpdates, statusUpdate]
+            .filter(update => update !== '')
+            .join(', ');
+          
+          if (allUpdates) {
+            console.log(`  ✅ Updated metafields: ${allUpdates}`);
           }
         } else {
           console.log(`  ⚠️  Failed to update metafields for ${displayName}`);
