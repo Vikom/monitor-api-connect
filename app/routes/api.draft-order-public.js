@@ -285,7 +285,7 @@ export async function action({ request }) {
     const draftOrderPayload = {
       draft_order: {
         customer: {
-          id: customerId.replace('gid://shopify/Customer/', '')
+          id: parseInt(customerId.replace('gid://shopify/Customer/', ''))
         },
         line_items: lineItems.map(item => {
           let customPrice = parseFloat(item.customPrice);
@@ -316,7 +316,7 @@ export async function action({ request }) {
           // Create line item with variant_id AND custom pricing
           // This approach should preserve the image while allowing custom pricing
           const lineItem = {
-            variant_id: item.variantId.replace('gid://shopify/ProductVariant/', ''),
+            variant_id: parseInt(item.variantId.replace('gid://shopify/ProductVariant/', '')),
             quantity: apiQuantity,
             price: customPrice.toString(),
             taxable: true,
