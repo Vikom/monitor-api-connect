@@ -1288,11 +1288,10 @@ document.addEventListener('DOMContentLoaded', () => {
           
         } catch (error) {
           console.error('Draft order creation failed:', error);
-          // Restore button and fallback to normal checkout
+          // Restore button and show error message
           btnText.innerHTML = originalText;
           checkoutBtn.disabled = false;
-          alert('Kunde inte tillämpa dina priser. Försöker med vanlig checkout...');
-          window.location.href = '/checkout';
+          alert('Något blev fel, försök igen senare.');
         }
       } else {
         console.log('No customer logged in, allowing normal checkout');

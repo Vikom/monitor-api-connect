@@ -274,14 +274,21 @@ export async function action({ request }) {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use original integer quantity
           
-          // For decimal products, use the display quantity and unit price
+          // For decimal products, use quantity 1 and calculate total price
           if (item.isDecimalUnit) {
-            // Use the display quantity (e.g., 0.25) as the actual quantity
+            // Calculate the total price for the decimal quantity
+            // displayQuantity is the actual amount (e.g., 0.25)
             // customPrice should be the unit price per unit (e.g., per meter)
-            apiQuantity = item.displayQuantity; // Use display quantity (0.25)
-            // customPrice stays as unit price - Shopify will calculate line total
+            const unitPrice = customPrice;
+            const totalPrice = unitPrice * item.displayQuantity;
             
-            console.log(`🟦 Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${customPrice} (unit price)`);
+            // Round to 2 decimal places for Swedish currency
+            const roundedTotalPrice = Math.round(totalPrice * 100) / 100;
+            
+            apiQuantity = 1; // Always use quantity 1 for decimal products
+            customPrice = roundedTotalPrice; // Set the total as the line price
+            
+            console.log(`🟦 Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${unitPrice} = ${roundedTotalPrice}`);
           }
           
           // Create line item with variant_id AND custom pricing
