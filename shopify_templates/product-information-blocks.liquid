@@ -531,14 +531,29 @@
       assign has_order_location = false
       
       if stock_control_json != blank
-        for warehouse in stock_control_json
-          if warehouse[1] == 'order'
-            assign has_order_location = true
-            break
-          endif
-        endfor
+        assign stock_control_str = stock_control_json | append: ''
+        if stock_control_str contains 'vittsjo":"order'
+          assign has_order_location = true
+        endif
+        if stock_control_str contains 'ronas":"order'
+          assign has_order_location = true
+        endif
+        if stock_control_str contains 'stockholm":"order'
+          assign has_order_location = true
+        endif
+        if stock_control_str contains 'goteborg":"order'
+          assign has_order_location = true
+        endif
+        if stock_control_str contains 'sundsvall":"order'
+          assign has_order_location = true
+        endif
+        if stock_control_str contains 'lund":"order'
+          assign has_order_location = true
+        endif
       endif
     -%}
+    <!-- Debug: stock_control_json = {{ stock_control_json }} -->
+    <!-- Debug: has_order_location = {{ has_order_location }} -->
     
     {%- if has_order_location -%}
       <p class="product__inventory product__inventory--in-stock font-body-bolder">
