@@ -152,8 +152,9 @@ export async function action({ request }) {
         const standardUnit = variant.standardUnitMetafield?.value;
         const isDecimalUnit = standardUnit && ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
         
-        // Convert quantity for decimal products (stored as integer × 20, need to display as decimal)
-        const displayQuantity = isDecimalUnit ? quantity / 20.0 : quantity;
+        // Quantity is already converted in frontend for decimal products
+        // Frontend sends actualQuantity = item.quantity / 20.0 for decimal products
+        const displayQuantity = quantity;
         
         console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, StoredQty: ${quantity}, DisplayQty: ${displayQuantity}`);
         
@@ -222,16 +223,24 @@ export async function action({ request }) {
         });
         
         let finalPrice = parseFloat(variant.price);
+        console.log(`🟦 Base variant price: ${variant.price} -> parsed: ${finalPrice}`);
+        
         if (pricingResponse.ok) {
           const pricingData = await pricingResponse.json();
-          if (pricingData.price !== null && pricingData.price !== undefined) {
+          console.log(`🟦 Pricing API response:`, pricingData);
+          if (pricingData.price !== null && pricingData.price !== undefined && pricingData.price > 0) {
             finalPrice = pricingData.price;
             console.log(`🟦 Got dynamic price: ${finalPrice} (was ${variant.price})`);
           } else {
-            console.log(`🟦 Using original price: ${finalPrice}`);
+            console.log(`🟦 Using original price: ${finalPrice} (pricing data price was ${pricingData.price})`);
           }
         } else {
-          console.log(`🟦 Pricing API error, using original price: ${finalPrice}`);
+          const errorText = await pricingResponse.text();
+          console.log(`🟦 Pricing API error ${pricingResponse.status}: ${errorText}, using original price: ${finalPrice}`);
+        }
+        
+        if (finalPrice <= 0) {
+          console.warn(`🟦 Warning: Final price is ${finalPrice} for variant ${variantId}`);
         }
         
         lineItems.push({
