@@ -1007,6 +1007,7 @@ window.cartItemsMetafields = {
 
 // Enhanced checkout for dynamic pricing - Cart Page
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded - initializing cart checkout interception');
   // Helper function to format price with Swedish comma decimal separator
   function formatPrice(price) {
     return price.toFixed(2).replace('.', ',');
@@ -1167,27 +1168,64 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (checkoutBtn) {
     console.log('Found checkout button:', checkoutBtn);
+    console.log('Customer object:', window.customer);
+    console.log('Customer ID:', window.customer?.id);
     
-    // Use both click and form submit event handlers for maximum compatibility
+    // Mark as intercepted
+    checkoutBtn.setAttribute('data-checkout-intercepted', 'true');
+    
+    // Strategy 4: Direct onclick handler (as backup)
+    const originalOnClick = checkoutBtn.onclick;
+    checkoutBtn.onclick = async function(e) {
+      console.log('Direct onclick handler fired');
+      console.log('Customer check in onclick:', window.customer?.id);
+      await handleCheckoutInterception(e);
+      if (originalOnClick) originalOnClick.call(this, e);
+    };
+    
+    // Use multiple event handling strategies for maximum compatibility
+    
+    // Strategy 1: Capture phase click event (fires before other handlers)
     checkoutBtn.addEventListener('click', async (e) => {
-      console.log('Checkout button click event fired');
+      console.log('Capture phase click event fired');
+      console.log('Customer check in capture click:', window.customer?.id);
+      await handleCheckoutInterception(e);
+    }, { capture: true });
+    
+    // Strategy 2: Normal click event 
+    checkoutBtn.addEventListener('click', async (e) => {
+      console.log('Normal click event fired');
+      console.log('Customer check in normal click:', window.customer?.id);
       await handleCheckoutInterception(e);
     });
     
-    // Also intercept form submission
+    // Strategy 3: Form submission interception
     const cartForm = document.getElementById('cart');
     if (cartForm) {
       cartForm.addEventListener('submit', async (e) => {
-        console.log('Cart form submit event fired');
+        console.log('Form submit event fired');
+        console.log('Customer check in submit:', window.customer?.id);
         await handleCheckoutInterception(e);
-      });
+      }, { capture: true });
     }
     
     async function handleCheckoutInterception(e) {
+      console.log('handleCheckoutInterception called');
+      console.log('Event type:', e.type);
+      console.log('Event target:', e.target);
+      console.log('window.customer:', window.customer);
+      console.log('window.customer?.id:', window.customer?.id);
+      
       if (window.customer?.id) {
+        console.log('Customer found, preventing default checkout');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+        
+        // Additional prevention methods
+        if (e.returnValue !== undefined) {
+          e.returnValue = false;
+        }
         
         console.log('Checkout intercepted! Creating draft order...');
         
@@ -1242,6 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
             console.log('Success! Redirecting to invoice:', result.draftOrder.invoiceUrl);
             window.location.href = result.draftOrder.invoiceUrl;
+            return false; // Prevent any further form submission
           } else {
             console.error('No invoice URL in response:', result);
             throw new Error('No invoice URL received: ' + JSON.stringify(result));
@@ -1257,9 +1296,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } else {
         console.log('No customer logged in, allowing normal checkout');
+        console.log('Customer object was:', window.customer);
         // Let normal checkout proceed for guests
+        // Don't prevent default here - let the form submit normally
       }
     }
+  } else {
+    console.error('Checkout button not found! Selector: button[name="checkout"][form="cart"]');
+  }
+});
+
+// Backup initialization on window load in case DOMContentLoaded was too early
+window.addEventListener('load', () => {
+  console.log('Window load - backup checkout interception setup');
+  
+  // Only run if the checkout button wasn't already found
+  const existingBtn = document.querySelector('button[name="checkout"][form="cart"]');
+  if (existingBtn && !existingBtn.hasAttribute('data-checkout-intercepted')) {
+    console.log('Setting up backup checkout interception');
+    existingBtn.setAttribute('data-checkout-intercepted', 'true');
+    
+    existingBtn.addEventListener('click', async (e) => {
+      console.log('Backup checkout button click event fired');
+      if (window.customer?.id) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        console.log('Backup interception successful');
+        window.location.href = '/checkout'; // Fallback for now
+      }
+    });
   }
 });
 </script>
