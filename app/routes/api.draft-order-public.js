@@ -243,6 +243,14 @@ export async function action({ request }) {
           console.warn(`🟦 Warning: Final price is ${finalPrice} for variant ${variantId}`);
         }
         
+        console.log(`🟦 Final price before adding to lineItems: ${finalPrice} for variant ${variantId}`);
+        console.log(`🟦 Converting to customPrice string: "${finalPrice.toString()}"`);
+        
+        // Additional logging for pricing data integrity
+        if (typeof finalPrice !== 'number') {
+          console.error(`🟦 ERROR: finalPrice is not a number! Type: ${typeof finalPrice}, Value: ${finalPrice}`);
+        }
+        
         lineItems.push({
           variantId: variantId,
           quantity: quantity, // Keep original integer quantity for API
@@ -283,6 +291,8 @@ export async function action({ request }) {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use original integer quantity
           
+          console.log(`🟦 MAPPING ITEM: variant ${item.variantId}, customPrice from item: "${item.customPrice}", parsed: ${customPrice}, isDecimalUnit: ${item.isDecimalUnit}`);
+          
           // For decimal products, use quantity 1 and calculate total price
           if (item.isDecimalUnit) {
             // Calculate the total price for the decimal quantity
@@ -298,6 +308,9 @@ export async function action({ request }) {
             customPrice = roundedTotalPrice; // Set the total as the line price
             
             console.log(`🟦 Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${unitPrice} = ${roundedTotalPrice}`);
+            console.log(`🟦 Decimal product final: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
+          } else {
+            console.log(`🟦 Regular product: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
           }
           
           // Create line item with variant_id AND custom pricing
