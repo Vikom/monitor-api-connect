@@ -150,7 +150,7 @@ export async function action({ request }) {
         
         // Extract standard unit to determine if this is a decimal product
         const standardUnit = variant.standardUnitMetafield?.value;
-        const isDecimalUnit = standardUnit && ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
+        const isDecimalUnit = standardUnit && ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
         
         // Convert quantity for decimal products (stored as integer × 20, need to display as decimal)
         const displayQuantity = isDecimalUnit ? quantity / 20.0 : quantity;

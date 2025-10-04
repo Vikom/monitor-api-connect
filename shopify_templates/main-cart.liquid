@@ -359,7 +359,7 @@
                                     {%- assign quantity_unit = 'items' -%}
                                     {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                       {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                      {%- if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
+                                      {%- if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
                                         {%- assign is_decimal_unit = true -%}
                                         {%- assign quantity_unit = unit -%}
                                       {%- else -%}
@@ -570,7 +570,7 @@
                                 {%- assign quantity_unit = 'items' -%}
                                 {%- if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value -%}
                                   {%- assign unit = item.variant.metafields.custom.standard_unit.value -%}
-                                  {%- if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
+                                  {%- if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l' -%}
                                     {%- assign is_decimal_unit = true -%}
                                     {%- assign quantity_unit = unit -%}
                                   {%- else -%}
@@ -718,7 +718,7 @@
                             assign is_decimal_unit = false
                             if item.variant.metafields.custom.standard_unit and item.variant.metafields.custom.standard_unit.value
                               assign unit = item.variant.metafields.custom.standard_unit.value
-                              if unit == 'lm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l'
+                              if unit == 'lm' or unit == 'm' or unit == 'm2' or unit == 'm²' or unit == 'm3' or unit == 'm³' or unit == 'kg' or unit == 'l'
                                 assign is_decimal_unit = true
                               endif
                             endif
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Check if this is a decimal unit product using pre-populated metafields
           const isDecimalUnit = itemMetafields.standardUnit && 
-            ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+            ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
           
           console.log(`Variant ${item.variant_id} - Unit: ${itemMetafields.standardUnit}, IsDecimal: ${isDecimalUnit}, Quantity: ${item.quantity}`);
           
@@ -1209,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if this is a decimal product using pre-populated metafields
             const itemMetafields = window.cartItemsMetafields[item.variant_id] || {};
             const isDecimalUnit = itemMetafields.standardUnit && 
-              ['lm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
+              ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(itemMetafields.standardUnit);
             
             if (isDecimalUnit) {
               // This is a decimal product, convert integer quantity back to decimal
