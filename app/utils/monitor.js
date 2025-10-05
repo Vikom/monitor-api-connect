@@ -569,20 +569,73 @@ export async function fetchCustomersFromMonitor() {
         agent,
       });
       
-      if (res.status !== 200) {/* Lines 470-489 omitted */}
+      if (res.status !== 200) {
+        const errorBody = await res.text();
+        console.error(`Monitor API fetchCustomers first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+        // Try to re-login and retry once
+        await monitorClient.login();
+        const newSessionId = await monitorClient.getSessionId();
+        res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": newSessionId,
+          },
+          agent,
+        });
+        if (res.status !== 200) {
+          const retryErrorBody = await res.text();
+          console.error(`Monitor API fetchCustomers retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+          throw new Error("Monitor API fetchCustomers failed after re-login");
+        }
+      }
       
       const customers = await res.json();
-      if (!Array.isArray(customers)) {/* Lines 493-494 omitted */}
+      if (!Array.isArray(customers)) {
+        throw new Error("Monitor API returned unexpected data format");
+      }
       
       allCustomers = allCustomers.concat(customers);
       
-      if (customers.length < pageSize) {/* Lines 499-500 omitted */} else {/* Lines 501-502 omitted */}
+      if (customers.length < pageSize) {
+        keepFetching = false;
+      } else {
+        skip += pageSize;
+      }
     }
     
     // Transform Monitor customers/references into Shopify customer format
     const shopifyCustomers = [];
-    
-    for (const monitorCustomer of allCustomers) {/* Lines 509-536 omitted */}
+
+    for (const monitorCustomer of allCustomers) {
+      if (monitorCustomer.References && Array.isArray(monitorCustomer.References)) {
+        for (const reference of monitorCustomer.References) {
+          shopifyCustomers.push({
+            monitorId: monitorCustomer.Id,
+            email: reference.EmailAddress || "",
+            firstName: reference.FirstName || "",
+            lastName: reference.LastName || "",
+            phone: reference.CellPhone || reference.Phone || "",
+            company: monitorCustomer.CompanyName || "",
+            discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
+            note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
+          });
+        }
+      } else {
+        // Handle customers without references
+        shopifyCustomers.push({
+          monitorId: monitorCustomer.Id,
+          email: monitorCustomer.Email || "",
+          firstName: monitorCustomer.FirstName || "",
+          lastName: monitorCustomer.LastName || "",
+          phone: monitorCustomer.Phone || "",
+          company: monitorCustomer.CompanyName || "",
+          discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
+          note: `Monitor Customer ID: ${monitorCustomer.Id}`,
+        });
+      }
+    }
     
     console.log(`Processed ${allCustomers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
     
@@ -665,6 +718,7 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
             lastName: reference.LastName || "",
             phone: reference.CellPhone || reference.Phone || "",
             company: monitorCustomer.CompanyName || "",
+            discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
             note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
           });
         }
@@ -677,6 +731,7 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
           lastName: monitorCustomer.LastName || "",
           phone: monitorCustomer.Phone || "",
           company: monitorCustomer.CompanyName || "",
+          discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
           note: `Monitor Customer ID: ${monitorCustomer.Id}`,
         });
       }

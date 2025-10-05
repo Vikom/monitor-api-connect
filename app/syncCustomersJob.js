@@ -248,6 +248,12 @@ export async function syncCustomers(isIncrementalSync = false) {
           },
           {
             namespace: "custom",
+            key: "discount_category",
+            value: customer.discountCategoryId?.toString() || "",
+            type: "single_line_text_field"
+          },
+          {
+            namespace: "custom",
             key: "company",
             value: customer.company,
             type: "single_line_text_field"
