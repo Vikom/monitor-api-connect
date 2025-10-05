@@ -1004,6 +1004,19 @@
     {% comment %} {%- endif -%} {% endcomment %}
   </div>
   <!-- START: Dynamic pricing -->
+<style>
+/* Hide cart prices initially until dynamic pricing loads (or keep hidden for non-logged-in customers) */
+.cart .cart-item__prices .price,
+.cart .cart-item__total .font-body-bolder,
+.cart .totals__subtotal-value {
+  visibility: hidden;
+}
+
+/* Show prices for f-price--loading elements when they're made visible via JS */
+.cart .price.f-price--loading {
+  visibility: hidden !important;
+}
+</style>
   {% if customer %}
 <script>
 // Set up customer object first
@@ -1044,12 +1057,75 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cache to prevent multiple API calls for the same variant
   const priceCache = new Map();
   
+  // Helper function to set loading state for cart prices
+  function setCartPricesLoading() {
+    if (!window.customer?.id) return;
+    
+    console.log('Setting cart prices loading state...');
+    
+    // Simply hide all cart price elements until they load
+    const cartRows = document.querySelectorAll('tr[id^="CartItem-"]');
+    console.log(`Found ${cartRows.length} cart rows`);
+    
+    cartRows.forEach((row, index) => {
+      const priceElements = row.querySelectorAll('.cart-item__prices .price');
+      priceElements.forEach((priceElement) => {
+        priceElement.classList.add('f-price--loading');
+        priceElement.style.visibility = 'hidden';
+      });
+      
+      // Hide line totals
+      const lineTotalCell = row.querySelector('.cart-item__total .font-body-bolder');
+      if (lineTotalCell) {
+        lineTotalCell.style.visibility = 'hidden';
+      }
+    });
+    
+    // Hide cart total while loading
+    const totalElement = document.querySelector('.totals__subtotal-value');
+    if (totalElement) {
+      totalElement.style.visibility = 'hidden';
+    }
+  }
+  
+  // Helper function to show prices after loading
+  function showCartPrices() {
+    console.log('Showing cart prices...');
+    
+    const cartRows = document.querySelectorAll('tr[id^="CartItem-"]');
+    cartRows.forEach((row) => {
+      const priceElements = row.querySelectorAll('.cart-item__prices .price');
+      priceElements.forEach((priceElement) => {
+        priceElement.classList.remove('f-price--loading');
+        priceElement.style.visibility = 'visible';
+      });
+      
+      // Show line totals
+      const lineTotalCell = row.querySelector('.cart-item__total .font-body-bolder');
+      if (lineTotalCell) {
+        lineTotalCell.style.visibility = 'visible';
+      }
+    });
+    
+    // Show cart total
+    const totalElement = document.querySelector('.totals__subtotal-value');
+    if (totalElement) {
+      totalElement.style.visibility = 'visible';
+    }
+  }
+  
   // Function to update cart prices
   async function updateCartPrices() {
-    if (!window.customer?.id) return;
+    if (!window.customer?.id) {
+      // For non-logged-in customers, hide all prices - no pricing available
+      return;
+    }
     
     console.log('Updating cart page prices...');
     console.log('Cart metafields data:', window.cartItemsMetafields);
+    
+    // Set loading state first
+    setCartPricesLoading();
     
     try {
       // Get cart items
@@ -1179,13 +1255,25 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Updated cart total: ${formatPrice(cartTotal)} kr`);
       }
       
+      // Remove loading state and show all prices
+      showCartPrices();
+      
     } catch (error) {
       console.error('Error updating cart prices:', error);
+      // Show prices even on error to prevent permanent hidden state
+      showCartPrices();
     }
   }
   
-  // Initial update
-  setTimeout(updateCartPrices, 500);
+  // Initial setup
+  if (!window.customer?.id) {
+    // For non-logged-in customers, keep prices hidden - no pricing available
+    console.log('Non-logged-in customer - prices will remain hidden');
+  } else {
+    // For logged-in customers, update prices with loading state
+    console.log('Customer found, starting price update in 2 seconds...');
+    setTimeout(updateCartPrices, 2000); // Increased delay to see spinners
+  }
   
   // Update when cart items change
   document.addEventListener('cart:updated', () => {
