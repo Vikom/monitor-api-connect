@@ -1,7 +1,5 @@
 /**
  * Client-side helper for calling the pricing API
- * This can be used in your Shopify theme
- * Note: All customers must be logged in - no anonymous pricing supported
  */
 
 /**
@@ -31,11 +29,6 @@ async function getCustomerPrice(variantId, customerId, monitorId = null) {
       customerMonitorId: window.customerMonitorId || null
     };
 
-    // console.log('=== API REQUEST DEBUG ===');
-    // console.log('API URL:', apiUrl);
-    // console.log('Request body:', requestBody);
-    // console.log('=== END API REQUEST DEBUG ===');
-
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -43,10 +36,6 @@ async function getCustomerPrice(variantId, customerId, monitorId = null) {
       },
       body: JSON.stringify(requestBody)
     });
-
-    // console.log('=== API RESPONSE DEBUG ===');
-    // console.log('Response status:', response.status);
-    // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -55,8 +44,6 @@ async function getCustomerPrice(variantId, customerId, monitorId = null) {
     }
 
     const data = await response.json();
-    // console.log('Response data:', data);
-    // console.log('=== END API RESPONSE DEBUG ===');
     
     return data;
   } catch (error) {
@@ -268,7 +255,7 @@ function disableAddToCartButton() {
 }
 
 /**
- * Simple price formatter (you may want to use your shop's actual formatter)
+ * Simple price formatter
  * @param {number} price - Price in shop's base currency
  * @returns {string} Formatted price string
  */
@@ -281,33 +268,6 @@ function formatPrice(price) {
     maximumFractionDigits: 2
   }).format(price);
 }
-
-/**
- * Example usage in a Shopify theme:
- * 
- * // On product page - customer must be logged in
- * window.addEventListener('DOMContentLoaded', async () => {
- *   if (!window.customer?.id) {
- *     console.log('Customer not logged in - no pricing available');
- *     return;
- *   }
- *   
- *   const variantId = 'gid://shopify/ProductVariant/123456789';
- *   const customerId = `gid://shopify/Customer/${window.customer.id}`;
- *   
- *   await updatePriceDisplay(variantId, '.price', customerId);
- * });
- * 
- * // On variant change
- * document.addEventListener('variant:change', async (event) => {
- *   if (!window.customer?.id) return;
- *   
- *   const variantId = event.detail.variantId;
- *   const customerId = `gid://shopify/Customer/${window.customer.id}`;
- *   
- *   await updatePriceDisplay(variantId, '.price', customerId);
- * });
- */
 
 // Make functions available globally for Shopify themes
 window.getCustomerPrice = getCustomerPrice;

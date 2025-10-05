@@ -212,6 +212,15 @@ async function generateMetafieldsForVariation(variation) {
     }
   }
 
+  if (variation.partCodeId) {
+    metafields.push({
+      namespace: "custom",
+      key: "partcode_id",
+      value: variation.partCodeId,
+      type: "single_line_text_field"
+    });
+  }
+
   // Fetch ARTFSC data if the variation has the ARTFSC field
   if (variation.hasARTFSC) {
     try {

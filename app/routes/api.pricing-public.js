@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import https from "https";
+import { fetchCustomerFromMonitor, fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -95,70 +96,6 @@ async function getSessionId() {
   return sessionId;
 }
 
-// Fetch customer's price list ID
-async function fetchCustomerPriceListId(customerId) {
-  try {
-    let session = await getSessionId();
-    let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
-    url += `?$filter=Id eq '${customerId}'`;
-    
-    console.log(`Fetching customer details for customer ${customerId} to get price list ID`);
-    
-    let res = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-        "X-Monitor-SessionId": session,
-      },
-      agent,
-    });
-    
-    if (res.status === 401) {
-      // Session expired, force re-login and retry
-      console.log(`Session expired for customer lookup, re-logging in...`);
-      sessionId = null; // Clear the session
-      session = await login();
-      res = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          "X-Monitor-SessionId": session,
-        },
-        agent,
-      });
-    }
-    
-    if (res.status !== 200) {
-      console.error(`Failed to fetch customer details for ${customerId}: ${res.status} ${res.statusText}`);
-      const errorText = await res.text();
-      console.error(`Error response: ${errorText}`);
-      return null;
-    }
-    
-    const customers = await res.json();
-    console.log(`Customer lookup API response for ${customerId}:`);
-    
-    if (!Array.isArray(customers)) {
-      console.log(`Customer lookup response is not an array`);
-      return null;
-    }
-    
-    if (customers.length > 0) {
-      const priceListId = customers[0].PriceListId;
-      console.log(`Found customer price list ID: ${priceListId}`);
-      return priceListId;
-    } else {
-      console.log(`No customer found with ID ${customerId}`);
-      return null;
-    }
-  } catch (error) {
-    console.error(`Error fetching customer price list ID for ${customerId}:`, error);
-    return null;
-  }
-}
-
 // Fetch price from a specific price list
 async function fetchPriceFromPriceList(partId, priceListId) {
   try {
@@ -223,7 +160,9 @@ async function fetchPriceFromPriceList(partId, priceListId) {
 }
 
 // Fetch customer-specific price with fallback to customer's price list
-async function fetchCustomerPartPrice(customerId, partId) {
+// Includes discount category logic similar to pricing.js getDynamicPrice function
+async function fetchCustomerPartPrice(customerId, partId, partCodeId = null) {
+
   try {
     // Step 1: Check for specific customer-part price using CustomerPartLinks
     let session = await getSessionId();
@@ -276,24 +215,44 @@ async function fetchCustomerPartPrice(customerId, partId) {
     } else {
       console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
       
-      // Step 2: Get customer's price list ID
-      const priceListId = await fetchCustomerPriceListId(customerId);
+      // Step 2: Get customer details (including price list and discount category)
+      console.log(`Step 2: Fetching customer details for ${customerId}`);
+      const customer = await fetchCustomerFromMonitor(customerId);
       
-      if (!priceListId) {
-        console.log(`Step 2 FAILED: Could not get customer's price list ID`);
+      if (!customer || !customer.PriceListId) {
+        console.log(`Step 2 FAILED: Could not get customer details or price list ID`);
         return null;
       }
       
-      console.log(`Step 2: Customer's price list ID: ${priceListId}`);
+      console.log(`Step 2: Customer's price list ID: ${customer.PriceListId}`);
+      console.log(`Step 2: Customer's discount category ID: ${customer.DiscountCategoryId || 'none'}`);
       
       // Step 3: Get price from customer's price list
-      const priceListPrice = await fetchPriceFromPriceList(partId, priceListId);
+      const priceListPrice = await fetchPriceFromPriceList(partId, customer.PriceListId);
       
       if (priceListPrice !== null && priceListPrice > 0) {
         console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
+        
+        // Step 3a: Check for discount category discounts
+        if (customer.DiscountCategoryId && customer.DiscountCategoryId !== null && partCodeId) {
+          console.log(`Customer has discount category ID: ${customer.DiscountCategoryId}, checking for discounts`);
+          const discountRow = await fetchDiscountCategoryRowFromMonitor(customer.DiscountCategoryId, partCodeId);
+          
+          if (discountRow && discountRow.Discount1 > 0) {
+            const discountPercentage = discountRow.Discount1;
+            const discountedPrice = priceListPrice * (discountPercentage / 100);
+            console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
+            return discountedPrice;
+          } else {
+            console.log(`No discount found for discount category ${customer.DiscountCategoryId} and part code ${partCodeId}`);
+          }
+        } else if (customer.DiscountCategoryId && !partCodeId) {
+          console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
+        }
+        
         return priceListPrice;
       } else {
-        console.log(`Step 3 FAILED: No price found in customer's price list ${priceListId}`);
+        console.log(`Step 3 FAILED: No price found in customer's price list ${customer.PriceListId}`);
         return null;
       }
     }
@@ -600,7 +559,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields, partCodeId } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -676,8 +635,8 @@ export async function action({ request }) {
       } else {
         // 2. Not an outlet product - check for customer-specific pricing
         if (customerMonitorId && monitorId) {
-          console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}`);
-          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId);
+          console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}, partCode ${partCodeId || 'none'}`);
+          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId, partCodeId);
           
           if (customerPrice !== null && customerPrice > 0) {
             price = customerPrice;

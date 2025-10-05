@@ -39,7 +39,7 @@ const monitorPassword = process.env.MONITOR_PASS;
 const monitorCompany = process.env.MONITOR_COMPANY;
 
 // @TODO
-// The SSL certificate used by the server is self-signed so it is important that you add an exception for it in your integration.
+// The SSL certificate used by the server is self-signed so it is important to add an exception for it in integration.
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 
@@ -1110,6 +1110,63 @@ export async function fetchCustomerFromMonitor(customerId) {
     return customer;
   } catch (error) {
     console.error(`Error fetching customer ${customerId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch discount category rows for customer's discount category and part
+ * @param {string} discountCategoryId - The discount category ID from customer
+ * @param {string} partCodeId - The part code ID from variant metafield
+ * @returns {Promise<Object|null>} The discount category row data or null if not found
+ */
+export async function fetchDiscountCategoryRowFromMonitor(discountCategoryId, partCodeId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/DiscountCategoryRows`;
+    url += `?$filter=DiscountCategoryId eq '${discountCategoryId}' and PartCodeId eq '${partCodeId}'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchDiscountCategoryRow first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchDiscountCategoryRow retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return null;
+      }
+    }
+    
+    const discountRows = await res.json();
+    if (!Array.isArray(discountRows)) {
+      throw new Error("Monitor API returned unexpected data format for discount category rows");
+    }
+    
+    return discountRows.length > 0 ? discountRows[0] : null;
+  } catch (error) {
+    console.error(`Error fetching discount category row for discount category ${discountCategoryId} and part code ${partCodeId}:`, error);
     return null;
   }
 }
