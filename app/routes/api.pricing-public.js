@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node";
 import https from "https";
-import { fetchCustomerFromMonitor, fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.js";
+import { fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -161,7 +161,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
 
 // Fetch customer-specific price with fallback to customer's price list
 // Includes discount category logic similar to pricing.js getDynamicPrice function
-async function fetchCustomerPartPrice(customerId, partId, partCodeId = null) {
+async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, customerPriceListId = null, customerDiscountCategory = null) {
 
   try {
     // Step 1: Check for specific customer-part price using CustomerPartLinks
@@ -215,28 +215,26 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null) {
     } else {
       console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
       
-      // Step 2: Get customer details (including price list and discount category)
-      console.log(`Step 2: Fetching customer details for ${customerId}`);
-      const customer = await fetchCustomerFromMonitor(customerId);
+      // Step 2: Use customer details from Shopify metafields (avoiding API call to fetchCustomerFromMonitor)
+      console.log(`Step 2: Using customer details from Shopify metafields for ${customerId}`);
+      console.log(`Step 2: Customer's price list ID from Shopify: ${customerPriceListId || 'not provided'}`);
+      console.log(`Step 2: Customer's discount category ID from Shopify: ${customerDiscountCategory || 'not provided'}`);
       
-      if (!customer || !customer.PriceListId) {
-        console.log(`Step 2 FAILED: Could not get customer details or price list ID`);
+      if (!customerPriceListId) {
+        console.log(`Step 2 FAILED: No customer price list ID provided from Shopify metafields`);
         return null;
       }
       
-      console.log(`Step 2: Customer's price list ID: ${customer.PriceListId}`);
-      console.log(`Step 2: Customer's discount category ID: ${customer.DiscountCategoryId || 'none'}`);
-      
       // Step 3: Get price from customer's price list
-      const priceListPrice = await fetchPriceFromPriceList(partId, customer.PriceListId);
+      const priceListPrice = await fetchPriceFromPriceList(partId, customerPriceListId);
       
       if (priceListPrice !== null && priceListPrice > 0) {
         console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
         
         // Step 3a: Check for discount category discounts
-        if (customer.DiscountCategoryId && customer.DiscountCategoryId !== null && partCodeId) {
-          console.log(`Customer has discount category ID: ${customer.DiscountCategoryId}, checking for discounts`);
-          const discountRow = await fetchDiscountCategoryRowFromMonitor(customer.DiscountCategoryId, partCodeId);
+        if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
+          console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
+          const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
           
           if (discountRow && discountRow.Discount1 > 0) {
             const discountPercentage = discountRow.Discount1;
@@ -244,15 +242,15 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null) {
             console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
             return discountedPrice;
           } else {
-            console.log(`No discount found for discount category ${customer.DiscountCategoryId} and part code ${partCodeId}`);
+            console.log(`No discount found for discount category ${customerDiscountCategory} and part code ${partCodeId}`);
           }
-        } else if (customer.DiscountCategoryId && !partCodeId) {
+        } else if (customerDiscountCategory && !partCodeId) {
           console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
         }
         
         return priceListPrice;
       } else {
-        console.log(`Step 3 FAILED: No price found in customer's price list ${customer.PriceListId}`);
+        console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);
         return null;
       }
     }
@@ -559,7 +557,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, fetchMetafields, partCodeId } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, customerDiscountCategory, customerPriceListId, fetchMetafields, partCodeId } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -636,7 +634,7 @@ export async function action({ request }) {
         // 2. Not an outlet product - check for customer-specific pricing
         if (customerMonitorId && monitorId) {
           console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}, partCode ${partCodeId || 'none'}`);
-          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId, partCodeId);
+          const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId, partCodeId, customerPriceListId, customerDiscountCategory);
           
           if (customerPrice !== null && customerPrice > 0) {
             price = customerPrice;

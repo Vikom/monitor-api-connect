@@ -189,6 +189,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // Set product information for pricing
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
   window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
+  window.customerDiscountCategory = "{{ customer.metafields.custom.discount_category }}";
+  window.customerPriceListId = "{{ customer.metafields.custom.pricelist_id }}";
   
   // Create a map of all variant IDs to their monitor IDs
   window.variantMonitorIds = {

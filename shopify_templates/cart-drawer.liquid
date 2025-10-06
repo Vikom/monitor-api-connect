@@ -876,6 +876,8 @@ window.cartItemsMetafields = {
     "{{ item.variant_id }}": {
       monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
       customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      customerDiscountCategory: "{{ customer.metafields.custom.discount_category }}",
+      customerPriceListId: "{{ customer.metafields.custom.pricelist_id }}",
       standardUnit: "{{ item.variant.metafields.custom.standard_unit }}",
       {% assign is_outlet = false %}
       {% for collection in item.product.collections %}
@@ -975,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log(`Using pre-populated metafields for ${item.variant_id}:`, itemMetafields);
           
           // If no metafields available (e.g., cart drawer loaded via AJAX), enable server-side fetching
-          const hasMetafields = itemMetafields.monitorId || itemMetafields.customerMonitorId;
+          const hasMetafields = itemMetafields.monitorId || itemMetafields.customerMonitorId || itemMetafields.customerDiscountCategory || itemMetafields.customerPriceListId;
           if (!hasMetafields) {
             console.log(`No metafields available for ${item.variant_id}, enabling server-side fetching`);
           }
@@ -993,6 +995,8 @@ document.addEventListener('DOMContentLoaded', () => {
               monitorId: itemMetafields.monitorId || null,
               isOutletProduct: itemMetafields.isOutletProduct || false,
               customerMonitorId: itemMetafields.customerMonitorId || null,
+              customerDiscountCategory: itemMetafields.customerDiscountCategory || null,
+              customerPriceListId: itemMetafields.customerPriceListId || null,
               // Enable server-side metafield fetching when Liquid data not available
               fetchMetafields: !hasMetafields
             })

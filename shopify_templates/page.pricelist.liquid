@@ -677,6 +677,8 @@ document.addEventListener('DOMContentLoaded', function() {
       customer_email: "{{ customer.email }}",
       customer_company: "{{ customer.metafields.custom.company | default: '' }}",
       monitor_id: "{{ customer.metafields.custom.monitor_id | default: '' }}",
+      discount_category: "{{ customer.metafields.custom.discount_category | default: '' }}",
+      pricelist_id: "{{ customer.metafields.custom.pricelist_id | default: '' }}",
       format: format,
       selection_method: "collections",
       shop: "{{ shop.domain }}",

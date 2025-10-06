@@ -1033,6 +1033,8 @@ window.cartItemsMetafields = {
     "{{ item.variant_id }}": {
       monitorId: "{{ item.variant.metafields.custom.monitor_id }}",
       customerMonitorId: "{{ customer.metafields.custom.monitor_id }}",
+      customerDiscountCategory: "{{ customer.metafields.custom.discount_category }}",
+      customerPriceListId: "{{ customer.metafields.custom.pricelist_id }}",
       standardUnit: "{{ item.variant.metafields.custom.standard_unit }}",
       {% assign is_outlet = false %}
       {% for collection in item.product.collections %}
@@ -1163,7 +1165,9 @@ document.addEventListener('DOMContentLoaded', () => {
               // Use pre-populated metafields from Liquid templates!
               monitorId: itemMetafields.monitorId || null,
               isOutletProduct: itemMetafields.isOutletProduct || false,
-              customerMonitorId: itemMetafields.customerMonitorId || null
+              customerMonitorId: itemMetafields.customerMonitorId || null,
+              customerDiscountCategory: itemMetafields.customerDiscountCategory || null,
+              customerPriceListId: itemMetafields.customerPriceListId || null
               // No fetchMetafields needed - we have the data already!
             })
           });

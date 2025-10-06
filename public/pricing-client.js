@@ -26,7 +26,9 @@ async function getCustomerPrice(variantId, customerId, monitorId = null) {
       shop: window.Shopify?.shop || window.pricingApiUrl?.replace('.myshopify.com', ''),
       monitorId: monitorId || window.currentVariantMonitorId || null,
       isOutletProduct: window.isOutletProduct || false,
-      customerMonitorId: window.customerMonitorId || null
+      customerMonitorId: window.customerMonitorId || null,
+      customerDiscountCategory: window.customerDiscountCategory || null,
+      customerPriceListId: window.customerPriceListId || null
     };
 
     const response = await fetch(apiUrl, {
