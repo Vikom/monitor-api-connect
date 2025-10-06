@@ -206,9 +206,11 @@ export async function action({ request }) {
         const customerMonitorId = customerMonitorIdMetafield?.node.value;
         
         console.log(`🟦 Customer Monitor ID: ${customerMonitorId}`);
+        console.log(`🟦 About to call pricing API with priceListId: ${priceListId || 'not provided'}`);
         
         // Get dynamic price using our pricing API
         const pricingApiUrl = process.env.SHOPIFY_APP_URL || 'https://monitor-api-connect-production.up.railway.app';
+        console.log(`🟦 Making pricing API call to: ${pricingApiUrl}/api/pricing-public`);
         const pricingResponse = await fetch(`${pricingApiUrl}/api/pricing-public`, {
           method: 'POST',
           headers: {
@@ -230,7 +232,7 @@ export async function action({ request }) {
         
         if (pricingResponse.ok) {
           const pricingData = await pricingResponse.json();
-          console.log(`🟦 Pricing API response:`, pricingData);
+          console.log(`🟦 Pricing API response - price: ${pricingData.price}, source: ${pricingData.metadata?.priceSource}`);
           if (pricingData.price !== null && pricingData.price !== undefined && pricingData.price > 0) {
             finalPrice = pricingData.price;
             console.log(`🟦 Got dynamic price: ${finalPrice} (was ${variant.price})`);
