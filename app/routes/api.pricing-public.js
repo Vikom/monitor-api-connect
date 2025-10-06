@@ -248,9 +248,11 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
           console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
         }
         
+        console.log(`fetchCustomerPartPrice returning price: ${priceListPrice}`);
         return priceListPrice;
       } else {
         console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);
+        console.log(`fetchCustomerPartPrice returning null`);
         return null;
       }
     }
@@ -635,6 +637,8 @@ export async function action({ request }) {
         if (customerMonitorId && monitorId) {
           console.log(`Checking customer-specific price for customer ${customerMonitorId}, part ${monitorId}, partCode ${partCodeId || 'none'}`);
           const customerPrice = await fetchCustomerPartPrice(customerMonitorId, monitorId, partCodeId, customerPriceListId, customerDiscountCategory);
+          
+          console.log(`fetchCustomerPartPrice returned: ${customerPrice} (type: ${typeof customerPrice})`);
           
           if (customerPrice !== null && customerPrice > 0) {
             price = customerPrice;
