@@ -94,6 +94,9 @@ export async function action({ request }) {
               standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                 value
               }
+              partCodeMetafield: metafield(namespace: "custom", key: "part_code") {
+                value
+              }
               product {
                 id
                 title
@@ -170,7 +173,7 @@ export async function action({ request }) {
         
         console.log(`🟦 Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
         
-        // Get customer Monitor ID using GraphQL
+        // Get customer Monitor ID and discount category using GraphQL
         const customerQuery = `
           query getCustomer($id: ID!) {
             customer(id: $id) {
@@ -207,7 +210,17 @@ export async function action({ request }) {
         );
         const customerMonitorId = customerMonitorIdMetafield?.node.value;
         
+        const customerDiscountCategoryMetafield = customer?.metafields.edges.find(
+          edge => edge.node.namespace === 'custom' && edge.node.key === 'discount_category'
+        );
+        const customerDiscountCategory = customerDiscountCategoryMetafield?.node.value;
+        
+        // Extract part code from variant
+        const partCode = variant.partCodeMetafield?.value;
+        
         console.log(`🟦 Customer Monitor ID: ${customerMonitorId}`);
+        console.log(`🟦 Customer Discount Category: ${customerDiscountCategory || 'not set'}`);
+        console.log(`🟦 Part Code: ${partCode || 'not set'}`);
         
         // Check if customer has monitor ID - required for pricing
         if (!customerMonitorId) {
@@ -234,7 +247,9 @@ export async function action({ request }) {
             monitorId,
             isOutletProduct,
             customerMonitorId,
-            customerPriceListId: priceListId // Use the correct parameter name expected by pricing API
+            customerPriceListId: priceListId, // Use the correct parameter name expected by pricing API
+            customerDiscountCategory: customerDiscountCategory, // Add discount category for discount logic
+            partCodeId: partCode // Add part code for discount logic
           })
         });
         
