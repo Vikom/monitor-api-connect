@@ -26,9 +26,9 @@ export async function action({ request }) {
     console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, shop, priceListId } = body; // items: [{ variantId, quantity }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop });
+    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId });
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
@@ -43,6 +43,7 @@ export async function action({ request }) {
     }
 
     console.log(`🟦 Creating draft order for customer ${customerId} with ${items.length} items`);
+    console.log(`🟦 Price list ID: ${priceListId || 'not provided'}`);
     
     // For private apps, use direct API credentials from environment
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -219,7 +220,8 @@ export async function action({ request }) {
             shop,
             monitorId,
             isOutletProduct,
-            customerMonitorId
+            customerMonitorId,
+            priceListId // Add priceListId to the pricing API request
           })
         });
         
