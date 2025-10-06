@@ -151,7 +151,9 @@ export async function action({ request }) {
         
         // Extract standard unit to determine if this is a decimal product
         const standardUnit = variant.standardUnitMetafield?.value;
-        const isDecimalUnit = standardUnit && ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
+        // Use same logic as frontend: whitelist approach for whole number units
+        const wholeNumberUnits = ['st', 'rle', 'pkt', 'pås', 'Sk', 'krt', 'frp'];
+        const isDecimalUnit = standardUnit && !wholeNumberUnits.includes(standardUnit);
         
         // For decimal products, quantity from frontend is the actual decimal amount
         // For regular products, ensure we have an integer
