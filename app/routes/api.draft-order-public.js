@@ -223,7 +223,7 @@ export async function action({ request }) {
             monitorId,
             isOutletProduct,
             customerMonitorId,
-            priceListId // Add priceListId to the pricing API request
+            customerPriceListId: priceListId // Use the correct parameter name expected by pricing API
           })
         });
         
