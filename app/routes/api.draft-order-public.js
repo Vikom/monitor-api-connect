@@ -94,7 +94,7 @@ export async function action({ request }) {
               standardUnitMetafield: metafield(namespace: "custom", key: "standard_unit") {
                 value
               }
-              partCodeMetafield: metafield(namespace: "custom", key: "part_code") {
+              partCodeMetafield: metafield(namespace: "custom", key: "partcode_id") {
                 value
               }
               product {
