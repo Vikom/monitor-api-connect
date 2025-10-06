@@ -152,11 +152,12 @@ export async function action({ request }) {
         const standardUnit = variant.standardUnitMetafield?.value;
         const isDecimalUnit = standardUnit && ['lm', 'm', 'm2', 'm²', 'm3', 'm³', 'kg', 'l'].includes(standardUnit);
         
-        // Quantity is already converted in frontend for decimal products
-        // Frontend sends actualQuantity = item.quantity / 20.0 for decimal products
-        const displayQuantity = quantity;
+        // For decimal products, quantity from frontend is the actual decimal amount
+        // For regular products, ensure we have an integer
+        const displayQuantity = isDecimalUnit ? quantity : Math.max(1, Math.round(Math.abs(quantity)));
+        const apiQuantity = Math.max(1, Math.round(Math.abs(quantity))); // Always integer for API
         
-        console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, StoredQty: ${quantity}, DisplayQty: ${displayQuantity}`);
+        console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, OriginalQty: ${quantity}, ApiQty: ${apiQuantity}, DisplayQty: ${displayQuantity}`);
         
         // Extract image information
         const variantImage = variant.image;
@@ -253,7 +254,7 @@ export async function action({ request }) {
         
         lineItems.push({
           variantId: variantId,
-          quantity: quantity, // Keep original integer quantity for API
+          quantity: apiQuantity, // Always use integer quantity for API
           displayQuantity: displayQuantity, // Store display quantity for reference
           customPrice: finalPrice.toString(),
           productTitle: variant.product.title,
@@ -266,7 +267,7 @@ export async function action({ request }) {
           imageAlt: imageAlt
         });
         
-        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${quantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
+        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${apiQuantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
         
       } catch (error) {
         console.error(`🟦 Error processing item ${item.variantId}:`, error);
@@ -337,13 +338,11 @@ export async function action({ request }) {
           
           // Add decimal unit info if applicable
           if (item.isDecimalUnit) {
+            // Format quantity with Swedish decimal separator
+            const formattedQuantity = item.displayQuantity.toString().replace('.', ',');
             properties.push({
               name: "Enhet",
-              value: `${item.displayQuantity} ${item.standardUnit}`
-            });
-            properties.push({
-              name: "Anpassat pris",
-              value: "Ja - Dina priser tillämpade"
+              value: `${formattedQuantity} ${item.standardUnit}`
             });
           }
           
