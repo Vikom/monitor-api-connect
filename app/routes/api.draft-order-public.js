@@ -208,6 +208,15 @@ export async function action({ request }) {
         const customerMonitorId = customerMonitorIdMetafield?.node.value;
         
         console.log(`🟦 Customer Monitor ID: ${customerMonitorId}`);
+        
+        // Check if customer has monitor ID - required for pricing
+        if (!customerMonitorId) {
+          console.error('🟦 Customer missing monitor ID - cannot proceed with checkout');
+          return json({ 
+            error: "Dina kunduppgifter är inte kompletta för att genomföra köp. Var god kontakta Sonsab",
+            errorType: "missing_customer_data"
+          }, { status: 400, headers: corsHeaders() });
+        }
         console.log(`🟦 About to call pricing API with priceListId: ${priceListId || 'not provided'}`);
         
         // Get dynamic price using our pricing API
@@ -287,6 +296,18 @@ export async function action({ request }) {
     }
     
     console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
+    
+    // Check if all items have zero price - indicates pricing failure
+    const totalValue = lineItems.reduce((sum, item) => sum + parseFloat(item.customPrice), 0);
+    console.log(`🟦 Total order value: ${totalValue}`);
+    
+    if (totalValue <= 0) {
+      console.error('🟦 Draft order has zero total value - pricing failed');
+      return json({ 
+        error: "Något gick fel när vi hämtade dina priser. Försök igen eller kontakta oss.",
+        errorType: "pricing_failed"
+      }, { status: 400, headers: corsHeaders() });
+    }
     
     // Create draft order using REST API with custom line items (no variant_id allows custom pricing)
     const draftOrderPayload = {

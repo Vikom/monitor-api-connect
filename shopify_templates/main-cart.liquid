@@ -1418,10 +1418,27 @@ document.addEventListener('DOMContentLoaded', () => {
           
         } catch (error) {
           console.error('Draft order creation failed:', error);
-          // Restore button and show error message
+          // Restore button
           btnText.innerHTML = originalText;
           checkoutBtn.disabled = false;
-          alert('Något blev fel, försök igen senare.');
+          
+          // Show specific error message based on error type
+          let errorMessage = 'Något blev fel, försök igen senare.';
+          
+          try {
+            // Try to parse error response to get specific message
+            if (error.message && error.message.includes('No invoice URL received:')) {
+              const responseStr = error.message.replace('No invoice URL received: ', '');
+              const responseObj = JSON.parse(responseStr);
+              if (responseObj.error) {
+                errorMessage = responseObj.error;
+              }
+            }
+          } catch (parseError) {
+            console.log('Could not parse specific error message, using default');
+          }
+          
+          alert(errorMessage);
         }
       } else {
         console.log('No customer logged in, allowing normal checkout');
