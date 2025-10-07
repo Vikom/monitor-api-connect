@@ -2,7 +2,7 @@ import "@shopify/shopify-api/adapters/node";
 // import cron from "node-cron"; // Now handled by main worker process
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
-import { fetchStockTransactionsFromMonitor, fetchProductsFromMonitor, fetchPartByPartNumberFromMonitor } from "./utils/monitor.js";
+import { fetchStockTransactionsFromMonitor, fetchPartByPartNumberFromMonitor } from "./utils/monitor.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to

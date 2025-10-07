@@ -119,7 +119,7 @@ class MonitorClient {
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
       url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
-      url += '&$filter=Status eq 4';
+      url += '&$filter=Status eq 4 OR Status eq 6'; // Include Active and Inactive products
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
         headers: {

@@ -259,7 +259,6 @@ export async function syncProducts(isIncrementalSync = false) {
 
     if (!shop || !accessToken) {
       console.log("❌ Advanced store configuration missing!");
-      console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
       return;
     }
 
@@ -269,7 +268,6 @@ export async function syncProducts(isIncrementalSync = false) {
     const isValidSession = await validateSession(shop, accessToken);
     if (!isValidSession) {
       console.log("❌ Advanced store session is invalid.");
-      console.log("Please check your ADVANCED_STORE_ADMIN_TOKEN in the .env file");
       return;
     }
   } else {
@@ -278,7 +276,6 @@ export async function syncProducts(isIncrementalSync = false) {
     const session = await prisma.session.findFirst();
     if (!session) {
       console.log("No Shopify session found. Cannot sync products.");
-      console.log("Please visit your Shopify app to authenticate first.");
       return;
     }
 
@@ -292,10 +289,6 @@ export async function syncProducts(isIncrementalSync = false) {
     const isValidSession = await validateSession(session.shop, session.accessToken);
     if (!isValidSession) {
       console.log("❌ Shopify session is invalid or expired.");
-      console.log("To fix this:");
-      console.log("1. Run 'npm run dev' to start the development server");
-      console.log("2. Visit the app in your browser to re-authenticate");
-      console.log("3. Once authenticated, you can run the sync job again");
       return;
     }
 
@@ -320,15 +313,6 @@ export async function syncProducts(isIncrementalSync = false) {
   
   // Use the low-level GraphQL client from @shopify/shopify-api
   try {
-    /*console.log("About to instantiate GraphqlClient");
-    const admin = new shopifyConfig.clients.Graphql({
-      session: {
-        shop: shop,
-        accessToken: accessToken,
-      },
-      apiVersion: "2024-01", // or your current ApiVersion
-    });
-    console.log("GraphqlClient instantiated successfully");*/
     let products;
     try {
       if (isIncrementalSync) {
@@ -431,6 +415,14 @@ export async function syncProducts(isIncrementalSync = false) {
         } catch (error) {
           console.warn(`⚠️  Failed to find PartCode collection "${partCodeDescription}": ${error.message}. Continuing without this collection...`);
         }
+      }
+      
+      // Check if any variation has status = 6 (outlet), add outlet collection as last collection
+      const hasOutletVariant = variations.some(variation => variation.status === 6);
+      if (hasOutletVariant) {
+        const outletCollectionId = "gid://shopify/Collection/651232051534";
+        console.log(`  🏷️  Product has outlet variant (status=6), adding to outlet collection`);
+        collectionIds.push(outletCollectionId);
       }
       
       // Check if product already exists in Shopify by productName
@@ -545,6 +537,13 @@ export async function syncProducts(isIncrementalSync = false) {
             } catch (error) {
               console.warn(`⚠️  [Retry] Failed to find PartCode collection "${partCodeDescription}": ${error.message}. Continuing without this collection...`);
             }
+          }
+          
+          // Check if any variation has status = 6 (outlet), add outlet collection as last collection
+          const hasOutletVariant = variations.some(variation => variation.status === 6);
+          if (hasOutletVariant) {
+            const outletCollectionId = "gid://shopify/Collection/651232051534";
+            collectionIds.push(outletCollectionId);
           }
           
           // Check if product already exists in Shopify by productName
@@ -2146,40 +2145,6 @@ async function checkProductInCollection(shop, accessToken, productId, collection
   const products = result.data?.collection?.products?.edges || [];
   return products.some(edge => edge.node.id === productId);
 }
-
-// Schedule to run every hour - only for advanced store with incremental sync
-/*cron.schedule("0 * * * *", () => {
-  console.log("[CRON] Running scheduled incremental product sync...");
-  logRailwayIP(); // Log IP for debugging
-  
-  // Check if advanced store is configured
-  const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
-  const advancedStoreToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
-  
-  if (!advancedStoreDomain || !advancedStoreToken) {
-    console.log("❌ [CRON] Advanced store configuration missing - skipping scheduled sync");
-    console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
-    return;
-  }
-  
-  console.log(`[CRON] Running incremental sync for Advanced store: ${advancedStoreDomain}`);
-  
-  // Set global flag to use advanced store for this cron run
-  const originalUseAdvancedStore = global.useAdvancedStore;
-  global.useAdvancedStore = true;
-  
-  syncProducts(true) // true = incremental sync
-    .then(() => {
-      console.log("[CRON] ✅ Scheduled incremental sync completed successfully");
-    })
-    .catch((error) => {
-      console.error("[CRON] ❌ Scheduled incremental sync failed:", error);
-    })
-    .finally(() => {
-      // Restore original flag
-      global.useAdvancedStore = originalUseAdvancedStore;
-    });
-});*/
 
 // Only run when executed directly, not when imported
 if (import.meta.url === `file://${process.argv[1]}`) {
