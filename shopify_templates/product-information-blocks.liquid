@@ -483,42 +483,42 @@
   {%- if goteborg_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Göteborg ({{ goteborg_num }})</span>
+      <span class="product__inventory-text">Göteborg ({{ goteborg_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if lund_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Lund ({{ lund_num }})</span>
+      <span class="product__inventory-text">Lund ({{ lund_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if ronas_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Rönås ({{ ronas_num }})</span>
+      <span class="product__inventory-text">Rönås ({{ ronas_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if stockholm_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Stockholm ({{ stockholm_num }})</span>
+      <span class="product__inventory-text">Stockholm ({{ stockholm_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if sundsvall_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Sundsvall ({{ sundsvall_num }})</span>
+      <span class="product__inventory-text">Sundsvall ({{ sundsvall_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if vittsjo_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Vittsjö ({{ vittsjo_num }})</span>
+      <span class="product__inventory-text">Vittsjö ({{ vittsjo_num | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
   <div class="product__block--divider-stock">
@@ -569,7 +569,7 @@
   {%- else -%}
     <p class="product__inventory product__inventory--{{ inventory_status }} font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Totalt ({{ inventory_quantity }})</span>
+      <span class="product__inventory-text">Totalt ({{ inventory_quantity | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 </div>
@@ -635,7 +635,7 @@
               <tr class="spec-row" data-spec="volume">
                 <td class="spec-label"><strong>Volym</strong></td>
                 <td class="spec-value" data-value="volume">
-                  {{ volume }}{% unless volume contains 'L' or volume contains 'l' %} L{% endunless %}
+                  {{ volume | replace: '.', ',' }}{% unless volume contains 'L' or volume contains 'l' %} L{% endunless %}
                 </td>
               </tr>
             {%- endif -%}
@@ -645,7 +645,7 @@
               <tr class="spec-row" data-spec="length">
                 <td class="spec-label"><strong>Längd</strong></td>
                 <td class="spec-value" data-value="length">
-                  {{ length }}{% unless length contains 'mm' or length contains 'cm' %} mm{% endunless %}
+                  {{ length | replace: '.', ',' }}{% unless length contains 'mm' or length contains 'cm' %} mm{% endunless %}
                 </td>
               </tr>
             {%- endif -%}
@@ -655,7 +655,7 @@
               <tr class="spec-row" data-spec="width">
                 <td class="spec-label"><strong>Bredd</strong></td>
                 <td class="spec-value" data-value="width">
-                  {{ width }}{% unless width contains 'mm' or width contains 'cm' %} mm{% endunless %}
+                  {{ width | replace: '.', ',' }}{% unless width contains 'mm' or width contains 'cm' %} mm{% endunless %}
                 </td>
               </tr>
             {%- endif -%}
@@ -665,7 +665,7 @@
               <tr class="spec-row" data-spec="depth">
                 <td class="spec-label"><strong>Tjocklek</strong></td>
                 <td class="spec-value" data-value="depth">
-                  {{ depth }}{% unless depth contains 'mm' or depth contains 'cm' %} mm{% endunless %}
+                  {{ depth | replace: '.', ',' }}{% unless depth contains 'mm' or depth contains 'cm' %} mm{% endunless %}
                 </td>
               </tr>
             {%- endif -%}
@@ -690,7 +690,7 @@
             {%- if qtypac != blank -%}
               <tr class="spec-row" data-spec="qtypac">
                 <td class="spec-label"><strong>Ant/Kolli</strong></td>
-                <td class="spec-value" data-value="qtypac">{{ qtypac }}</td>
+                <td class="spec-value" data-value="qtypac">{{ qtypac | replace: '.', ',' }}</td>
               </tr>
             {%- endif -%}
           </tbody>
@@ -845,13 +845,14 @@
           const value = specs[specType];
           
           if (value && value.trim() !== '' && value !== '0' && value !== '0.00') {
-            // Update the value
+            // Update the value with comma formatting
             const unit = getUnit(specType);
             const hasUnit = value.includes(unit) || 
                             (unit === 'L' && (value.includes('l') || value.includes('m³'))) ||
                             (unit === 'mm' && (value.includes('cm') || value.includes('m')));
             
-            valueCell.textContent = hasUnit ? value : `${value} ${unit}`;
+            const formattedValue = value.replace(/\./g, ',');
+            valueCell.textContent = hasUnit ? formattedValue : `${formattedValue} ${unit}`;
             row.style.display = '';
             hasVisibleSpecs = true;
           } else {

@@ -62,12 +62,12 @@ async function runSyncJob(jobName, syncFunction, ...args) {
 // Set up all cron jobs for worker mode
 function setupCronJobs() {
   // Order polling every 5 minutes
-  // cron.schedule("*/5 * * * *", () => {
-  //   console.log("[ORDER-POLL] Checking for new orders...");
-  //   pollForNewOrders().catch((error) => {
-  //     console.error("[ORDER-POLL] ❌ Order polling failed:", error);
-  //   });
-  // });
+  cron.schedule("*/5 * * * *", () => {
+    console.log("[ORDER-POLL] Checking for new orders...");
+    pollForNewOrders().catch((error) => {
+      console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+    });
+  });
 
   // Inventory sync every hour at 15 minutes past
   cron.schedule("15 * * * *", () => {
@@ -88,7 +88,7 @@ function setupCronJobs() {
   // });
   
   console.log("📅 Worker cron jobs scheduled:");
-  // console.log("  - Order polling: every 5 minutes");
+  console.log("  - Order polling: every 5 minutes");
   console.log("  - Inventory sync: every hour (at :15)");
   console.log("  - Product sync: every hour (at :00)");
   // console.log("  - Customer sync: every hour (at :05)");
