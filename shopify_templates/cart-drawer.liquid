@@ -901,6 +901,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cache to prevent multiple API calls for the same variant
   const priceCache = new Map();
   
+  // Debounce mechanism to prevent multiple simultaneous price updates
+  let priceUpdateInProgress = false;
+  
   // Helper function to set loading state for cart prices
   function setCartPricesLoading() {
     if (!window.customer?.id) return;
@@ -947,6 +950,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
+    // Prevent multiple simultaneous updates
+    if (priceUpdateInProgress) {
+      console.log('Price update already in progress, skipping...');
+      return;
+    }
+    priceUpdateInProgress = true;
+    
+    // Set a timeout to reset the flag in case of unexpected errors
+    const resetFlag = setTimeout(() => {
+      priceUpdateInProgress = false;
+      console.log('Price update flag reset by timeout');
+    }, 10000); // 10 second timeout
+    
     console.log('Updating cart drawer prices...');
     console.log('Cart metafields data:', window.cartItemsMetafields);
     
@@ -965,24 +981,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const customerId = `gid://shopify/Customer/${window.customer.id}`;
         const cacheKey = `${item.variant_id}-${window.customer.id}`;
         
-        console.log(`Getting price for variant ${item.variant_id}`);
+        console.log(`Getting price for variant ${item.variant_id} (product: ${item.product_title})`);
         
         // Check cache first
         let priceData = priceCache.get(cacheKey);
         
         if (!priceData) {
           // Get metafields from pre-populated data (same as product page approach!)
-          const itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
+          let itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
           
-          console.log(`Using pre-populated metafields for ${item.variant_id}:`, itemMetafields);
-          
-          // If no metafields available (e.g., cart drawer loaded via AJAX), enable server-side fetching
-          const hasMetafields = itemMetafields.monitorId || itemMetafields.customerMonitorId || itemMetafields.customerDiscountCategory || itemMetafields.customerPriceListId;
-          if (!hasMetafields) {
-            console.log(`No metafields available for ${item.variant_id}, enabling server-side fetching`);
+          // If no pre-populated metafields and we're on a product page, try to get from product page context
+          if (!itemMetafields.monitorId && window.variantMonitorIds && window.variantMonitorIds[item.variant_id]) {
+            console.log(`Using product page metafields for variant ${item.variant_id}`);
+            itemMetafields = {
+              monitorId: window.variantMonitorIds[item.variant_id],
+              customerMonitorId: window.customerMonitorId || null,
+              customerDiscountCategory: window.customerDiscountCategory || null,
+              customerPriceListId: window.customerPriceListId || null,
+              standardUnit: null, // Will be handled by server-side fetching
+              isOutletProduct: window.isOutletProduct || false
+            };
+            console.log(`Product page metafields applied:`, itemMetafields);
           }
           
-          // Get dynamic price using Liquid template data (no API metafield fetching needed!)
+          console.log(`Using metafields for ${item.variant_id}:`, itemMetafields);
+        
+          // Check if we have the essential monitor_id (required for pricing)
+          const hasMonitorId = itemMetafields.monitorId;
+          if (!hasMonitorId) {
+            console.log(`No monitor_id available for ${item.variant_id}, enabling server-side fetching`);
+            console.log(`Available pre-populated variants:`, Object.keys(window.cartItemsMetafields || {}));
+            console.log(`Available product page variants:`, Object.keys(window.variantMonitorIds || {}));
+          }          // Get dynamic price using metafields (from Liquid templates or product page context)
           const apiUrl = 'https://monitor-api-connect-production.up.railway.app/api/pricing-public';
           const priceResponse = await fetch(apiUrl, {
             method: 'POST',
@@ -991,14 +1021,14 @@ document.addEventListener('DOMContentLoaded', () => {
               variantId: variantId,
               customerId: customerId,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
-              // Use pre-populated metafields from Liquid templates!
+              // Use metafields from Liquid templates or product page context
               monitorId: itemMetafields.monitorId || null,
               isOutletProduct: itemMetafields.isOutletProduct || false,
               customerMonitorId: itemMetafields.customerMonitorId || null,
               customerDiscountCategory: itemMetafields.customerDiscountCategory || null,
               customerPriceListId: itemMetafields.customerPriceListId || null,
-              // Enable server-side metafield fetching when Liquid data not available
-              fetchMetafields: !hasMetafields
+              // Enable server-side metafield fetching when monitor_id not available
+              fetchMetafields: !hasMonitorId
             })
           });
           
@@ -1014,6 +1044,13 @@ document.addEventListener('DOMContentLoaded', () => {
           
           try {
             priceData = JSON.parse(responseText);
+            
+            // Check if pricing failed due to missing monitor_id
+            if (!priceData.price && priceData.metadata?.priceSource === 'missing-monitor-ids') {
+              console.error(`❌ Pricing failed for variant ${item.variant_id}: Missing monitor_id metafield`);
+              console.error(`This variant may not have monitor_id metafield set up properly in Shopify`);
+            }
+            
             // Cache the result
             priceCache.set(cacheKey, priceData);
           } catch (parseError) {
@@ -1026,13 +1063,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (priceData.price !== null && priceData.price !== undefined) {
-          // Get metafields from pre-populated data
-          const itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
+          // Determine if this is a decimal unit product by checking the DOM element
+          const cartItem = document.querySelector(`li[data-variant-id="${item.variant_id}"]`);
+          const quantityInput = cartItem?.querySelector('input[data-decimal="true"]');
+          const isDecimalUnit = !!quantityInput;
           
-          // Check if this is a decimal unit product using same logic as main cart
-          const wholeNumberUnits = ['st', 'rle', 'pkt', 'pås', 'Sk', 'krt', 'frp'];
-          const isDecimalUnit = itemMetafields.standardUnit && 
-            !wholeNumberUnits.includes(itemMetafields.standardUnit);
+          console.log(`Variant ${item.variant_id} is decimal unit: ${isDecimalUnit}`);
           
           // Calculate actual quantity for decimal products
           let actualQuantity = item.quantity;
@@ -1046,20 +1082,8 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log(`Price for ${item.variant_id}: ${priceData.price} kr × ${actualQuantity} = ${lineTotal} kr`);
           
-          // Find the specific cart item by data-variant-id
-          const cartItem = document.querySelector(`li[data-variant-id="${item.variant_id}"]`);
+          // Update the price display in the DOM
           if (cartItem) {
-            // Calculate the correct line total for display
-            let displayQuantity = item.quantity;
-            const quantityInput = cartItem.querySelector('input[data-decimal="true"]');
-            if (quantityInput) {
-              // This is a decimal product, convert integer quantity back to decimal
-              displayQuantity = item.quantity / 20.0;
-            }
-            
-            const lineTotal = priceData.price * displayQuantity;
-            
-            // Update the main price display - target the .price element specifically
             const priceElement = cartItem.querySelector('.cart-item__prices .price');
             if (priceElement) {
               // Keep the existing structure but update the price value
@@ -1074,6 +1098,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update the regular price
                 priceElement.innerHTML = `${formatPrice(lineTotal)} kr`;
               }
+            }
+          }
+        } else {
+          // Handle items without pricing - show "Contact for price" or keep original price
+          console.log(`⚠️ No price available for variant ${item.variant_id}`);
+          
+          if (cartItem) {
+            const priceElement = cartItem.querySelector('.cart-item__prices .price');
+            if (priceElement) {
+              // Add a visual indicator for items without custom pricing
+              priceElement.style.opacity = '0.6';
+              priceElement.title = 'Custom pricing not available for this item';
             }
           }
         }
@@ -1093,6 +1129,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Error updating cart prices:', error);
       // Show prices even on error to prevent permanent hidden state
       showCartPrices();
+    } finally {
+      // Reset the progress flag and clear timeout
+      clearTimeout(resetFlag);
+      priceUpdateInProgress = false;
     }
   }
   
@@ -1115,43 +1155,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Also update when cart items change
   document.addEventListener('cart:updated', () => {
     console.log('Cart updated event, refreshing prices...');
-    // Try to get metafields from product page context if available
-    refreshCartMetafieldsFromProduct();
+    // Don't refresh metafields from product page - rely on server-side metafields
     setTimeout(updateCartPrices, 100);
   });
   
-  // Function to get metafields from product page context when adding to cart
-  async function refreshCartMetafieldsFromProduct() {
+  // Function to refresh cart metafields from server when cart is updated
+  async function refreshCartMetafields() {
     try {
-      console.log('Refreshing cart metafields...');
-      const cartResponse = await fetch('/cart.js');
-      const cart = await cartResponse.json();
+      console.log('Refreshing cart metafields from server...');
+      // Force a page refresh of cart metafields by reloading the cart drawer content
+      // This ensures we get fresh metafields from Liquid for any new items
       
-      // If we're on a product page, try to get metafields from product page globals
-      if (window.location.pathname.includes('/products/')) {
-        // Check if product page has metafields available (from pricing-client.js)
-        if (window.currentVariantMonitorId || window.isOutletProduct || window.customerMonitorId) {
-          console.log('Found product page metafields, using for cart');
-          // Ensure cartItemsMetafields exists
-          if (!window.cartItemsMetafields) {
-            window.cartItemsMetafields = {};
-          }
-          
-          // Get the most recently added item (last item in cart)
-          const lastItem = cart.items[cart.items.length - 1];
-          if (lastItem) {
-            const variantId = lastItem.variant_id.toString();
-            window.cartItemsMetafields[variantId] = {
-              monitorId: window.currentVariantMonitorId || null,
-              customerMonitorId: window.customerMonitorId || null,
-              isOutletProduct: window.isOutletProduct || false
-            };
-            console.log(`Added metafields for variant ${variantId}:`, window.cartItemsMetafields[variantId]);
-          }
-        }
-      }
+      // Note: The cart metafields are pre-populated by Liquid on page load.
+      // When items are added via AJAX, we should rely on the server-side API
+      // to provide correct metafields rather than trying to guess from client-side data.
       
-      console.log('Final cart metafields:', window.cartItemsMetafields);
+      console.log('Current cart metafields:', window.cartItemsMetafields);
     } catch (error) {
       console.error('Error refreshing cart metafields:', error);
     }
