@@ -69,11 +69,11 @@ function setupCronJobs() {
   //   });
   // });
 
-  // Inventory sync every 30 minutes
-  // cron.schedule("*/30 * * * *", () => {
-  //   console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  //   runSyncJob("INVENTORY-SYNC", syncInventory);
-  // });
+  // Inventory sync every hour at 15 minutes past
+  cron.schedule("15 * * * *", () => {
+    console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+    runSyncJob("INVENTORY-SYNC", syncInventory);
+  });
 
   // Product sync every hour (incremental)
   cron.schedule("0 * * * *", () => {
@@ -87,9 +87,9 @@ function setupCronJobs() {
   //   runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
   // });
   
-  // console.log("📅 Worker cron jobs scheduled:");
+  console.log("📅 Worker cron jobs scheduled:");
   // console.log("  - Order polling: every 5 minutes");
-  // console.log("  - Inventory sync: every 30 minutes");
+  console.log("  - Inventory sync: every hour (at :15)");
   console.log("  - Product sync: every hour (at :00)");
   // console.log("  - Customer sync: every hour (at :05)");
 }
@@ -113,9 +113,9 @@ Individual manual syncs:
 
 🕐 Worker Schedule (Production only):
   - Order polling: every 5 minutes
-  - Inventory sync: every 30 minutes  
-  - Product sync: every hour (incremental)
-  - Customer sync: every hour (incremental)
+  - Inventory sync: every hour (at :15)
+  - Product sync: every hour (at :00, incremental)
+  - Customer sync: every hour (at :05, incremental)
 
 🚨 Safety: Worker only runs in production environment automatically
    Set NODE_ENV=production or run on Railway to enable

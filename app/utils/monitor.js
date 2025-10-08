@@ -307,9 +307,70 @@ class MonitorClient {
     
     const part = parts[0];
     console.log(`Successfully fetched part: ${part.PartNumber} (ID: ${part.Id})`);
-    console.log(`PartPlanningInformations:`, JSON.stringify(part.PartPlanningInformations, null, 2));
     
     return part;
+  }
+
+  /**
+   * Fetch all parts for stock sync with PartLocations included
+   * @param {number} [limit] - Optional limit for number of parts to fetch (for testing)
+   * @returns {Promise<Array>} Array of parts with PartLocations for inventory sync
+   */
+  async fetchPartsForStock(limit = null) {
+    const sessionId = await this.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
+    url += `?$filter=(Status eq 4 or Status eq 6) and BlockedStatus lt 2`;
+    url += '&$select=Id,PartNumber,Description,Status,BlockedStatus,PartLocations';
+    url += '&$expand=PartLocations';
+    
+    // Add limit if specified (for single test mode)
+    if (limit && limit > 0) {
+      url += `&$top=${limit}`;
+    }
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchPartsForStock first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await this.login();
+      const newSessionId = await this.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchPartsForStock retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchPartsForStock failed after re-login");
+      }
+    }
+    
+    const parts = await res.json();
+    
+    if (!Array.isArray(parts)) {
+      console.error('❌ Monitor API returned unexpected data format:', typeof parts, parts);
+      throw new Error("Monitor API returned unexpected data format for fetchPartsForStock");
+    }
+
+    console.log(`✅ Fetched ${parts.length} parts from Monitor`);
+    
+    return parts;
   }
 }
 
@@ -1286,4 +1347,13 @@ export async function createOrderInMonitor(orderData) {
     console.error(`Error creating order in Monitor:`, error);
     throw error;
   }
+}
+
+/**
+ * Fetch all parts for stock sync - wrapper function for external use
+ * @param {number} [limit] - Optional limit for number of parts to fetch (for testing)
+ * @returns {Promise<Array>} Array of parts with PartLocations for inventory sync
+ */
+export async function fetchPartsForStock(limit = null) {
+  return await monitorClient.fetchPartsForStock(limit);
 }
