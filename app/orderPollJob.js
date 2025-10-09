@@ -228,15 +228,21 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
   for (const lineItem of lineItems) {
     try {
       // Get variant metafields to find monitor_id
-      // In draft orders, variant should be available
+      // In draft orders, variant is null but variant ID is stored in customAttributes
       let variantId = null;
       
       if (lineItem.variant?.id) {
         variantId = lineItem.variant.id.split('/').pop();
+      } else {
+        // For draft orders, look for _variant_id in customAttributes
+        const variantIdAttribute = lineItem.customAttributes?.find(attr => attr.key === '_variant_id');
+        if (variantIdAttribute) {
+          variantId = variantIdAttribute.value;
+        }
       }
       
       if (!variantId) {
-        console.warn(`Draft order line item ${lineItem.id} has no variant, skipping. LineItem data:`, JSON.stringify(lineItem, null, 2));
+        console.warn(`Draft order line item ${lineItem.id} has no variant ID in variant field or customAttributes, skipping. LineItem data:`, JSON.stringify(lineItem, null, 2));
         continue;
       }
       
