@@ -69,8 +69,8 @@ function setupCronJobs() {
     });
   });
 
-  // Inventory sync every hour at 30 minutes past
-  cron.schedule("30 * * * *", () => {
+  // Inventory sync every 6 hours at 15 minutes past full hour (00:15, 06:15, 12:15, 18:15)
+  cron.schedule("15 */6 * * *", () => {
     console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
     runSyncJob("INVENTORY-SYNC", syncInventory);
   });
@@ -82,16 +82,16 @@ function setupCronJobs() {
   });
 
   // Customer sync every hour (incremental)
-  // cron.schedule("5 * * * *", () => { // 5 minutes after product sync to avoid conflicts
-  //   console.log("[CUSTOMER-SYNC] Running scheduled incremental customer sync...");
-  //   runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
-  // });
+  cron.schedule("5 * * * *", () => { // 5 minutes after product sync to avoid conflicts
+    console.log("[CUSTOMER-SYNC] Running scheduled incremental customer sync...");
+    runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
+  });
   
   console.log("📅 Worker cron jobs scheduled:");
   console.log("  - Order polling: every 5 minutes");
-  console.log("  - Inventory sync: every hour (at :15)");
+  console.log("  - Inventory sync: every 6 hours (at :15 - 00:15, 06:15, 12:15, 18:15)");
   console.log("  - Product sync: every hour (at :00)");
-  // console.log("  - Customer sync: every hour (at :05)");
+  console.log("  - Customer sync: every hour (at :05)");
 }
 
 // Display usage instructions
@@ -113,7 +113,7 @@ Individual manual syncs:
 
 🕐 Worker Schedule (Production only):
   - Order polling: every 5 minutes
-  - Inventory sync: every hour (at :15)
+  - Inventory sync: every 6 hours (at :15 - 00:15, 06:15, 12:15, 18:15)
   - Product sync: every hour (at :00, incremental)
   - Customer sync: every hour (at :05, incremental)
 
