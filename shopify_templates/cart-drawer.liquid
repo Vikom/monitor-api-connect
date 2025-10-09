@@ -1282,8 +1282,21 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('Creating draft order with items:', items);
           
           // Get customer's price list ID from the first cart item's metafields (same as main cart)
-          const firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
-          const customerPriceListId = firstItemMetafields.customerPriceListId;
+          // Use the same fallback logic as the pricing system
+          let firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
+          let customerPriceListId = firstItemMetafields.customerPriceListId;
+          
+          // Fallback: use product page metafields if cart metafields are empty
+          if (!customerPriceListId && window.customerPriceListId) {
+            console.log('Using product page metafields for customer price list ID');
+            customerPriceListId = window.customerPriceListId;
+            firstItemMetafields = {
+              ...firstItemMetafields,
+              customerPriceListId: window.customerPriceListId,
+              customerMonitorId: window.customerMonitorId || null,
+              customerDiscountCategory: window.customerDiscountCategory || null
+            };
+          }
           
           console.log('Customer price list ID from metafields:', customerPriceListId);
           
@@ -1393,8 +1406,21 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Creating draft order with items:', items);
             
             // Get customer's price list ID from the first cart item's metafields
-            const firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
-            const customerPriceListId = firstItemMetafields.customerPriceListId;
+            // Use the same fallback logic as the pricing system
+            let firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
+            let customerPriceListId = firstItemMetafields.customerPriceListId;
+            
+            // Fallback: use product page metafields if cart metafields are empty
+            if (!customerPriceListId && window.customerPriceListId) {
+              console.log('Using product page metafields for customer price list ID');
+              customerPriceListId = window.customerPriceListId;
+              firstItemMetafields = {
+                ...firstItemMetafields,
+                customerPriceListId: window.customerPriceListId,
+                customerMonitorId: window.customerMonitorId || null,
+                customerDiscountCategory: window.customerDiscountCategory || null
+              };
+            }
             
             console.log('Customer price list ID from metafields:', customerPriceListId);
             

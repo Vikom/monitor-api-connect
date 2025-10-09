@@ -47,10 +47,12 @@ async function pollForNewOrders() {
                   id
                   title
                   quantity
-                  price
+                  originalUnitPrice
+                  discountedUnitPrice
                   variant {
                     id
                     sku
+                    price
                     product {
                       id
                       title
@@ -280,14 +282,17 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       const monitorPartId = monitorIdMetafield.node.value; // Keep as string to avoid precision loss
       
       // Create order row - get price from draft order line item
-      // In draft orders, the price is available directly on the line item
+      // In draft orders, use discountedUnitPrice first (includes custom pricing), then originalUnitPrice
       let unitPrice = 0;
       
-      if (lineItem.price) {
-        // Draft orders have the price directly on the line item
-        unitPrice = parseFloat(lineItem.price);
+      if (lineItem.discountedUnitPrice) {
+        // Use discounted price which includes custom pricing
+        unitPrice = parseFloat(lineItem.discountedUnitPrice);
+      } else if (lineItem.originalUnitPrice) {
+        // Fallback to original price
+        unitPrice = parseFloat(lineItem.originalUnitPrice);
       } else if (lineItem.variant?.price) {
-        // Fallback to variant price if available
+        // Final fallback to variant price
         unitPrice = parseFloat(lineItem.variant.price);
       } else {
         console.warn(`No price found for draft order line item ${lineItem.id}, using 0`);
