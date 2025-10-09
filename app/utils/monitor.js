@@ -318,10 +318,10 @@ class MonitorClient {
    */
   async fetchPartsForStock(limit = null) {
     const sessionId = await this.getSessionId();
-    
+
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
-    url += `?$filter=(Status eq 4 or Status eq 6) and BlockedStatus lt 2`;
-    url += '&$select=Id,PartNumber,Description,Status,BlockedStatus,PartLocations';
+    url += `?$filter=BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
+    url += '&$select=Id,PartNumber,Status,BlockedStatus,PartLocations';
     url += '&$expand=PartLocations';
     
     // Add limit if specified (for single test mode)

@@ -545,12 +545,12 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
   );
 
   if (existingLevel) {
-    console.log(`    Inventory already stocked at location`);
+    console.log(`    Inventory item already activated at location`);
     return true;
   }
 
   // If not stocked, we need to activate it at the location
-  console.log(`    Activating inventory at location...`);
+  console.log(`    Activating inventory item at location for first time...`);
   
   const activateQuery = `mutation inventoryActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
     inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
@@ -799,10 +799,12 @@ export async function syncInventory() {
       // Process all warehouses in our mapping, not just those with stock data
       for (const warehouseId of Object.keys(WAREHOUSE_METAFIELD_MAPPING)) {
         const currentBalance = allWarehouseStock[warehouseId] || 0; // Use 0 if no stock data
+        const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
+        console.log(`   Processing ${warehouseName} warehouse - Monitor balance: ${currentBalance}`);
+        
         const shopifyLocation = locationMap.get(warehouseId);
         if (!shopifyLocation) {
-          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
-          console.log(`   ⚠️  No Shopify location mapped for ${warehouseName} warehouse (${warehouseId})`);
+          console.log(`   ⚠️  No Shopify location mapped for ${warehouseName} warehouse`);
           continue;
         }
 
@@ -813,14 +815,15 @@ export async function syncInventory() {
           continue;
         }
 
-        // Ensure inventory item is stocked at location
+        // Ensure inventory item is stocked at location (activation check)
         const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
         if (!isStocked) {
-          console.log(`   ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.name}`);
+          console.log(`   ❌ Failed to ensure inventory item is activated at location ${shopifyLocation.name}`);
           continue;
         }
 
-        // Update inventory level in Shopify
+        // ALWAYS update inventory level in Shopify with current Monitor balance
+        console.log(`   🔄 Updating Shopify inventory level to ${Math.floor(currentBalance)} units...`);
         const success = await updateShopifyInventoryLevel(
           shop, 
           accessToken, 
@@ -830,8 +833,7 @@ export async function syncInventory() {
         );
 
         if (success) {
-          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
-          console.log(`   ✅ Updated ${shopifyLocation.name}: ${Math.floor(currentBalance)} units (from ${warehouseName})`);
+          console.log(`   ✅ Successfully synced ${shopifyLocation.name}: ${Math.floor(currentBalance)} units`);
           inventoryUpdated = true;
         } else {
           console.log(`   ❌ Failed to update inventory at ${shopifyLocation.name}`);
@@ -1058,31 +1060,32 @@ export async function syncInventory() {
         // Process all warehouses in our mapping, not just those with stock data
         for (const warehouseId of Object.keys(WAREHOUSE_METAFIELD_MAPPING)) {
           const currentBalance = allWarehouseStock[warehouseId] || 0; // Use 0 if no stock data
-          console.log(`  Processing warehouse ${warehouseId} with balance: ${currentBalance}`);
+          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
+          console.log(`  Processing ${warehouseName} warehouse (${warehouseId}) - Monitor balance: ${currentBalance}`);
 
           // Find the corresponding Shopify location
           const shopifyLocation = locationMap.get(warehouseId);
           if (!shopifyLocation) {
-            const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
-            console.log(`    ⚠️  No Shopify location mapped for ${warehouseName} warehouse (${warehouseId})`);
+            console.log(`    ⚠️  No Shopify location mapped for ${warehouseName} warehouse`);
             continue;
           }
 
           // Get inventory item ID for this variant
           const inventoryItemId = await getInventoryItemId(shop, accessToken, shopifyProduct.variantId);
           if (!inventoryItemId) {
-            console.log(`    ❌ Could not get inventory item ID for variant ${shopifyProduct.variantId}`);
+            console.log(`    ❌ Could not get inventory item ID for variant`);
             continue;
           }
 
-          // Ensure inventory item is stocked at location
+          // Ensure inventory item is stocked at location (activation check)
           const isStocked = await ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, shopifyLocation.id);
           if (!isStocked) {
-            console.log(`    ❌ Failed to ensure inventory item is stocked at location ${shopifyLocation.id}`);
+            console.log(`    ❌ Failed to ensure inventory item is activated at location ${shopifyLocation.name}`);
             continue;
           }
 
-          // Update inventory level in Shopify
+          // ALWAYS update inventory level in Shopify with current Monitor balance
+          console.log(`    🔄 Updating Shopify inventory level to ${Math.floor(currentBalance)} units...`);
           const success = await updateShopifyInventoryLevel(
             shop, 
             accessToken, 
@@ -1092,10 +1095,10 @@ export async function syncInventory() {
           );
 
           if (success) {
-            console.log(`    ✅ Updated inventory to ${Math.floor(currentBalance)} at location "${shopifyLocation.name}"`);
+            console.log(`    ✅ Successfully synced ${shopifyLocation.name}: ${Math.floor(currentBalance)} units`);
             inventoryUpdated = true;
           } else {
-            console.log(`    ❌ Failed to update inventory at location "${shopifyLocation.name}"`);
+            console.log(`    ❌ Failed to update inventory at ${shopifyLocation.name}`);
           }
         }
 
