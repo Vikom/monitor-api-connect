@@ -21,11 +21,12 @@ async function pollForNewOrders() {
   try {
     const fetch = (await import('node-fetch')).default;
     
-    // Get orders from last 2 hours to catch any we might have missed
+    // Get draft orders from last 2 hours to catch any we might have missed
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     
-    const query = `query {
-      orders(first: 50, query: "created_at:>='${twoHoursAgo}'") {
+    // Only query completed draft orders since those have gone through checkout
+    const draftOrderQuery = `query {
+      draftOrders(first: 50, query: "created_at:>='${twoHoursAgo}' AND status:completed") {
         edges {
           node {
             id
@@ -33,8 +34,7 @@ async function pollForNewOrders() {
             email
             createdAt
             totalPrice
-            displayFulfillmentStatus
-            displayFinancialStatus
+            status
             customer {
               id
               firstName
@@ -47,14 +47,18 @@ async function pollForNewOrders() {
                   id
                   title
                   quantity
+                  price
                   variant {
                     id
                     sku
-                    price
                     product {
                       id
                       title
                     }
+                  }
+                  customAttributes {
+                    key
+                    value
                   }
                 }
               }
@@ -70,35 +74,36 @@ async function pollForNewOrders() {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': accessToken,
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query: draftOrderQuery }),
     });
 
     const result = await response.json();
 
     if (result.errors) {
-      console.error("GraphQL errors polling orders:", JSON.stringify(result.errors, null, 2));
+      console.error("GraphQL errors polling draft orders:", JSON.stringify(result.errors, null, 2));
       return;
     }
 
-    const orders = result.data?.orders?.edges || [];
+    const draftOrders = result.data?.draftOrders?.edges || [];
     
-    if (orders.length === 0) {
-      console.log("✅ No new orders found");
+    if (draftOrders.length === 0) {
+      console.log("✅ No new completed draft orders found");
       return;
     }
 
-    console.log(`📦 Found ${orders.length} recent orders`);
+    console.log(`📦 Found ${draftOrders.length} completed draft orders`);
 
-    // Process each order (same logic as webhook handler)
-    for (const orderEdge of orders) {
+    // Process each completed draft order
+    for (const orderEdge of draftOrders) {
       const order = orderEdge.node;
-      console.log(`Processing order: ${order.name} (${order.totalPrice})`);
+      console.log(`Processing completed draft order: ${order.name} (${order.totalPrice}) - Status: ${order.status}`);
+      console.log(`Draft order line items count: ${order.lineItems?.edges?.length || 0}`);
       
       try {
         // Check if customer exists and has monitor_id
         const customer = order.customer;
         if (!customer) {
-          console.log(`  ⚠️  Order ${order.name} has no customer, skipping Monitor sync`);
+          console.log(`  ⚠️  Draft order ${order.name} has no customer, skipping Monitor sync`);
           continue;
         }
 
@@ -106,17 +111,25 @@ async function pollForNewOrders() {
         const monitorCustomerId = await getCustomerMonitorId(shop, accessToken, customer.id.split('/').pop());
         
         if (!monitorCustomerId) {
-          console.log(`  ⚠️  Customer ${customer.id} for order ${order.name} has no monitor_id metafield, skipping Monitor sync`);
+          console.log(`  ⚠️  Customer ${customer.id} for draft order ${order.name} has no monitor_id metafield, skipping Monitor sync`);
           continue;
         }
 
         console.log(`  📋 Found monitor customer ID: ${monitorCustomerId} for Shopify customer ${customer.id}`);
 
         // Build Monitor order rows from line items
-        const orderRows = await buildMonitorOrderRows(shop, accessToken, order.lineItems.edges.map(edge => edge.node));
+        const lineItems = order.lineItems?.edges?.map(edge => edge.node) || [];
+        console.log(`  📋 Processing ${lineItems.length} line items for draft order ${order.name}`);
+        
+        // Debug: Log first line item structure
+        if (lineItems.length > 0) {
+          console.log(`  🔍 First draft order line item structure:`, JSON.stringify(lineItems[0], null, 2));
+        }
+        
+        const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
         
         if (orderRows.length === 0) {
-          console.log(`  ⚠️  Order ${order.name} has no valid line items for Monitor, skipping sync`);
+          console.log(`  ⚠️  Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
           continue;
         }
 
@@ -138,12 +151,12 @@ async function pollForNewOrders() {
         const monitorOrderId = await createOrderInMonitor(monitorOrderData);
         
         if (monitorOrderId) {
-          console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify order ${order.name}`);
+          console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
         } else {
-          console.error(`  ❌ Failed to create order in Monitor for Shopify order ${order.name}`);
+          console.error(`  ❌ Failed to create order in Monitor for Shopify draft order ${order.name}`);
         }
       } catch (error) {
-        console.error(`  ❌ Failed to create order ${order.name} in Monitor:`, error);
+        console.error(`  ❌ Failed to create draft order ${order.name} in Monitor:`, error);
       }
     }
 
@@ -213,11 +226,19 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
   for (const lineItem of lineItems) {
     try {
       // Get variant metafields to find monitor_id
-      const variantId = lineItem.variant?.id?.split('/').pop();
+      // In draft orders, variant should be available
+      let variantId = null;
+      
+      if (lineItem.variant?.id) {
+        variantId = lineItem.variant.id.split('/').pop();
+      }
+      
       if (!variantId) {
-        console.warn(`Line item ${lineItem.id} has no variant_id, skipping`);
+        console.warn(`Draft order line item ${lineItem.id} has no variant, skipping. LineItem data:`, JSON.stringify(lineItem, null, 2));
         continue;
       }
+      
+      console.log(`Processing draft order line item ${lineItem.id} with variant ID: ${variantId}`);
 
       const query = `query {
         productVariant(id: "gid://shopify/ProductVariant/${variantId}") {
@@ -258,8 +279,19 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
 
       const monitorPartId = monitorIdMetafield.node.value; // Keep as string to avoid precision loss
       
-      // Create order row - need to calculate price per unit
-      const unitPrice = parseFloat(lineItem.variant?.price || 0);
+      // Create order row - get price from draft order line item
+      // In draft orders, the price is available directly on the line item
+      let unitPrice = 0;
+      
+      if (lineItem.price) {
+        // Draft orders have the price directly on the line item
+        unitPrice = parseFloat(lineItem.price);
+      } else if (lineItem.variant?.price) {
+        // Fallback to variant price if available
+        unitPrice = parseFloat(lineItem.variant.price);
+      } else {
+        console.warn(`No price found for draft order line item ${lineItem.id}, using 0`);
+      }
       
       rows.push({
         PartId: monitorPartId,
@@ -268,7 +300,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         // Description: lineItem.title, // Optional: add product title as description
       });
 
-      console.log(`    Added line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${lineItem.quantity}`);
+      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${lineItem.quantity} and unit price ${unitPrice}`);
     } catch (error) {
       console.error(`Error processing line item ${lineItem.id}:`, error);
       continue;
