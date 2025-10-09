@@ -5,15 +5,8 @@ import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { fetchPartByPartNumberFromMonitor, fetchPartsForStock } from "./utils/monitor.js";
 dotenv.config();
 
-// Get command line arguments to determine which store to sync to
-const args = process.argv.slice(2);
-const useAdvancedStore = args.includes('--advanced') || args.includes('-a') || global.useAdvancedStore;
-const isSingleTest = args.includes('--single-test');
-
-console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
-if (isSingleTest) {
-  console.log('🧪 Running in single test mode - no Shopify writes will be performed');
-}
+// Store selection will be determined at runtime inside the syncInventory function
+// to properly handle global.useAdvancedStore set by the worker
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -606,6 +599,15 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
 }
 
 export async function syncInventory() {
+  // Use global variable if set (from worker), otherwise use command line args
+  const args = process.argv.slice(2);
+  const currentUseAdvancedStore = global.useAdvancedStore !== undefined ? global.useAdvancedStore : 
+    (args.includes('--advanced') || args.includes('-a'));
+  const isSingleTest = args.includes('--single-test');
+
+  console.log(`🎯 Runtime store detection: ${currentUseAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+  console.log(`🔍 Global flag: ${global.useAdvancedStore}, Args: ${args.includes('--advanced') || args.includes('-a')}`);
+
   // Handle single test mode
   if (isSingleTest) {
     console.log('🧪 Single test mode - testing with one actual Shopify update');
@@ -613,7 +615,7 @@ export async function syncInventory() {
     // Set up Shopify connection (same logic as main sync)
     let shop, accessToken;
 
-    if (useAdvancedStore) {
+    if (currentUseAdvancedStore) {
       // Use Advanced store configuration
       shop = process.env.ADVANCED_STORE_DOMAIN;
       accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
@@ -878,7 +880,7 @@ export async function syncInventory() {
 
   let shop, accessToken;
 
-  if (useAdvancedStore) {
+  if (currentUseAdvancedStore) {
     // Use Advanced store configuration
     console.log("🔧 Using Advanced store configuration...");
     shop = process.env.ADVANCED_STORE_DOMAIN;
@@ -1121,6 +1123,7 @@ export async function syncInventory() {
 
 // Only run when executed directly, not when imported
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const args = process.argv.slice(2);
   // Display usage instructions
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
