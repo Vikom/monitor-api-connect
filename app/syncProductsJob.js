@@ -33,7 +33,7 @@ function getUnitCodeFromStandardUnitId(standardUnitId) {
 
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
-const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const useAdvancedStore = args.includes('--advanced') || args.includes('-a') || global.useAdvancedStore;
 const isManualRun = args.includes('--manual') || args.includes('-m');
 
 // Store this globally for cron access

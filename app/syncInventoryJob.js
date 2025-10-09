@@ -7,7 +7,7 @@ dotenv.config();
 
 // Get command line arguments to determine which store to sync to
 const args = process.argv.slice(2);
-const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
+const useAdvancedStore = args.includes('--advanced') || args.includes('-a') || global.useAdvancedStore;
 const isSingleTest = args.includes('--single-test');
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);

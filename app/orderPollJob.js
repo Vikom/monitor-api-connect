@@ -24,7 +24,7 @@ async function pollForNewOrders() {
     // Get draft orders from last 2 hours to catch any we might have missed
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     
-    // Only query completed draft orders since those have gone through checkout
+    // Only query completed draft orders that haven't been sent to Monitor yet
     const draftOrderQuery = `query {
       draftOrders(first: 50, query: "created_at:>='${twoHoursAgo}' AND status:completed") {
         edges {
@@ -35,6 +35,14 @@ async function pollForNewOrders() {
             createdAt
             totalPrice
             status
+            metafields(first: 5, namespace: "custom") {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
             customer {
               id
               firstName
@@ -93,10 +101,25 @@ async function pollForNewOrders() {
       return;
     }
 
-    console.log(`📦 Found ${draftOrders.length} completed draft orders`);
+    // Filter out orders that have already been sent to Monitor
+    const unsentOrders = draftOrders.filter(orderEdge => {
+      const order = orderEdge.node;
+      const metafields = order.metafields?.edges || [];
+      const sentToMonitorMetafield = metafields.find(mf => mf.node.key === "sent_to_monitor");
+      
+      // Only process if sent_to_monitor is false or doesn't exist
+      return !sentToMonitorMetafield || sentToMonitorMetafield.node.value === "false";
+    });
 
-    // Process each completed draft order
-    for (const orderEdge of draftOrders) {
+    console.log(`📦 Found ${draftOrders.length} completed draft orders, ${unsentOrders.length} not yet sent to Monitor`);
+
+    if (unsentOrders.length === 0) {
+      console.log("✅ All completed draft orders have already been sent to Monitor");
+      return;
+    }
+
+    // Process each unsent completed draft order
+    for (const orderEdge of unsentOrders) {
       const order = orderEdge.node;
       console.log(`Processing completed draft order: ${order.name} (${order.totalPrice}) - Status: ${order.status}`);
       console.log(`Draft order line items count: ${order.lineItems?.edges?.length || 0}`);
@@ -154,6 +177,9 @@ async function pollForNewOrders() {
         
         if (monitorOrderId) {
           console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
+          
+          // Mark draft order as sent to Monitor
+          await markDraftOrderAsSentToMonitor(shop, accessToken, order.id.split('/').pop());
         } else {
           console.error(`  ❌ Failed to create order in Monitor for Shopify draft order ${order.name}`);
         }
@@ -319,6 +345,63 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
   }
 
   return rows;
+}
+
+/**
+ * Mark a draft order as sent to Monitor by setting the sent_to_monitor metafield to true
+ */
+async function markDraftOrderAsSentToMonitor(shop, accessToken, draftOrderId) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const mutation = `mutation {
+    draftOrderUpdate(id: "gid://shopify/DraftOrder/${draftOrderId}", input: {
+      metafields: [
+        {
+          namespace: "custom"
+          key: "sent_to_monitor"
+          value: "true"
+          type: "boolean"
+        }
+      ]
+    }) {
+      draftOrder {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error("GraphQL errors marking draft order as sent:", JSON.stringify(result.errors, null, 2));
+      return false;
+    }
+
+    if (result.data?.draftOrderUpdate?.userErrors?.length > 0) {
+      console.error("User errors marking draft order as sent:", JSON.stringify(result.data.draftOrderUpdate.userErrors, null, 2));
+      return false;
+    }
+
+    console.log(`  📋 Marked draft order ${draftOrderId} as sent to Monitor`);
+    return true;
+  } catch (error) {
+    console.error("Error marking draft order as sent to Monitor:", error);
+    return false;
+  }
 }
 
 export { pollForNewOrders };
