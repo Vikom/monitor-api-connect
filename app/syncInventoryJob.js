@@ -52,11 +52,16 @@ const WAREHOUSE_JSON_MAPPING = {
 function generateStockControlJson(partPlanningInformations) {
   const stockControl = {};
   
+  // Initialize all warehouses with default 'order' value
+  Object.values(WAREHOUSE_JSON_MAPPING).forEach(warehouseName => {
+    stockControl[warehouseName] = 'order'; // Default value
+  });
+  
   if (!Array.isArray(partPlanningInformations)) {
     return stockControl;
   }
   
-  // Process each planning information entry
+  // Process each planning information entry and override defaults
   partPlanningInformations.forEach(planningInfo => {
     const warehouseId = planningInfo.WarehouseId;
     const lotSizingRule = planningInfo.LotSizingRule;
@@ -112,43 +117,36 @@ function determineStockStatus(stockData, stockControlJson) {
 async function updateVariantMetafields(shop, accessToken, variantId, stockData, stockControlJson, stockStatus) {
   const fetch = (await import('node-fetch')).default;
   
-  // Prepare metafields array for each warehouse that has stock data
+  // Prepare metafields array for ALL warehouses (always populate all warehouses)
   const metafields = [];
   
-  for (const [warehouseId, stock] of Object.entries(stockData)) {
-    const metafieldKey = WAREHOUSE_METAFIELD_MAPPING[warehouseId];
-    if (metafieldKey) {
-      const [namespace, key] = metafieldKey.split('.');
-      metafields.push({
-        namespace: namespace,
-        key: key,
-        value: stock.toString(),
-        type: "number_decimal"
-      });
-    }
-  }
-  
-  // Add stock_control JSON metafield if we have stock control data
-  if (stockControlJson && Object.keys(stockControlJson).length > 0) {
+  // Always create metafields for all warehouses in our mapping, even if stock is 0 or missing
+  for (const [warehouseId, metafieldKey] of Object.entries(WAREHOUSE_METAFIELD_MAPPING)) {
+    const stock = stockData[warehouseId] || 0; // Use 0 if no stock data for this warehouse
+    const [namespace, key] = metafieldKey.split('.');
     metafields.push({
-      namespace: "custom",
-      key: "stock_control",
-      value: JSON.stringify(stockControlJson),
-      type: "json"
+      namespace: namespace,
+      key: key,
+      value: stock.toString(),
+      type: "number_decimal"
     });
   }
   
-  // Add stock_status metafield (always add this to ensure it's updated on each run)
+  // Always add stock_control JSON metafield (even if empty)
+  metafields.push({
+    namespace: "custom",
+    key: "stock_control",
+    value: JSON.stringify(stockControlJson || {}),
+    type: "json"
+  });
+  
+  // Always add stock_status metafield
   metafields.push({
     namespace: "custom",
     key: "stock_status",
     value: stockStatus || "", // Use empty string if stockStatus is falsy
     type: "single_line_text_field"
   });
-  
-  if (metafields.length === 0) {
-    return true; // Nothing to update
-  }
   
   const mutation = `mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
@@ -734,19 +732,18 @@ export async function syncInventory() {
     console.log(`✅ Mapped to Shopify: ${testProduct.productTitle} (${testProduct.sku})`);
     
     try {
-      // Get stock data from PartLocations
+      // Get stock data from PartLocations (always get, even if empty)
       const allWarehouseStock = getStockDataFromPartLocations(testPart.PartLocations);
       
       if (Object.keys(allWarehouseStock).length === 0) {
-        console.log('❌ No stock data found in mapped warehouses for this part');
-        return;
+        console.log('⚠️  No stock data found in mapped warehouses for this part - will populate with zeros');
       }
       
-      // Get stock control data for this product
+      // Get stock control data for this product (always get, even if empty)
       const partData = await fetchPartByPartNumberFromMonitor(testPart.PartNumber);
       const stockControlJson = partData ? generateStockControlJson(partData.PartPlanningInformations) : {};
       
-      // Determine stock status based on current stock and stock control
+      // Determine stock status based on current stock and stock control (always determine)
       const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
       
       // Get Shopify locations with monitor_id mapping
@@ -780,19 +777,14 @@ export async function syncInventory() {
       if (metafieldSuccess) {
         console.log('✅ Successfully updated metafields:');
         
-        // Show what was updated
-        for (const [warehouseId, stock] of Object.entries(allWarehouseStock)) {
-          const metafieldKey = WAREHOUSE_METAFIELD_MAPPING[warehouseId];
-          if (metafieldKey) {
-            const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
-            console.log(`   ${metafieldKey}: ${stock} (${warehouseName})`);
-          }
+        // Show what was updated for all warehouses
+        for (const [warehouseId, metafieldKey] of Object.entries(WAREHOUSE_METAFIELD_MAPPING)) {
+          const stock = allWarehouseStock[warehouseId] || 0;
+          const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
+          console.log(`   ${metafieldKey}: ${stock} (${warehouseName})`);
         }
         
-        if (Object.keys(stockControlJson).length > 0) {
-          console.log(`   custom.stock_control: ${JSON.stringify(stockControlJson)}`);
-        }
-        
+        console.log(`   custom.stock_control: ${JSON.stringify(stockControlJson)}`);
         console.log(`   custom.stock_status: "${stockStatus}"`);
       } else {
         console.log('❌ Failed to update metafields');
@@ -802,7 +794,9 @@ export async function syncInventory() {
       console.log('\n📦 Updating inventory levels...');
       let inventoryUpdated = false;
       
-      for (const [warehouseId, currentBalance] of Object.entries(allWarehouseStock)) {
+      // Process all warehouses in our mapping, not just those with stock data
+      for (const warehouseId of Object.keys(WAREHOUSE_METAFIELD_MAPPING)) {
+        const currentBalance = allWarehouseStock[warehouseId] || 0; // Use 0 if no stock data
         const shopifyLocation = locationMap.get(warehouseId);
         if (!shopifyLocation) {
           const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
@@ -847,12 +841,12 @@ export async function syncInventory() {
       console.log('========================');
       
       if (metafieldSuccess) {
-        const stockMetafieldCount = Object.keys(allWarehouseStock).filter(warehouseId => WAREHOUSE_METAFIELD_MAPPING[warehouseId]).length;
-        const controlMetafieldCount = Object.keys(stockControlJson).length > 0 ? 1 : 0;
+        const stockMetafieldCount = Object.keys(WAREHOUSE_METAFIELD_MAPPING).length; // All warehouses are now updated
+        const controlMetafieldCount = 1; // Always add stock_control now
         const totalMetafields = stockMetafieldCount + controlMetafieldCount + 1; // +1 for stock_status
         
         console.log(`✅ Metafields updated: ${totalMetafields} total`);
-        console.log(`   • Stock metafields: ${stockMetafieldCount}`);
+        console.log(`   • Stock metafields: ${stockMetafieldCount} (all warehouses)`);
         console.log(`   • Stock control: ${controlMetafieldCount}`);
         console.log(`   • Stock status: 1`);
       } else {
@@ -860,7 +854,7 @@ export async function syncInventory() {
       }
       
       if (inventoryUpdated) {
-        const inventoryUpdateCount = Object.keys(allWarehouseStock).filter(warehouseId => locationMap.get(warehouseId)).length;
+        const inventoryUpdateCount = Object.keys(WAREHOUSE_METAFIELD_MAPPING).filter(warehouseId => locationMap.get(warehouseId)).length;
         console.log(`✅ Inventory levels updated: ${inventoryUpdateCount} locations`);
       } else {
         console.log(`⚠️  No inventory levels updated (no matching locations or API errors)`);
@@ -1012,24 +1006,23 @@ export async function syncInventory() {
           continue;
         }
 
-        // Get stock data from PartLocations
+        // Get stock data from PartLocations (always get, even if empty)
         const allWarehouseStock = getStockDataFromPartLocations(part.PartLocations);
         
-        if (Object.keys(allWarehouseStock).length === 0) {
-          console.log(`  No stock data found in mapped warehouses for part ${displayName}`);
-          continue;
+        if (Object.keys(allWarehouseStock).length > 0) {
+          console.log(`  Found stock data for warehouses: ${Object.keys(allWarehouseStock).join(', ')}`);
+        } else {
+          console.log(`  No stock data found in mapped warehouses for part ${displayName} - will populate with zeros`);
         }
 
-        console.log(`  Found stock data for warehouses: ${Object.keys(allWarehouseStock).join(', ')}`);
-
-        // Get stock control data for this product
+        // Get stock control data for this product (always get, even if empty)
         const partData = await fetchPartByPartNumberFromMonitor(part.PartNumber);
         const stockControlJson = partData ? generateStockControlJson(partData.PartPlanningInformations) : {};
         
-        // Determine stock status based on current stock and stock control
+        // Determine stock status based on current stock and stock control (always determine)
         const stockStatus = determineStockStatus(allWarehouseStock, stockControlJson);
         
-        // Update variant metafields with stock data, stock control, and stock status
+        // Always update variant metafields with stock data, stock control, and stock status
         const metafieldSuccess = await updateVariantMetafields(
           shop,
           accessToken,
@@ -1040,34 +1033,36 @@ export async function syncInventory() {
         );
 
         if (metafieldSuccess) {
-          const stockMetafieldUpdates = Object.entries(allWarehouseStock)
-            .filter(([warehouseId]) => WAREHOUSE_METAFIELD_MAPPING[warehouseId])
-            .map(([warehouseId, stock]) => `${WAREHOUSE_METAFIELD_MAPPING[warehouseId]}=${stock}`)
+          const stockMetafieldUpdates = Object.entries(WAREHOUSE_METAFIELD_MAPPING)
+            .map(([warehouseId, metafieldKey]) => {
+              const stock = allWarehouseStock[warehouseId] || 0;
+              return `${metafieldKey}=${stock}`;
+            })
             .join(', ');
           
-          const controlUpdates = Object.keys(stockControlJson).length > 0 ? 'custom.stock_control=JSON' : '';
+          const controlUpdates = 'custom.stock_control=JSON'; // Always updated now
           const statusUpdate = `custom.stock_status="${stockStatus}"`;
           
-          const allUpdates = [stockMetafieldUpdates, controlUpdates, statusUpdate]
-            .filter(update => update !== '')
-            .join(', ');
+          const allUpdates = [stockMetafieldUpdates, controlUpdates, statusUpdate].join(', ');
           
-          if (allUpdates) {
-            // console.log(`  ✅ Updated metafields: ${allUpdates}`);
-          }
+          console.log(`  ✅ Updated metafields: ${allUpdates}`);
         } else {
           console.log(`  ⚠️  Failed to update metafields for ${displayName}`);
         }
 
-        // Update Shopify inventory levels for each warehouse
+        // Update Shopify inventory levels for each warehouse (including those with 0 stock)
         let inventoryUpdated = false;
-        for (const [warehouseId, currentBalance] of Object.entries(allWarehouseStock)) {
+        
+        // Process all warehouses in our mapping, not just those with stock data
+        for (const warehouseId of Object.keys(WAREHOUSE_METAFIELD_MAPPING)) {
+          const currentBalance = allWarehouseStock[warehouseId] || 0; // Use 0 if no stock data
           console.log(`  Processing warehouse ${warehouseId} with balance: ${currentBalance}`);
 
           // Find the corresponding Shopify location
           const shopifyLocation = locationMap.get(warehouseId);
           if (!shopifyLocation) {
-            console.log(`    ⚠️  No Shopify location mapped for Monitor warehouse ${warehouseId}`);
+            const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId] || 'Unknown';
+            console.log(`    ⚠️  No Shopify location mapped for ${warehouseName} warehouse (${warehouseId})`);
             continue;
           }
 
@@ -1165,5 +1160,5 @@ Make sure your .env file is configured properly before running.
   `);
 
   // Run the sync
-  // syncInventory();
+  syncInventory();
 }
