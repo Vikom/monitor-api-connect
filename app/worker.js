@@ -62,30 +62,30 @@ async function runSyncJob(jobName, syncFunction, ...args) {
 // Set up all cron jobs for worker mode
 function setupCronJobs() {
   // Order polling every 5 minutes
-  // cron.schedule("*/5 * * * *", () => {
-  //   console.log("[ORDER-POLL] Checking for new orders...");
-  //   pollForNewOrders().catch((error) => {
-  //     console.error("[ORDER-POLL] ❌ Order polling failed:", error);
-  //   });
-  // });
+  cron.schedule("*/5 * * * *", () => {
+    console.log("[ORDER-POLL] Checking for new orders...");
+    pollForNewOrders().catch((error) => {
+      console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+    });
+  });
 
   // Inventory sync every 6 hours at 15 minutes past full hour (00:15, 06:15, 12:15, 18:15)
-  // cron.schedule("15 */6 * * *", () => {
-  // console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  //   runSyncJob("INVENTORY-SYNC", syncInventory);
-  // });
+  cron.schedule("15 */6 * * *", () => {
+  console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+    runSyncJob("INVENTORY-SYNC", syncInventory);
+  });
 
   // Product sync every hour (incremental)
-  // cron.schedule("0 * * * *", () => {
-  //   console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
-  //   runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
-  // });
+  cron.schedule("0 * * * *", () => {
+    console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
+    runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
+  });
 
   // Customer sync every 10 minutes
-  // cron.schedule("*/10 * * * *", () => { // 10 minutes after product sync to avoid conflicts
-  //   console.log("[CUSTOMER-SYNC] Running scheduled incremental customer sync...");
-  //   runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
-  // });
+  cron.schedule("*/10 * * * *", () => { // 10 minutes after product sync to avoid conflicts
+    console.log("[CUSTOMER-SYNC] Running scheduled incremental customer sync...");
+    runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
+  });
   
   console.log("📅 Worker cron jobs scheduled:");
   console.log("  - Order polling: every 5 minutes");
