@@ -32,6 +32,7 @@ async function pollForNewOrders() {
             id
             name
             email
+            note
             createdAt
             totalPrice
             status
