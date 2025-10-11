@@ -444,6 +444,7 @@
           </div>
       {%- endcase -%}
     {%- endfor -%}
+      {%- if customer -%}
         <div
             class="stock-block {{ block_classes }}{% if block.settings.text_style == 'uppercase' %} text-upper{% elsif block.settings.text_style == 'subtitle' %} text-upper text-subtext{% endif %}{% if product.selected_or_first_available_variant.inventory_management != 'shopify' %} invisible{% endif %}"
             {{ block.shopify_attributes }}
@@ -573,6 +574,7 @@
     </p>
   {%- endif -%}
 </div>
+{%- endif -%}
 <!-- END: Custom stock output -->
 {%- comment -%}
               {%- liquid
