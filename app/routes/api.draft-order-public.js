@@ -330,12 +330,7 @@ export async function action({ request }) {
         customer: {
           id: parseInt(customerId.replace('gid://shopify/Customer/', ''))
         },
-        custom_attributes: goodsLabel ? [
-          {
-            key: "goods_label",
-            value: goodsLabel
-          }
-        ] : [],
+        note: goodsLabel || '', // Use the note field for goods label since draft orders don't support custom_attributes
         line_items: lineItems.map(item => {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use integer quantity

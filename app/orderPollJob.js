@@ -35,6 +35,7 @@ async function pollForNewOrders() {
             createdAt
             totalPrice
             status
+            note
             metafields(first: 5, namespace: "custom") {
               edges {
                 node {
@@ -42,10 +43,6 @@ async function pollForNewOrders() {
                   value
                 }
               }
-            }
-            customAttributes {
-              key
-              value
             }
             customer {
               id
@@ -162,9 +159,8 @@ async function pollForNewOrders() {
           continue;
         }
 
-        // Extract goods label from draft order custom attributes
-        const goodsLabelAttr = order.customAttributes?.find(attr => attr.key === "goods_label");
-        const goodsLabel = goodsLabelAttr ? goodsLabelAttr.value : '';
+        // Extract goods label from draft order note field
+        const goodsLabel = order.note || '';
         console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
 
         // Create order in Monitor system
