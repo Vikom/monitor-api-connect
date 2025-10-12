@@ -316,11 +316,20 @@ class MonitorClient {
    * @param {number} [limit] - Optional limit for number of parts to fetch (for testing)
    * @returns {Promise<Array>} Array of parts with PartLocations for inventory sync
    */
-  async fetchPartsForStock(limit = null) {
+  async fetchPartsForStock(limit = null, specificPartId = null) {
     const sessionId = await this.getSessionId();
 
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
-    url += `?$filter=BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
+    
+    // Build filter - base filter for active parts
+    let filter = `BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
+    
+    // Add specific part ID filter if provided (for debugging specific parts)
+    if (specificPartId) {
+      filter += ` and Id Eq ${specificPartId}`;
+    }
+    
+    url += `?$filter=${filter}`;
     url += '&$select=Id,PartNumber,Status,BlockedStatus,PartLocations';
     url += '&$expand=PartLocations';
     
@@ -1354,6 +1363,6 @@ export async function createOrderInMonitor(orderData) {
  * @param {number} [limit] - Optional limit for number of parts to fetch (for testing)
  * @returns {Promise<Array>} Array of parts with PartLocations for inventory sync
  */
-export async function fetchPartsForStock(limit = null) {
-  return await monitorClient.fetchPartsForStock(limit);
+export async function fetchPartsForStock(limit = null, specificPartId = null) {
+  return await monitorClient.fetchPartsForStock(limit, specificPartId);
 }
