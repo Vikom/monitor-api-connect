@@ -1392,6 +1392,11 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log('Customer price list ID from metafields:', customerPriceListId);
           
+          // Get goods label from cart note
+          const cartNoteElement = document.querySelector('textarea[name="note"][form="cart"]');
+          const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
+          console.log('Cart goods label:', goodsLabel);
+
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
             method: 'POST',
@@ -1400,7 +1405,8 @@ document.addEventListener('DOMContentLoaded', () => {
               customerId: `gid://shopify/Customer/${window.customer.id}`,
               items: items,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
-              priceListId: customerPriceListId // Add the missing price list ID!
+              priceListId: customerPriceListId, // Add the missing price list ID!
+              goodsLabel: goodsLabel // Add the goods label from cart note
             })
           });
           

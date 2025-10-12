@@ -26,9 +26,9 @@ export async function action({ request }) {
     console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop, priceListId } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, shop, priceListId, goodsLabel } = body; // items: [{ variantId, quantity }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId });
+    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel });
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
@@ -330,6 +330,12 @@ export async function action({ request }) {
         customer: {
           id: parseInt(customerId.replace('gid://shopify/Customer/', ''))
         },
+        note_attributes: goodsLabel ? [
+          {
+            name: "goods_label",
+            value: goodsLabel
+          }
+        ] : [],
         line_items: lineItems.map(item => {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use original integer quantity

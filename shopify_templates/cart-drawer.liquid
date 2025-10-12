@@ -1300,6 +1300,11 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log('Customer price list ID from metafields:', customerPriceListId);
           
+          // Get goods label from cart note (cart drawer uses a different selector)
+          const cartNoteElement = document.querySelector('textarea[name="note"]');
+          const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
+          console.log('Cart drawer goods label:', goodsLabel);
+          
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
             method: 'POST',
@@ -1308,7 +1313,8 @@ document.addEventListener('DOMContentLoaded', () => {
               customerId: `gid://shopify/Customer/${window.customer.id}`,
               items: items,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
-              priceListId: customerPriceListId // Add the missing price list ID!
+              priceListId: customerPriceListId, // Add the missing price list ID!
+              goodsLabel: goodsLabel // Add the goods label from cart note
             })
           });
           
@@ -1424,6 +1430,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log('Customer price list ID from metafields:', customerPriceListId);
             
+            // Get goods label from cart note (cart drawer uses a different selector)
+            const cartNoteElement = document.querySelector('textarea[name="note"]');
+            const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
+            console.log('Cart drawer goods label (fallback):', goodsLabel);
+            
             // Create draft order with dynamic pricing
             const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
               method: 'POST',
@@ -1432,7 +1443,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 customerId: `gid://shopify/Customer/${window.customer.id}`,
                 items: items,
                 shop: window.Shopify?.shop?.domain || window.location.hostname,
-                priceListId: customerPriceListId
+                priceListId: customerPriceListId,
+                goodsLabel: goodsLabel // Add the goods label from cart note
               })
             });
             

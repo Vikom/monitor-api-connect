@@ -43,6 +43,10 @@ async function pollForNewOrders() {
                 }
               }
             }
+            noteAttributes {
+              name
+              value
+            }
             customer {
               id
               firstName
@@ -158,6 +162,11 @@ async function pollForNewOrders() {
           continue;
         }
 
+        // Extract goods label from draft order note attributes
+        const goodsLabelAttr = order.noteAttributes?.find(attr => attr.name === "goods_label");
+        const goodsLabel = goodsLabelAttr ? goodsLabelAttr.value : '';
+        console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
+
         // Create order in Monitor system
         const monitorOrderData = {
           CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
@@ -168,7 +177,7 @@ async function pollForNewOrders() {
           Preliminary: true,
           Rows: orderRows,
           IsStockOrder: false,
-          GoodsLabel: order.note // @TODO is this syntax correct?
+          GoodsLabel: goodsLabel // Use goods label from draft order note attributes
         };
 
         console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
