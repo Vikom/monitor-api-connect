@@ -43,8 +43,8 @@ async function pollForNewOrders() {
                 }
               }
             }
-            noteAttributes {
-              name
+            customAttributes {
+              key
               value
             }
             customer {
@@ -162,8 +162,8 @@ async function pollForNewOrders() {
           continue;
         }
 
-        // Extract goods label from draft order note attributes
-        const goodsLabelAttr = order.noteAttributes?.find(attr => attr.name === "goods_label");
+        // Extract goods label from draft order custom attributes
+        const goodsLabelAttr = order.customAttributes?.find(attr => attr.key === "goods_label");
         const goodsLabel = goodsLabelAttr ? goodsLabelAttr.value : '';
         console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
 

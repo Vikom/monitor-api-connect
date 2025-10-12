@@ -330,18 +330,17 @@ export async function action({ request }) {
         customer: {
           id: parseInt(customerId.replace('gid://shopify/Customer/', ''))
         },
-        note_attributes: goodsLabel ? [
+        custom_attributes: goodsLabel ? [
           {
-            name: "goods_label",
+            key: "goods_label",
             value: goodsLabel
           }
         ] : [],
         line_items: lineItems.map(item => {
           let customPrice = parseFloat(item.customPrice);
-          let apiQuantity = item.quantity; // Use original integer quantity
-          
+          let apiQuantity = item.quantity; // Use integer quantity
+
           console.log(`🟦 MAPPING ITEM: variant ${item.variantId}, customPrice from item: "${item.customPrice}", parsed: ${customPrice}, isDecimalUnit: ${item.isDecimalUnit}`);
-          
           // For decimal products, use quantity 1 and calculate total price
           if (item.isDecimalUnit) {
             // Calculate the total price for the decimal quantity
