@@ -1390,5 +1390,5 @@ Make sure your .env file is configured properly before running.
   `);
 
   // Run the sync
-  syncInventory();
+  // syncInventory();
 }
