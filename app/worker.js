@@ -69,9 +69,9 @@ function setupCronJobs() {
     });
   });
 
-  // Inventory sync every 6 hours at 15 minutes past full hour (00:15, 06:15, 12:15, 18:15)
-  cron.schedule("15 */6 * * *", () => {
-  console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+  // Inventory sync daily at 23:00 Swedish time (22:00 UTC)
+  cron.schedule("0 22 * * *", () => {
+    console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
     runSyncJob("INVENTORY-SYNC", syncInventory);
   });
 
@@ -89,7 +89,7 @@ function setupCronJobs() {
   
   console.log("📅 Worker cron jobs scheduled:");
   console.log("  - Order polling: every 5 minutes");
-  console.log("  - Inventory sync: every 6 hours (at :15 - 00:15, 06:15, 12:15, 18:15)");
+  console.log("  - Inventory sync: daily at 23:00 Swedish time (22:00 UTC)");
   console.log("  - Product sync: every hour (at :00)");
   console.log("  - Customer sync: every hour (at :05)");
 }
@@ -113,7 +113,7 @@ Individual manual syncs:
 
 🕐 Worker Schedule (Production only):
   - Order polling: every 5 minutes
-  - Inventory sync: every 6 hours (at :15 - 00:15, 06:15, 12:15, 18:15)
+  - Inventory sync: daily at 23:00 Swedish time (22:00 UTC)
   - Product sync: every hour (at :00, incremental)
   - Customer sync: every hour (at :05, incremental)
 
