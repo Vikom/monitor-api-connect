@@ -35,8 +35,7 @@ async function pollForNewOrders() {
             createdAt
             totalPrice
             status
-            note
-            metafields(first: 5, namespace: "custom") {
+            metafields(first: 10, namespace: "custom") {
               edges {
                 node {
                   key
@@ -159,8 +158,10 @@ async function pollForNewOrders() {
           continue;
         }
 
-        // Extract goods label from draft order note field
-        const goodsLabel = order.note || '';
+        // Extract goods label from draft order metafields
+        const metafields = order.metafields?.edges || [];
+        const goodsLabelMetafield = metafields.find(mf => mf.node.key === "goods_label");
+        const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
 
         // Create order in Monitor system

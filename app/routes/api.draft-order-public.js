@@ -446,6 +446,56 @@ export async function action({ request }) {
     console.log(`🟦 ✅ Created draft order ${draftOrder.id} with total ${draftOrder.total_price}`);
     console.log(`🟦 ✅ Invoice URL: ${draftOrder.invoice_url}`);
     
+    // Add metafield for goods label if provided (so it can be accessed via GraphQL)
+    if (goodsLabel) {
+      try {
+        console.log(`🟦 Adding goods label metafield: "${goodsLabel}"`);
+        const metafieldMutation = `
+          mutation {
+            metafieldsSet(metafields: [
+              {
+                ownerId: "gid://shopify/DraftOrder/${draftOrder.id}"
+                namespace: "custom"
+                key: "goods_label"
+                value: "${goodsLabel.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"
+                type: "multi_line_text_field"
+              }
+            ]) {
+              metafields {
+                id
+                key
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
+        
+        const metafieldResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({ query: metafieldMutation })
+        });
+        
+        const metafieldResult = await metafieldResponse.json();
+        
+        if (metafieldResult.data?.metafieldsSet?.userErrors?.length > 0) {
+          console.error('🟦 Metafield creation errors:', metafieldResult.data.metafieldsSet.userErrors);
+        } else {
+          console.log(`🟦 ✅ Added goods label metafield to draft order ${draftOrder.id}`);
+        }
+      } catch (metafieldError) {
+        console.error('🟦 Failed to add goods label metafield:', metafieldError);
+        // Don't fail the whole operation if metafield creation fails
+      }
+    }
+    
     return json({
       success: true,
       draftOrder: {
