@@ -9,6 +9,7 @@ dotenv.config();
 const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a') || global.useAdvancedStore;
 const isManualRun = args.includes('--manual') || args.includes('-m');
+const isSingleTest = args.includes('--single-test') || args.includes('-s');
 
 // Store this globally for cron access
 global.useAdvancedStore = useAdvancedStore;
@@ -16,6 +17,9 @@ global.useAdvancedStore = useAdvancedStore;
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
 if (isManualRun) {
   console.log(`🔧 Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
+}
+if (isSingleTest) {
+  console.log(`🧪 Single test mode: Only processing first customer`);
 }
 
 const shopifyConfig = shopifyApi({
@@ -151,11 +155,13 @@ export async function syncCustomers(isIncrementalSync = false) {
       customers = await fetchCustomersFromMonitor();
     }
     
-    console.log("Fetched customers", JSON.stringify(customers, null, 2));
+    console.log(`Fetched ${customers.length} customers with WEB-ACCOUNT references`);
     if (!Array.isArray(customers) || customers.length === 0) {
-      console.log("No customers found to sync.");
+      console.log("No WEB-ACCOUNT customers found to sync.");
       return;
     }
+    
+    console.log("Sample customer data:", JSON.stringify(customers[0], null, 2));
   } catch (err) {
     console.error("Error fetching customers", err);
     return;
@@ -163,13 +169,15 @@ export async function syncCustomers(isIncrementalSync = false) {
   
   const fetch = (await import('node-fetch')).default;
 
+  // Process only customers from references with "WEB-ACCOUNT" category
+  let processedCount = 0;
   for (const customer of customers) {
     if (!customer.email || customer.email.trim() === "") {
       console.warn("Skipping customer with blank email:", customer);
       continue;
     }
     
-    console.log(`Processing customer: ${customer.email}`);
+    console.log(`Processing WEB-ACCOUNT customer: ${customer.email}`);
     
     // Check if customer exists by email
     const checkQuery = `query {
@@ -216,7 +224,7 @@ export async function syncCustomers(isIncrementalSync = false) {
           firstName
           lastName
           phone
-          metafields(first: 10, namespace: "custom") {
+          metafields(first: 15, namespace: "custom") {
             edges {
               node {
                 key
@@ -249,13 +257,19 @@ export async function syncCustomers(isIncrementalSync = false) {
           {
             namespace: "custom",
             key: "discount_category",
-            value: customer.discountCategoryId?.toString() || "",
+            value: customer.discountCategory || "",
+            type: "single_line_text_field"
+          },
+          {
+            namespace: "custom",
+            key: "pricelist_id",
+            value: customer.priceListId || "",
             type: "single_line_text_field"
           },
           {
             namespace: "custom",
             key: "company",
-            value: customer.company,
+            value: customer.company || "",
             type: "single_line_text_field"
           }
         ]
@@ -299,6 +313,14 @@ export async function syncCustomers(isIncrementalSync = false) {
     } else {
       console.log("❌ Unknown error:", JSON.stringify(createJson, null, 2));
     }
+    
+    processedCount++;
+    
+    // In single test mode, only process the first customer
+    if (isSingleTest) {
+      console.log("🧪 Single test mode: Stopping after first customer");
+      break;
+    }
   }
 }
 
@@ -310,11 +332,13 @@ if (args.includes('--help') || args.includes('-h')) {
 📋 Customers Sync Job Usage:
 
 To sync to development store (OAuth):
-  node app/syncCustomersJob.js                    # Full sync (all customers)
+  node app/syncCustomersJob.js                    # Full sync (WEB-ACCOUNT customers only)
   node app/syncCustomersJob.js --manual           # Full sync (manual mode)
+  node app/syncCustomersJob.js --single-test      # Test with first customer only
 
 To sync to Advanced store:
   node app/syncCustomersJob.js --advanced --manual # Full sync to advanced store
+  node app/syncCustomersJob.js --advanced --manual --single-test # Test with first customer
 
 For scheduled syncs, use the worker:
   node app/worker.js
@@ -326,6 +350,15 @@ Configuration:
 Sync types:
   Incremental: Only syncs customers that have changed in the last 48 hours
   Full (manual): Syncs all customers regardless of changes
+
+Flags:
+  --single-test (-s): Only process the first customer found (useful for testing)
+  --manual (-m): Force full sync mode
+  --advanced (-a): Use advanced store configuration
+
+Filtering:
+  Only customer references with Category="WEB-ACCOUNT" will be synced to Shopify.
+  Regular customer references without this category are ignored.
 
 Make sure your .env file is configured properly before running.
   `);
@@ -348,7 +381,8 @@ if (!isManualRun && useAdvancedStore) {
 // Determine sync type based on flags
 const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
 const syncType = isFullSync ? "full sync" : "incremental sync";
-console.log(`🚀 Running ${syncType}...`);
+const testMode = isSingleTest ? " (single test mode)" : "";
+console.log(`🚀 Running ${syncType}${testMode}...`);
 
 // Run the sync
 syncCustomers(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag

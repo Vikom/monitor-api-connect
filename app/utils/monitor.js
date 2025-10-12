@@ -681,33 +681,32 @@ export async function fetchCustomersFromMonitor() {
     for (const monitorCustomer of allCustomers) {
       if (monitorCustomer.References && Array.isArray(monitorCustomer.References)) {
         for (const reference of monitorCustomer.References) {
-          shopifyCustomers.push({
-            monitorId: monitorCustomer.Id,
-            email: reference.EmailAddress || "",
-            firstName: reference.FirstName || "",
-            lastName: reference.LastName || "",
-            phone: reference.CellPhone || reference.Phone || "",
-            company: monitorCustomer.CompanyName || "",
-            discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
-            note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
-          });
+          // Only create Shopify customers for references with "WEB-ACCOUNT" in Category
+          if (reference.Category && reference.Category.includes("WEB-ACCOUNT")) {
+            // Parse the reference Name field - it might contain both first and last name
+            const fullName = reference.Name || "";
+            const nameParts = fullName.trim().split(" ");
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            
+            shopifyCustomers.push({
+              monitorId: monitorCustomer.Id,
+              email: reference.EmailAddress || "",
+              firstName: firstName,
+              lastName: lastName,
+              phone: reference.CellPhoneNumber || reference.PhoneNumber || "",
+              company: monitorCustomer.Name || "",  // Use customer Name instead of CompanyName
+              discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
+              priceListId: monitorCustomer.PriceListId?.toString() || "",
+              note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
+            });
+          }
         }
-      } else {
-        // Handle customers without references
-        shopifyCustomers.push({
-          monitorId: monitorCustomer.Id,
-          email: monitorCustomer.Email || "",
-          firstName: monitorCustomer.FirstName || "",
-          lastName: monitorCustomer.LastName || "",
-          phone: monitorCustomer.Phone || "",
-          company: monitorCustomer.CompanyName || "",
-          discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
-          note: `Monitor Customer ID: ${monitorCustomer.Id}`,
-        });
       }
+      // Note: Removed the fallback for customers without references since we only want WEB-ACCOUNT references
     }
     
-    console.log(`Processed ${allCustomers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
+    console.log(`Processed ${allCustomers.length} Monitor customers and found ${shopifyCustomers.length} WEB-ACCOUNT references`);
     
     return shopifyCustomers;
   } catch (error) {
@@ -781,33 +780,32 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
     for (const monitorCustomer of customers) {
       if (monitorCustomer.References && Array.isArray(monitorCustomer.References)) {
         for (const reference of monitorCustomer.References) {
-          shopifyCustomers.push({
-            monitorId: monitorCustomer.Id,
-            email: reference.EmailAddress || "",
-            firstName: reference.FirstName || "",
-            lastName: reference.LastName || "",
-            phone: reference.CellPhone || reference.Phone || "",
-            company: monitorCustomer.CompanyName || "",
-            discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
-            note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
-          });
+          // Only create Shopify customers for references with "WEB-ACCOUNT" in Category
+          if (reference.Category && reference.Category.includes("WEB-ACCOUNT")) {
+            // Parse the reference Name field - it might contain both first and last name
+            const fullName = reference.Name || "";
+            const nameParts = fullName.trim().split(" ");
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            
+            shopifyCustomers.push({
+              monitorId: monitorCustomer.Id,
+              email: reference.EmailAddress || "",
+              firstName: firstName,
+              lastName: lastName,
+              phone: reference.CellPhoneNumber || reference.PhoneNumber || "",
+              company: monitorCustomer.Name || "",  // Use customer Name instead of CompanyName
+              discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
+              priceListId: monitorCustomer.PriceListId?.toString() || "",
+              note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
+            });
+          }
         }
-      } else {
-        // Handle customers without references
-        shopifyCustomers.push({
-          monitorId: monitorCustomer.Id,
-          email: monitorCustomer.Email || "",
-          firstName: monitorCustomer.FirstName || "",
-          lastName: monitorCustomer.LastName || "",
-          phone: monitorCustomer.Phone || "",
-          company: monitorCustomer.CompanyName || "",
-          discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
-          note: `Monitor Customer ID: ${monitorCustomer.Id}`,
-        });
       }
+      // Note: Removed the fallback for customers without references since we only want WEB-ACCOUNT references
     }
     
-    console.log(`Processed ${customers.length} Monitor customers with ${shopifyCustomers.length} individual references/persons`);
+    console.log(`Processed ${customers.length} Monitor customers and found ${shopifyCustomers.length} WEB-ACCOUNT references`);
     
     return shopifyCustomers;
   } catch (error) {
