@@ -627,7 +627,7 @@ export async function fetchCustomersFromMonitor() {
       let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
-      url += '&$expand=ExtraFields,References';
+      url += '&$expand=ExtraFields,References,ActiveDeliveryAddress';
       
       let res = await fetch(url, {
         headers: {
@@ -689,6 +689,12 @@ export async function fetchCustomersFromMonitor() {
             const firstName = nameParts[0] || "";
             const lastName = nameParts.slice(1).join(" ") || "";
             
+            // Extract address information from ActiveDeliveryAddress
+            const deliveryAddress = monitorCustomer.ActiveDeliveryAddress;
+            const address1 = deliveryAddress?.Field1 || "";
+            const postalCode = deliveryAddress?.PostalCode || "";
+            const city = deliveryAddress?.Locality || "";
+            
             shopifyCustomers.push({
               monitorId: monitorCustomer.Id,
               email: reference.EmailAddress || "",
@@ -698,6 +704,9 @@ export async function fetchCustomersFromMonitor() {
               company: monitorCustomer.Name || "",  // Use customer Name instead of CompanyName
               discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
               priceListId: monitorCustomer.PriceListId?.toString() || "",
+              address1: address1,
+              postalCode: postalCode,
+              city: city,
               note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
             });
           }
@@ -734,7 +743,7 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers`;
     url += `?$filter=${idFilter}`;
-    url += '&$expand=ExtraFields,References';
+    url += '&$expand=ExtraFields,References,ActiveDeliveryAddress';
     
     let res = await fetch(url, {
       headers: {
@@ -788,6 +797,12 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
             const firstName = nameParts[0] || "";
             const lastName = nameParts.slice(1).join(" ") || "";
             
+            // Extract address information from ActiveDeliveryAddress
+            const deliveryAddress = monitorCustomer.ActiveDeliveryAddress;
+            const address1 = deliveryAddress?.Field1 || "";
+            const postalCode = deliveryAddress?.PostalCode || "";
+            const city = deliveryAddress?.Locality || "";
+            
             shopifyCustomers.push({
               monitorId: monitorCustomer.Id,
               email: reference.EmailAddress || "",
@@ -797,6 +812,9 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
               company: monitorCustomer.Name || "",  // Use customer Name instead of CompanyName
               discountCategory: monitorCustomer.DiscountCategoryId?.toString() || "",
               priceListId: monitorCustomer.PriceListId?.toString() || "",
+              address1: address1,
+              postalCode: postalCode,
+              city: city,
               note: `Monitor Customer ID: ${monitorCustomer.Id}, Reference ID: ${reference.Id}`,
             });
           }

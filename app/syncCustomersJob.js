@@ -188,6 +188,22 @@ export async function syncCustomers(isIncrementalSync = false) {
             email
             firstName
             lastName
+            addresses {
+              id
+              address1
+              city
+              zip
+              company
+            }
+            metafields(first: 20, namespace: "custom") {
+              edges {
+                node {
+                  id
+                  key
+                  value
+                }
+              }
+            }
           }
         }
       }
@@ -209,74 +225,169 @@ export async function syncCustomers(isIncrementalSync = false) {
       continue;
     }
     
-    const exists = checkJson.data && checkJson.data.customers && checkJson.data.customers.edges.length > 0;
-    if (exists) {
-      console.log(`Customer with email ${customer.email} already exists, skipping.`);
-      continue;
-    }
+    const existingCustomer = checkJson.data?.customers?.edges[0]?.node;
+    const isUpdate = !!existingCustomer;
     
-    // Create customer mutation
-    const mutation = `mutation customerCreate($input: CustomerInput!) {
-      customerCreate(input: $input) {
-        customer {
-          id
-          email
-          firstName
-          lastName
-          phone
-          metafields(first: 15, namespace: "custom") {
-            edges {
-              node {
-                key
-                value
+    let mutation, variables;
+
+    if (isUpdate) {
+      // Update existing customer
+      console.log(`🔄 Updating existing customer: ${customer.email}`);
+      console.log(`   Customer ID: ${existingCustomer.id}`);
+      
+      mutation = `mutation customerUpdate($input: CustomerInput!) {
+        customerUpdate(input: $input) {
+          customer {
+            id
+            email
+            firstName
+            lastName
+            phone
+            addresses {
+              address1
+              address2
+              city
+              zip
+              company
+            }
+            metafields(first: 15, namespace: "custom") {
+              edges {
+                node {
+                  key
+                  value
+                }
               }
             }
           }
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`;
-    
-    const variables = {
-      input: {
-        email: customer.email,
-        firstName: customer.firstName || "",
-        lastName: customer.lastName || "",
-        phone: customer.phone || undefined,
-        note: customer.note || undefined,
-        metafields: [
-          {
-            namespace: "custom",
-            key: "monitor_id",
-            value: customer.monitorId.toString(),
-            type: "single_line_text_field"
-          },
-          {
-            namespace: "custom",
-            key: "discount_category",
-            value: customer.discountCategory || "",
-            type: "single_line_text_field"
-          },
-          {
-            namespace: "custom",
-            key: "pricelist_id",
-            value: customer.priceListId || "",
-            type: "single_line_text_field"
-          },
-          {
-            namespace: "custom",
-            key: "company",
-            value: customer.company || "",
-            type: "single_line_text_field"
+          userErrors {
+            field
+            message
           }
-        ]
-      },
-    };
+        }
+      }`;
+      
+      // For updates, we need to handle metafields differently - update existing ones or create new ones
+      const metafields = [];
+      
+      // Check if each metafield already exists and update or create accordingly
+      const existingMetafields = existingCustomer.metafields?.edges || [];
+      
+      const metafieldData = [
+        { key: "monitor_id", value: customer.monitorId.toString() },
+        { key: "discount_category", value: customer.discountCategory || "" },
+        { key: "pricelist_id", value: customer.priceListId || "" },
+        { key: "company", value: customer.company || "" }
+      ];
+      
+      metafieldData.forEach(field => {
+        const existingField = existingMetafields.find(edge => edge.node.key === field.key);
+        if (existingField) {
+          // Update existing metafield
+          metafields.push({
+            id: existingField.node.id,
+            value: field.value,
+            type: "single_line_text_field"
+          });
+        } else {
+          // Create new metafield
+          metafields.push({
+            namespace: "custom",
+            key: field.key,
+            value: field.value,
+            type: "single_line_text_field"
+          });
+        }
+      });
+
+      variables = {
+        input: {
+          id: existingCustomer.id,
+          firstName: customer.firstName || "",
+          lastName: customer.lastName || "",
+          phone: customer.phone || undefined,
+          note: customer.note || undefined,
+          metafields: metafields
+        }
+      };
+    } else {
+      // Create new customer
+      console.log(`➕ Creating new customer: ${customer.email}`);
+      
+      mutation = `mutation customerCreate($input: CustomerInput!) {
+        customerCreate(input: $input) {
+          customer {
+            id
+            email
+            firstName
+            lastName
+            phone
+            addresses {
+              address1
+              address2
+              city
+              zip
+              company
+            }
+            metafields(first: 15, namespace: "custom") {
+              edges {
+                node {
+                  key
+                  value
+                }
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`;
+      
+      variables = {
+        input: {
+          email: customer.email,
+          firstName: customer.firstName || "",
+          lastName: customer.lastName || "",
+          phone: customer.phone || undefined,
+          note: customer.note || undefined,
+          addresses: customer.address1 || customer.postalCode || customer.city ? [{
+            address1: customer.address1 || "",
+            zip: customer.postalCode || "",
+            city: customer.city || "",
+            company: customer.company || ""
+          }] : undefined,
+          metafields: [
+            {
+              namespace: "custom",
+              key: "monitor_id",
+              value: customer.monitorId.toString(),
+              type: "single_line_text_field"
+            },
+            {
+              namespace: "custom",
+              key: "discount_category",
+              value: customer.discountCategory || "",
+              type: "single_line_text_field"
+            },
+            {
+              namespace: "custom",
+              key: "pricelist_id",
+              value: customer.priceListId || "",
+              type: "single_line_text_field"
+            },
+            {
+              namespace: "custom",
+              key: "company",
+              value: customer.company || "",
+              type: "single_line_text_field"
+            }
+          ]
+        }
+      };
+    }
     
-    const createRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    const operationRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -285,33 +396,154 @@ export async function syncCustomers(isIncrementalSync = false) {
       body: JSON.stringify({ query: mutation, variables }),
     });
     
-    const createJson = await createRes.json();
-    
-    if (createJson.errors) {
-      console.error("Shopify GraphQL errors:", JSON.stringify(createJson.errors, null, 2));
+    if (!operationRes.ok) {
+      console.error(`❌ HTTP Error ${operationRes.status}: ${operationRes.statusText}`);
+      const errorText = await operationRes.text();
+      console.error("Error response body:", errorText);
       continue;
     }
     
-    if (createJson.data && createJson.data.customerCreate && createJson.data.customerCreate.customer) {
-      const createdCustomer = createJson.data.customerCreate.customer;
-      console.log(`✅ Successfully created customer: ${createdCustomer.email} (ID: ${createdCustomer.id})`);
-      console.log(`   Name: ${createdCustomer.firstName} ${createdCustomer.lastName}`);
-      if (createdCustomer.phone) {
-        console.log(`   Phone: ${createdCustomer.phone}`);
+    let operationJson;
+    try {
+      operationJson = await operationRes.json();
+    } catch (parseError) {
+      console.error("❌ Failed to parse JSON response");
+      const responseText = await operationRes.text();
+      console.error("Raw response:", responseText);
+      continue;
+    }
+    
+    if (operationJson.errors) {
+      console.error("Shopify GraphQL errors:", JSON.stringify(operationJson.errors, null, 2));
+      continue;
+    }
+    
+    // Get the customer data from either create or update response
+    const customerData = isUpdate ? 
+      operationJson.data?.customerUpdate?.customer : 
+      operationJson.data?.customerCreate?.customer;
+    
+    const userErrors = isUpdate ? 
+      operationJson.data?.customerUpdate?.userErrors : 
+      operationJson.data?.customerCreate?.userErrors;
+    
+    if (customerData) {
+      const action = isUpdate ? "updated" : "created";
+      console.log(`✅ Successfully ${action} customer: ${customerData.email} (ID: ${customerData.id})`);
+      console.log(`   Name: ${customerData.firstName} ${customerData.lastName}`);
+      if (customerData.phone) {
+        console.log(`   Phone: ${customerData.phone}`);
       }
       
-      // Log metafields if they were created
-      const metafields = createdCustomer.metafields?.edges || [];
+      // For updates, check if we need to add/update address
+      if (isUpdate && (customer.address1 || customer.postalCode || customer.city)) {
+        const hasMatchingAddress = existingCustomer.addresses?.some(addr => 
+          addr.address1 === customer.address1 && 
+          addr.city === customer.city && 
+          addr.zip === customer.postalCode
+        );
+        
+        if (!hasMatchingAddress) {
+          console.log(`🏠 Adding address for customer: ${customer.email}`);
+          
+          // Use customerUpdate to add addresses instead of customerAddressCreate
+          const addressMutation = `mutation customerUpdate($input: CustomerInput!) {
+            customerUpdate(input: $input) {
+              customer {
+                id
+                addresses {
+                  id
+                  address1
+                  city
+                  zip
+                  company
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`;
+          
+          // Get existing addresses and add the new one
+          const existingAddresses = existingCustomer.addresses || [];
+          const newAddress = {
+            address1: customer.address1 || "",
+            zip: customer.postalCode || "",
+            city: customer.city || "",
+            company: customer.company || ""
+          };
+          
+          const addressVariables = {
+            input: {
+              id: customerData.id,
+              addresses: [...existingAddresses, newAddress]
+            }
+          };
+          
+          const addressRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': accessToken,
+            },
+            body: JSON.stringify({ query: addressMutation, variables: addressVariables }),
+          });
+          
+          if (!addressRes.ok) {
+            console.error(`   ❌ Address HTTP Error ${addressRes.status}: ${addressRes.statusText}`);
+            const errorText = await addressRes.text();
+            console.error("   Address error response body:", errorText);
+            continue;
+          }
+          
+          let addressJson;
+          try {
+            addressJson = await addressRes.json();
+          } catch (parseError) {
+            console.error("   ❌ Failed to parse address JSON response");
+            const responseText = await addressRes.text();
+            console.error("   Raw address response:", responseText);
+            continue;
+          }
+          
+          if (addressJson.errors) {
+            console.error("   ❌ Error adding address:", JSON.stringify(addressJson.errors, null, 2));
+          } else if (addressJson.data?.customerUpdate?.customer?.addresses) {
+            console.log("   ✅ Address added successfully");
+          } else if (addressJson.data?.customerUpdate?.userErrors?.length > 0) {
+            console.log(`   ❌ Address error: ${addressJson.data.customerUpdate.userErrors.map(e => e.message).join(", ")}`);
+          }
+        }
+      }
+      
+      // Log addresses if they exist
+      const addresses = customerData.addresses || [];
+      if (addresses.length > 0) {
+        console.log(`   Addresses:`);
+        addresses.forEach((address, index) => {
+          console.log(`     Address ${index + 1}:`);
+          if (address.company) console.log(`       Company: ${address.company}`);
+          if (address.address1) console.log(`       Street: ${address.address1}`);
+          if (address.city) console.log(`       City: ${address.city}`);
+          if (address.zip) console.log(`       Postal Code: ${address.zip}`);
+        });
+      }
+      
+      // Log metafields if they exist
+      const metafields = customerData.metafields?.edges || [];
       if (metafields.length > 0) {
         console.log(`   Metafields:`);
         metafields.forEach(edge => {
           console.log(`     ${edge.node.key}: ${edge.node.value}`);
         });
       }
-    } else if (createJson.data && createJson.data.customerCreate && createJson.data.customerCreate.userErrors) {
-      console.log(`❌ User error creating customer: ${createJson.data.customerCreate.userErrors.map(e => e.message).join(", ")}`);
+    } else if (userErrors && userErrors.length > 0) {
+      const action = isUpdate ? "updating" : "creating";
+      console.log(`❌ User error ${action} customer: ${userErrors.map(e => e.message).join(", ")}`);
     } else {
-      console.log("❌ Unknown error:", JSON.stringify(createJson, null, 2));
+      console.log("❌ Unknown error:", JSON.stringify(operationJson, null, 2));
     }
     
     processedCount++;
@@ -359,6 +591,19 @@ Flags:
 Filtering:
   Only customer references with Category="WEB-ACCOUNT" will be synced to Shopify.
   Regular customer references without this category are ignored.
+
+Data synced:
+  - Customer name (from reference Name field)
+  - Email address
+  - Phone number
+  - Company name
+  - Address (street, postal code, city from ActiveDeliveryAddress)
+  - Monitor ID, discount category, and price list ID as metafields
+
+Behavior:
+  - Creates new customers if they don't exist
+  - Updates existing customers with latest data from Monitor
+  - Adds missing addresses to existing customers
 
 Make sure your .env file is configured properly before running.
   `);

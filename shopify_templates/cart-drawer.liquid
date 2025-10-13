@@ -601,6 +601,7 @@
                   endif
                 endif
               -%}
+              {%- comment -%}
               {%- render 'cart-drawer-products-recommendation',
                 section_id: section.id,
                 product_id: first_product_id,
@@ -608,6 +609,7 @@
                 limit: section.settings.cart_recommendations_limit,
                 products_recommendations: section.settings.cart_recommendations_products
               -%}
+              {%- endcomment -%}
             {%- endif -%}
           </div>
         </div>
