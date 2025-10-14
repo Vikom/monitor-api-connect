@@ -197,23 +197,23 @@ async function pollForNewOrders() {
         if (monitorOrderResult) {
           const { orderId: monitorOrderId, response: monitorResponse } = monitorOrderResult;
           console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
-          
+
           // Extract OrderNumber from Monitor response and update Shopify draft order name
           const monitorOrderNumber = monitorResponse.OrderNumber;
           if (monitorOrderNumber) {
             console.log(`  📦 Updating draft order name to Monitor order number: ${monitorOrderNumber}`);
             await updateDraftOrderName(shop, accessToken, order.id.split('/').pop(), monitorOrderNumber);
           }
-          
+
           // Set order properties (Preliminary, GoodsLabel1, and BusinessContactOrderNumber) in a second request
           const orderProperties = {
             Preliminary: { Value: true }, // NotNullBooleanInput type may require object format
             GoodsLabel1: goodsLabel.substring(0, 80), // Limit to 80 characters
             BusinessContactOrderNumber: orderMark.substring(0, 30) // Limit to 30 characters
           };
-          
+
           console.log('monitorOrderId', monitorOrderId);
-          console.log(`  📦 Setting order properties:`, JSON.stringify(orderProperties, null, 2));
+          console.log(`Setting order properties:`, JSON.stringify(orderProperties, null, 2));
           
           const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
           
