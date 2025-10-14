@@ -47,6 +47,18 @@ async function pollForNewOrders() {
               zip
               phone
             }
+            billingAddress {
+              firstName
+              lastName
+              company
+              address1
+              address2
+              city
+              province
+              country
+              zip
+              phone
+            }
             metafields(first: 10, namespace: "custom") {
               edges {
                 node {
@@ -223,17 +235,25 @@ async function pollForNewOrders() {
             console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
           }
           
-          // Update delivery address if shipping address exists
-          if (order.shippingAddress) {
-            const shippingAddress = order.shippingAddress;
+          // Update delivery address - use shipping address first, then billing address as fallback
+          console.log(`  🔍 Debug - Draft order ${order.name} addresses:`);
+          console.log(`    Shipping address:`, JSON.stringify(order.shippingAddress, null, 2));
+          console.log(`    Billing address:`, JSON.stringify(order.billingAddress, null, 2));
+          
+          const addressToUse = order.shippingAddress || order.billingAddress;
+          
+          if (addressToUse) {
+            const addressType = order.shippingAddress ? 'shipping' : 'billing';
+            console.log(`  📦 Using ${addressType} address for delivery address`);
+            
             const deliveryAddressData = {
-              Addressee: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || shippingAddress.company || '',
-              Field1: shippingAddress.company || '',
-              Field2: shippingAddress.address1 || '',
-              Field3: shippingAddress.address2 || '',
-              Locality: shippingAddress.city || '',
-              Region: shippingAddress.province || '',
-              PostalCode: shippingAddress.zip || '',
+              Addressee: `${addressToUse.firstName || ''} ${addressToUse.lastName || ''}`.trim() || addressToUse.company || '',
+              Field1: addressToUse.company || '',
+              Field2: addressToUse.address1 || '',
+              Field3: addressToUse.address2 || '',
+              Locality: addressToUse.city || '',
+              Region: addressToUse.province || '',
+              PostalCode: addressToUse.zip || '',
               LanguageId: 1 // Default to Swedish language ID, adjust if needed
             };
             
@@ -247,7 +267,8 @@ async function pollForNewOrders() {
               console.error(`  ⚠️  Failed to update delivery address for Monitor order ${monitorOrderId}, but order was created`);
             }
           } else {
-            console.log(`  ℹ️  No shipping address found for draft order ${order.name}, skipping delivery address update`);
+            console.log(`  ⚠️  No shipping or billing address found for draft order ${order.name}!`);
+            console.log(`  🔍 Full draft order data for debugging:`, JSON.stringify(order, null, 2));
           }
           
           // Mark draft order as sent to Monitor
