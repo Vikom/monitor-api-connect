@@ -208,8 +208,8 @@ async function pollForNewOrders() {
           // Set order properties (Preliminary, GoodsLabel1, and BusinessContactOrderNumber) in a second request
           const orderProperties = {
             Preliminary: { Value: true }, // NotNullBooleanInput type may require object format
-            GoodsLabel1: goodsLabel.substring(0, 80), // Limit to 80 characters
-            BusinessContactOrderNumber: orderMark.substring(0, 30) // Limit to 30 characters
+            GoodsLabel1: { Value: goodsLabel.substring(0, 80) }, // Limit to 80 characters
+            BusinessContactOrderNumber: { Value: orderMark.substring(0, 30) } // Limit to 30 characters
           };
 
           console.log('monitorOrderId', monitorOrderId);
