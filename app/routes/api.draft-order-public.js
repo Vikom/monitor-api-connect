@@ -26,7 +26,7 @@ export async function action({ request }) {
     console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop, priceListId, goodsLabel } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity }]
     
     console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel });
     
@@ -446,20 +446,42 @@ export async function action({ request }) {
     console.log(`🟦 ✅ Created draft order ${draftOrder.id} with total ${draftOrder.total_price}`);
     console.log(`🟦 ✅ Invoice URL: ${draftOrder.invoice_url}`);
     
-    // Add metafield for goods label if provided (so it can be accessed via GraphQL)
+    // Add metafields for goods label and order mark if provided (so they can be accessed via GraphQL)
+    const metafieldsToAdd = [];
+    
     if (goodsLabel) {
+      metafieldsToAdd.push({
+        ownerId: `gid://shopify/DraftOrder/${draftOrder.id}`,
+        namespace: "custom",
+        key: "goods_label",
+        value: goodsLabel.replace(/"/g, '\\"').replace(/\n/g, '\\n'),
+        type: "multi_line_text_field"
+      });
+    }
+    
+    if (orderMark) {
+      metafieldsToAdd.push({
+        ownerId: `gid://shopify/DraftOrder/${draftOrder.id}`,
+        namespace: "custom", 
+        key: "order_mark",
+        value: orderMark.replace(/"/g, '\\"').replace(/\n/g, '\\n'),
+        type: "multi_line_text_field"
+      });
+    }
+    
+    if (metafieldsToAdd.length > 0) {
       try {
-        console.log(`🟦 Adding goods label metafield: "${goodsLabel}"`);
+        console.log(`🟦 Adding metafields: ${metafieldsToAdd.map(m => m.key).join(', ')}`);
         const metafieldMutation = `
           mutation {
             metafieldsSet(metafields: [
-              {
-                ownerId: "gid://shopify/DraftOrder/${draftOrder.id}"
-                namespace: "custom"
-                key: "goods_label"
-                value: "${goodsLabel.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"
-                type: "multi_line_text_field"
-              }
+              ${metafieldsToAdd.map(metafield => `{
+                ownerId: "${metafield.ownerId}"
+                namespace: "${metafield.namespace}"
+                key: "${metafield.key}"
+                value: "${metafield.value}"
+                type: "${metafield.type}"
+              }`).join(',')}
             ]) {
               metafields {
                 id
@@ -488,10 +510,10 @@ export async function action({ request }) {
         if (metafieldResult.data?.metafieldsSet?.userErrors?.length > 0) {
           console.error('🟦 Metafield creation errors:', metafieldResult.data.metafieldsSet.userErrors);
         } else {
-          console.log(`🟦 ✅ Added goods label metafield to draft order ${draftOrder.id}`);
+          console.log(`🟦 ✅ Added metafields to draft order ${draftOrder.id}`);
         }
       } catch (metafieldError) {
-        console.error('🟦 Failed to add goods label metafield:', metafieldError);
+        console.error('🟦 Failed to add metafields:', metafieldError);
         // Don't fail the whole operation if metafield creation fails
       }
     }

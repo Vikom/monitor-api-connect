@@ -170,11 +170,14 @@ async function pollForNewOrders() {
           continue;
         }
 
-        // Extract goods label from draft order metafields
+        // Extract goods label and order mark from draft order metafields
         const metafields = order.metafields?.edges || [];
         const goodsLabelMetafield = metafields.find(mf => mf.node.key === "goods_label");
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
+        const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
+        const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
         console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
+        console.log(`  📋 Order mark for draft order ${order.name}: "${orderMark}"`);
 
         // Create order in Monitor system (without Preliminary and GoodsLabel)
         const monitorOrderData = {
@@ -202,10 +205,11 @@ async function pollForNewOrders() {
             await updateDraftOrderName(shop, accessToken, order.id.split('/').pop(), monitorOrderNumber);
           }
           
-          // Set order properties (Preliminary and GoodsLabel) in a second request
+          // Set order properties (Preliminary, GoodsLabel1, and BusinessContactOrderNumber) in a second request
           const orderProperties = {
             Preliminary: true,
-            GoodsLabel: goodsLabel
+            GoodsLabel1: goodsLabel.substring(0, 80), // Limit to 80 characters
+            BusinessContactOrderNumber: orderMark.substring(0, 30) // Limit to 30 characters
           };
           
           console.log('monitorOrderId', monitorOrderId);

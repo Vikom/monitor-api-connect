@@ -899,6 +899,19 @@
                             {{- 'general.cart.note.title' | t -}}
                           </label>
                         </div>
+                        <div class="form-field w-full">
+                          <textarea
+                            name="order_mark"
+                            class="form-control form-control--textarea"
+                            rows="3"
+                            form="cart"
+                            placeholder="Godsmärke"
+                            id="CartOrderMarkForm-{{ section.id }}"
+                          ></textarea>
+                          <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
+                            Godsmärke
+                          </label>
+                        </div>
                         <button
                           class="btn btn--primary"
                           type="button"
@@ -1392,10 +1405,13 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log('Customer price list ID from metafields:', customerPriceListId);
           
-          // Get goods label from cart note
+          // Get goods label and order mark from cart inputs
           const cartNoteElement = document.querySelector('textarea[name="note"][form="cart"]');
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
+          const orderMarkElement = document.querySelector('textarea[name="order_mark"][form="cart"]');
+          const orderMark = orderMarkElement ? orderMarkElement.value.trim() : '';
           console.log('Cart goods label:', goodsLabel);
+          console.log('Cart order mark:', orderMark);
 
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1406,7 +1422,8 @@ document.addEventListener('DOMContentLoaded', () => {
               items: items,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
               priceListId: customerPriceListId, // Add the missing price list ID!
-              goodsLabel: goodsLabel // Add the goods label from cart note
+              goodsLabel: goodsLabel, // Add the goods label from cart note
+              orderMark: orderMark // Add the order mark
             })
           });
           
