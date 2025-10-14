@@ -899,19 +899,6 @@
                             {{- 'general.cart.note.title' | t -}}
                           </label>
                         </div>
-                        <div class="form-field w-full">
-                          <textarea
-                            name="order_mark"
-                            class="form-control form-control--textarea"
-                            rows="3"
-                            form="cart"
-                            placeholder="Godsmärke"
-                            id="CartOrderMarkForm-{{ section.id }}"
-                          ></textarea>
-                          <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
-                            Godsmärke
-                          </label>
-                        </div>
                         <button
                           class="btn btn--primary"
                           type="button"
@@ -919,6 +906,32 @@
                           <span class="btn__text">{{ 'general.cart.note.button' | t }}</span>
                         </button>
                       </cart-note>
+                    </details>
+                  </div>
+                {%- when 'order_mark' -%}
+                  <div class="cart__addon cart__footer--order-mark no-js-hidden" {{ block.shopify_attributes }}>
+                    <details is="accordion-details" class="accordion-details cart-accordion-details">
+                      <summary class="accordion-details__summary flex items-center justify-between h6">
+                        <div class="flex gap-2 items-center">
+                          Ordermärkning
+                        </div>
+                        {%- render 'icon-caret-down', size: 'small' -%}
+                      </summary>
+                      <div class="flex flex-col items-start gap-5 accordion-details__content">
+                        <div class="form-field w-full">
+                          <textarea
+                            name="order_mark"
+                            class="form-control form-control--textarea"
+                            rows="3"
+                            form="cart"
+                            placeholder="Din ordermärkning"
+                            id="CartOrderMarkForm-{{ section.id }}"
+                          ></textarea>
+                          <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
+                            Ordermärkning
+                          </label>
+                        </div>
+                      </div>
                     </details>
                   </div>
                 {%- when 'cart_shipping_rate' -%}
@@ -1559,6 +1572,11 @@ window.addEventListener('load', () => {
     {
       "type": "cart_note",
       "name": "t:sections.main-cart.blocks.cart_note.name",
+      "limit": 1
+    },
+    {
+      "type": "order_mark",
+      "name": "Godsmärke",
       "limit": 1
     },
     {

@@ -641,6 +641,17 @@
                     </span>
                   </button>
                 {%- endif -%}
+                <button
+                  type="button"
+                  class="btn btn--secondary btn--small font-body flex gap-2 items-center justify-center"
+                  aria-controls="OrderMark-{{ section.id }}"
+                  aria-expanded="false"
+                >
+                  <span class="btn__text flex gap-1 items-center">
+                    Ordermärkning
+                    {%- render 'icon-caret-right', size: 'extra-small' -%}
+                  </span>
+                </button>
                 {%- if section.settings.show_shipping_rates_calculator -%}
                   <button
                     type="button"
@@ -685,18 +696,6 @@
                               {{- 'general.cart.note.title' | t -}}
                             </label>
                           </div>
-                          <div class="form-field w-full">
-                            <textarea
-                              name="order_mark"
-                              class="form-control form-control--textarea"
-                              rows="3"
-                              placeholder="Godsmärke"
-                              id="CartOrderMarkForm-{{ section.id }}"
-                            ></textarea>
-                            <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
-                              Godsmärke
-                            </label>
-                          </div>
                           <button
                             class="btn btn--primary"
                             type="button"
@@ -710,6 +709,47 @@
                     </div>
                   </modal-component>
                 {%- endif -%}
+                <modal-component
+                  id="OrderMark-{{ section.id }}"
+                  class="drawer cart-addons-drawer drawer--bottom"
+                  hidden
+                >
+                  <div class="fixed-overlay absolute" aria-controls="OrderMark-{{ section.id }}"></div>
+                  <div class="drawer__inner cart-addons-drawer__inner flex flex-col w-full h-full">
+                    <button
+                      aria-controls="OrderMark-{{ section.id }}"
+                      aria-label="{{ 'accessibility.close' | t }}"
+                      class="drawer__close-btn z-1"
+                    >
+                      {%- render 'icon-close' -%}
+                    </button>
+                    <div class="drawer__content cart-addons-drawer__content grid gap-5">
+                      <h4>Ordermärkning</h4>
+                      <div class="flex flex-col items-start gap-5">
+                        <div class="form-field w-full">
+                          <textarea
+                            name="order_mark"
+                            class="form-control form-control--textarea"
+                            rows="3"
+                            placeholder="Din ordermärkning"
+                            id="CartOrderMarkForm-{{ section.id }}"
+                          ></textarea>
+                          <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
+                            Ordermärkning
+                          </label>
+                        </div>
+                        <button
+                          class="btn btn--primary"
+                          type="button"
+                          aria-controls="OrderMark-{{ section.id }}"
+                          aria-expanded="false"
+                        >
+                          <span class="btn__text">{{ 'general.cart.note.button' | t }}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </modal-component>
                 {%- if section.settings.show_shipping_rates_calculator -%}
                   <calculate-shipping
                     id="ShippingCalculator-{{ section.id }}"
