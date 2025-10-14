@@ -1374,6 +1374,68 @@ export async function createOrderInMonitor(orderData) {
   }
 }
 
+export async function setOrderPropertiesInMonitor(customerOrderId, properties) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/SetProperties`;
+    
+    const requestData = {
+      CustomerOrderId: customerOrderId,
+      ...properties
+    };
+    
+    let res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      body: JSON.stringify(requestData),
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API setOrderProperties first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        body: JSON.stringify(requestData),
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API setOrderProperties retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API setOrderProperties failed after re-login");
+      }
+    }
+    
+    const result = await res.json();
+    
+    // Check if the response indicates success
+    if (result) {
+      return true;
+    } else {
+      console.error("Monitor API setOrderProperties returned unexpected response:", JSON.stringify(result, null, 2));
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error setting order properties in Monitor:`, error);
+    throw error;
+  }
+}
+
 /**
  * Fetch all parts for stock sync - wrapper function for external use
  * @param {number} [limit] - Optional limit for number of parts to fetch (for testing)

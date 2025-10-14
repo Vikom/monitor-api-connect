@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { createOrderInMonitor } from "./utils/monitor.js";
+import { createOrderInMonitor, setOrderPropertiesInMonitor } from "./utils/monitor.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -164,17 +164,15 @@ async function pollForNewOrders() {
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
 
-        // Create order in Monitor system
+        // Create order in Monitor system (without Preliminary and GoodsLabel)
         const monitorOrderData = {
           CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
           // OrderNumber: order.name,
           BusinessContactOrderNumber: order.name,
           // OrderTypeId: 4, // As specified in requirements
           OrderTypeId: '980267526921268926',
-          Preliminary: true,
           Rows: orderRows,
-          IsStockOrder: false,
-          GoodsLabel: goodsLabel // Use goods label from draft order note attributes
+          IsStockOrder: false
         };
 
         console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
@@ -183,6 +181,23 @@ async function pollForNewOrders() {
         
         if (monitorOrderId) {
           console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
+          
+          // Set order properties (Preliminary and GoodsLabel) in a second request
+          const orderProperties = {
+            Preliminary: true,
+            GoodsLabel: goodsLabel
+          };
+          
+          console.log('monitorOrderId', monitorOrderId);
+          console.log(`  📦 Setting order properties:`, JSON.stringify(orderProperties, null, 2));
+          
+          const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
+          
+          if (propertiesSet) {
+            console.log(`  ✅ Successfully set order properties for Monitor order ${monitorOrderId}`);
+          } else {
+            console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
+          }
           
           // Mark draft order as sent to Monitor
           await markDraftOrderAsSentToMonitor(shop, accessToken, order.id.split('/').pop());
