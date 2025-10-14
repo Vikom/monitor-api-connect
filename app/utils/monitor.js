@@ -1363,7 +1363,11 @@ export async function createOrderInMonitor(orderData) {
     
     // Monitor API returns EntityCommandResponse with RootEntityId as the created order ID
     if (result.RootEntityId) {
-      return result.RootEntityId;
+      // Return both the order ID and the full result for access to other properties like OrderNumber
+      return {
+        orderId: result.RootEntityId,
+        response: result
+      };
     } else {
       console.error("Monitor API createOrder returned unexpected response:", JSON.stringify(result, null, 2));
       return null;
@@ -1432,6 +1436,68 @@ export async function setOrderPropertiesInMonitor(customerOrderId, properties) {
     }
   } catch (error) {
     console.error(`Error setting order properties in Monitor:`, error);
+    throw error;
+  }
+}
+
+export async function updateDeliveryAddressInMonitor(customerOrderId, addressData) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/UpdateDeliveryAddress`;
+    
+    const requestData = {
+      CustomerOrderId: customerOrderId,
+      ...addressData
+    };
+    
+    let res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      body: JSON.stringify(requestData),
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API updateDeliveryAddress first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        body: JSON.stringify(requestData),
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API updateDeliveryAddress retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API updateDeliveryAddress failed after re-login");
+      }
+    }
+    
+    const result = await res.json();
+    
+    // Check if the response indicates success
+    if (result) {
+      return true;
+    } else {
+      console.error("Monitor API updateDeliveryAddress returned unexpected response:", JSON.stringify(result, null, 2));
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error updating delivery address in Monitor:`, error);
     throw error;
   }
 }

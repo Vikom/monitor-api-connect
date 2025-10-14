@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { createOrderInMonitor, setOrderPropertiesInMonitor } from "./utils/monitor.js";
+import { createOrderInMonitor, setOrderPropertiesInMonitor, updateDeliveryAddressInMonitor } from "./utils/monitor.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -35,6 +35,18 @@ async function pollForNewOrders() {
             createdAt
             totalPrice
             status
+            shippingAddress {
+              firstName
+              lastName
+              company
+              address1
+              address2
+              city
+              province
+              country
+              zip
+              phone
+            }
             metafields(first: 10, namespace: "custom") {
               edges {
                 node {
@@ -177,10 +189,18 @@ async function pollForNewOrders() {
 
         console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
 
-        const monitorOrderId = await createOrderInMonitor(monitorOrderData);
+        const monitorOrderResult = await createOrderInMonitor(monitorOrderData);
         
-        if (monitorOrderId) {
+        if (monitorOrderResult) {
+          const { orderId: monitorOrderId, response: monitorResponse } = monitorOrderResult;
           console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
+          
+          // Extract OrderNumber from Monitor response and update Shopify draft order name
+          const monitorOrderNumber = monitorResponse.OrderNumber;
+          if (monitorOrderNumber) {
+            console.log(`  📦 Updating draft order name to Monitor order number: ${monitorOrderNumber}`);
+            await updateDraftOrderName(shop, accessToken, order.id.split('/').pop(), monitorOrderNumber);
+          }
           
           // Set order properties (Preliminary and GoodsLabel) in a second request
           const orderProperties = {
@@ -197,6 +217,33 @@ async function pollForNewOrders() {
             console.log(`  ✅ Successfully set order properties for Monitor order ${monitorOrderId}`);
           } else {
             console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
+          }
+          
+          // Update delivery address if shipping address exists
+          if (order.shippingAddress) {
+            const shippingAddress = order.shippingAddress;
+            const deliveryAddressData = {
+              Addressee: `${shippingAddress.firstName || ''} ${shippingAddress.lastName || ''}`.trim() || shippingAddress.company || '',
+              Field1: shippingAddress.company || '',
+              Field2: shippingAddress.address1 || '',
+              Field3: shippingAddress.address2 || '',
+              Locality: shippingAddress.city || '',
+              Region: shippingAddress.province || '',
+              PostalCode: shippingAddress.zip || '',
+              LanguageId: 1 // Default to Swedish language ID, adjust if needed
+            };
+            
+            console.log(`  📦 Updating delivery address:`, JSON.stringify(deliveryAddressData, null, 2));
+            
+            const addressUpdated = await updateDeliveryAddressInMonitor(monitorOrderId, deliveryAddressData);
+            
+            if (addressUpdated) {
+              console.log(`  ✅ Successfully updated delivery address for Monitor order ${monitorOrderId}`);
+            } else {
+              console.error(`  ⚠️  Failed to update delivery address for Monitor order ${monitorOrderId}, but order was created`);
+            }
+          } else {
+            console.log(`  ℹ️  No shipping address found for draft order ${order.name}, skipping delivery address update`);
           }
           
           // Mark draft order as sent to Monitor
@@ -351,14 +398,38 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         console.warn(`No price found for draft order line item ${lineItem.id}, using 0`);
       }
       
+      // For decimal products, check if there's a decimal quantity in customAttributes
+      let orderedQuantity = lineItem.quantity; // Default to the line item quantity
+      
+      // Look for decimal quantity in the "Enhet" (Unit) custom attribute
+      // Format is like "0,5 m" or "2,5 kg" with Swedish decimal separator
+      const unitAttribute = lineItem.customAttributes?.find(attr => attr.key === 'Enhet');
+      
+      if (unitAttribute && unitAttribute.value) {
+        // Extract decimal quantity from format "0,5 m" -> 0.5
+        const unitValue = unitAttribute.value.trim();
+        const quantityMatch = unitValue.match(/^([0-9]+[,.]?[0-9]*)/);
+        
+        if (quantityMatch) {
+          // Convert Swedish decimal separator to English
+          const decimalQuantityStr = quantityMatch[1].replace(',', '.');
+          const decimalQuantity = parseFloat(decimalQuantityStr);
+          
+          if (!isNaN(decimalQuantity) && decimalQuantity > 0) {
+            orderedQuantity = decimalQuantity;
+            console.log(`    Using decimal quantity ${decimalQuantity} from "Enhet" attribute "${unitValue}" for line item ${lineItem.id}`);
+          }
+        }
+      }
+      
       rows.push({
         PartId: monitorPartId,
-        OrderedQuantity: lineItem.quantity,
+        OrderedQuantity: orderedQuantity,
         UnitPrice: unitPrice,
         // Description: lineItem.title, // Optional: add product title as description
       });
 
-      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${lineItem.quantity} and unit price ${unitPrice}`);
+      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}`);
     } catch (error) {
       console.error(`Error processing line item ${lineItem.id}:`, error);
       continue;
@@ -366,6 +437,57 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
   }
 
   return rows;
+}
+
+/**
+ * Update a draft order's name with the Monitor order number
+ */
+async function updateDraftOrderName(shop, accessToken, draftOrderId, orderNumber) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const mutation = `mutation {
+    draftOrderUpdate(id: "gid://shopify/DraftOrder/${draftOrderId}", input: {
+      name: "${orderNumber}"
+    }) {
+      draftOrder {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error("GraphQL errors updating draft order name:", JSON.stringify(result.errors, null, 2));
+      return false;
+    }
+
+    if (result.data?.draftOrderUpdate?.userErrors?.length > 0) {
+      console.error("User errors updating draft order name:", JSON.stringify(result.data.draftOrderUpdate.userErrors, null, 2));
+      return false;
+    }
+
+    console.log(`  📋 Updated draft order ${draftOrderId} name to: ${orderNumber}`);
+    return true;
+  } catch (error) {
+    console.error("Error updating draft order name:", error);
+    return false;
+  }
 }
 
 /**

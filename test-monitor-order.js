@@ -23,10 +23,12 @@ async function testCreateOrder() {
     console.log("Testing Monitor order creation...");
     console.log("Order data:", JSON.stringify(testOrderData, null, 2));
     
-    const monitorOrderId = await createOrderInMonitor(testOrderData);
+    const monitorOrderResult = await createOrderInMonitor(testOrderData);
     
-    if (monitorOrderId) {
+    if (monitorOrderResult) {
+      const { orderId: monitorOrderId, response } = monitorOrderResult;
       console.log(`✅ Successfully created test order in Monitor with ID: ${monitorOrderId}`);
+      console.log(`✅ Monitor response:`, JSON.stringify(response, null, 2));
     } else {
       console.error(`❌ Failed to create test order in Monitor`);
     }

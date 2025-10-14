@@ -61,9 +61,10 @@ export const action = async ({ request }) => {
 
     console.log(`Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
 
-    const monitorOrderId = await createOrderInMonitor(monitorOrderData);
+    const monitorOrderResult = await createOrderInMonitor(monitorOrderData);
     
-    if (monitorOrderId) {
+    if (monitorOrderResult) {
+      const { orderId: monitorOrderId } = monitorOrderResult;
       console.log(`✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify order ${order.id}`);
     } else {
       console.error(`❌ Failed to create order in Monitor for Shopify order ${order.id}`);
