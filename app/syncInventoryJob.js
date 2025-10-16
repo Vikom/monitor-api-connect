@@ -138,7 +138,7 @@ async function updateVariantMetafields(shop, accessToken, variantId, stockData, 
   metafields.push({
     namespace: "custom",
     key: "stock_status",
-    value: stockStatus || "", // Use empty string if stockStatus is falsy
+    value: stockStatus || "",
     type: "single_line_text_field"
   });
   

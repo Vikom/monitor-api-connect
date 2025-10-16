@@ -484,42 +484,42 @@
   {%- if goteborg_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Göteborg ({{ goteborg_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Göteborg ({{ goteborg_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if lund_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Lund ({{ lund_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Lund ({{ lund_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if ronas_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Rönås ({{ ronas_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Rönås ({{ ronas_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if stockholm_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Stockholm ({{ stockholm_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Stockholm ({{ stockholm_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if sundsvall_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Sundsvall ({{ sundsvall_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Sundsvall ({{ sundsvall_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 
   {%- if vittsjo_num != 0 -%}
     <p class="product__inventory product__inventory--in-stock font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Vittsjö ({{ vittsjo_num | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Vittsjö ({{ vittsjo_num | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
   <div class="product__block--divider-stock">
@@ -570,7 +570,7 @@
   {%- else -%}
     <p class="product__inventory product__inventory--{{ inventory_status }} font-body-bolder">
       <span class="product__inventory-icon"></span>
-      <span class="product__inventory-text">Totalt ({{ inventory_quantity | replace: '.', ',' }})</span>
+      <span class="product__inventory-text">Totalt ({{ inventory_quantity | round: 2 | replace: '.', ',' }})</span>
     </p>
   {%- endif -%}
 </div>
@@ -919,4 +919,3 @@
       </a>
     </div>
   {%- endif -%}
-</div>
