@@ -707,7 +707,10 @@
               "volume": {{ variant.metafields.custom.volume | json }},
               "length": {{ variant.metafields.custom.length | json }},
               "width": {{ variant.metafields.custom.width | json }},
-              "depth": {{ variant.metafields.custom.depth | json }}
+              "depth": {{ variant.metafields.custom.depth | json }},
+              "standard_unit": {{ variant.metafields.custom.standard_unit | json }},
+              "fsc": {{ variant.metafields.custom.fsc_pefc | json }},
+              "qtypac": {{ variant.metafields.custom.quantity_package | json }}
             }{% unless forloop.last %},{% endunless %}
           {%- endfor -%}
         }
@@ -836,7 +839,7 @@
       
       if (!specs || !tbody) return;
       
-      const specTypes = ['sku', 'volume', 'length', 'width', 'depth'];
+      const specTypes = ['sku', 'volume', 'length', 'width', 'depth', 'standard_unit', 'fsc', 'qtypac'];
       let hasVisibleSpecs = false;
       
       specTypes.forEach(specType => {
@@ -854,7 +857,14 @@
                             (unit === 'mm' && (value.includes('cm') || value.includes('m')));
             
             const formattedValue = value.replace(/\./g, ',');
-            valueCell.textContent = hasUnit ? formattedValue : `${formattedValue} ${unit}`;
+            
+            // For qtypac, standard_unit, and fsc, don't add units
+            if (specType === 'qtypac' || specType === 'standard_unit' || specType === 'fsc') {
+              valueCell.textContent = formattedValue;
+            } else {
+              valueCell.textContent = hasUnit ? formattedValue : `${formattedValue} ${unit}`;
+            }
+            
             row.style.display = '';
             hasVisibleSpecs = true;
           } else {

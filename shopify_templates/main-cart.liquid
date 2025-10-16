@@ -908,8 +908,9 @@
                       </cart-note>
                     </details>
                   </div>
-                {%- when 'order_mark' -%}
-                  <div class="cart__addon cart__footer--order-mark no-js-hidden" {{ block.shopify_attributes }}>
+                  
+                  <!-- Always visible Order Mark section (right after cart note) -->
+                  <div class="cart__addon cart__footer--order-mark no-js-hidden">
                     <details is="accordion-details" class="accordion-details cart-accordion-details">
                       <summary class="accordion-details__summary flex items-center justify-between h6">
                         <div class="flex gap-2 items-center">
@@ -926,11 +927,18 @@
                             form="cart"
                             placeholder="Din ordermärkning"
                             id="CartOrderMarkForm-{{ section.id }}"
-                          ></textarea>
+                          >{{ cart.attributes['order_mark'] }}</textarea>
                           <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
                             Ordermärkning
                           </label>
                         </div>
+                        <button
+                          class="btn btn--primary"
+                          type="button"
+                          is="order-mark-save"
+                        >
+                          <span class="btn__text">{{ 'general.cart.note.button' | t }}</span>
+                        </button>
                       </div>
                     </details>
                   </div>
@@ -1081,6 +1089,52 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatPrice(price) {
     return price.toFixed(2).replace('.', ',');
   }
+  
+  // Order mark persistence functionality
+  function setupOrderMarkPersistence() {
+    const orderMarkButton = document.querySelector('button[is="order-mark-save"]');
+    if (orderMarkButton) {
+      orderMarkButton.addEventListener('click', async () => {
+        const orderMarkTextarea = document.querySelector('textarea[name="order_mark"][form="cart"]');
+        if (!orderMarkTextarea) return;
+        
+        const orderMarkValue = orderMarkTextarea.value.trim();
+        
+        try {
+          // Save order mark to cart attributes
+          const response = await fetch('/cart/update.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              attributes: {
+                'order_mark': orderMarkValue
+              }
+            })
+          });
+          
+          if (response.ok) {
+            console.log('Order mark saved to cart:', orderMarkValue);
+            // Show success feedback (optional)
+            const btnText = orderMarkButton.querySelector('.btn__text');
+            const originalText = btnText.textContent;
+            btnText.textContent = 'Sparad!';
+            setTimeout(() => {
+              btnText.textContent = originalText;
+            }, 1500);
+          } else {
+            console.error('Failed to save order mark to cart');
+          }
+        } catch (error) {
+          console.error('Error saving order mark:', error);
+        }
+      });
+    }
+  }
+  
+  // Initialize order mark persistence
+  setupOrderMarkPersistence();
   
   // Cache to prevent multiple API calls for the same variant
   const priceCache = new Map();
@@ -1418,13 +1472,13 @@ document.addEventListener('DOMContentLoaded', () => {
           
           console.log('Customer price list ID from metafields:', customerPriceListId);
           
-          // Get goods label and order mark from cart inputs
+          // Get goods label and order mark from cart
           const cartNoteElement = document.querySelector('textarea[name="note"][form="cart"]');
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
-          const orderMarkElement = document.querySelector('textarea[name="order_mark"][form="cart"]');
-          const orderMark = orderMarkElement ? orderMarkElement.value.trim() : '';
+          // Get order mark from cart attributes (persisted value)
+          const orderMark = cart.attributes?.order_mark || '';
           console.log('Cart goods label:', goodsLabel);
-          console.log('Cart order mark:', orderMark);
+          console.log('Cart order mark (from cart attributes):', orderMark);
 
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1572,11 +1626,6 @@ window.addEventListener('load', () => {
     {
       "type": "cart_note",
       "name": "t:sections.main-cart.blocks.cart_note.name",
-      "limit": 1
-    },
-    {
-      "type": "order_mark",
-      "name": "Godsmärke",
       "limit": 1
     },
     {

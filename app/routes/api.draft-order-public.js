@@ -28,7 +28,7 @@ export async function action({ request }) {
     const body = await request.json();
     const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel });
+    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
