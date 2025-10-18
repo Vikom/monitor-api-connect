@@ -1,5 +1,4 @@
 import "@shopify/shopify-api/adapters/node";
-// import cron from "node-cron"; // Now handled by main worker process
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { fetchPartByPartNumberFromMonitor, fetchPartsForStock } from "./utils/monitor.js";
@@ -201,43 +200,6 @@ async function updateVariantMetafields(shop, accessToken, variantId, stockData, 
   return true;
 }
 
-// Legacy: This function is kept for reference but not used in new inventory sync approach
-// Helper function to get stock data for all warehouses for a specific Monitor ID (OLD METHOD)
-// async function getStockDataForAllWarehouses(monitorId) {
-//   try {
-//     const stockTransactions = await fetchStockTransactionsFromMonitor(monitorId);
-//     
-//     if (stockTransactions.length === 0) {
-//       return {};
-//     }
-
-//     // Group transactions by warehouse and get the most recent balance for each
-//     const warehouseStock = {};
-//     const warehouseTransactions = {};
-//     
-//     // Group transactions by warehouse
-//     stockTransactions.forEach(transaction => {
-//       const warehouseId = transaction.WarehouseId;
-//       if (!warehouseTransactions[warehouseId]) {
-//         warehouseTransactions[warehouseId] = [];
-//       }
-//       warehouseTransactions[warehouseId].push(transaction);
-//     });
-//     
-//     // Get the most recent balance for each warehouse
-//     for (const [warehouseId, transactions] of Object.entries(warehouseTransactions)) {
-//       // Transactions should already be sorted by date (most recent first)
-//       const mostRecent = transactions[0];
-//       warehouseStock[warehouseId] = mostRecent.BalanceOnPartAfterChange;
-//     }
-//     
-//     return warehouseStock;
-//   } catch (error) {
-//     console.error(`Error fetching stock data for Monitor ID ${monitorId}:`, error);
-//     return {};
-//   }
-// }
-
 // Helper function to get stock data from PartLocations for a specific part
 function getStockDataFromPartLocations(partLocations) {
   const warehouseStock = {};
@@ -336,7 +298,7 @@ async function getShopifyLocations(shop, accessToken, retryCount = 0) {
 
   const result = await response.json();
 
-  // Handle throttling with exponential backoff
+  // Handle throttling
   if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;

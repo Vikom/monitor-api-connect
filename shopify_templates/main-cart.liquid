@@ -1115,7 +1115,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           if (response.ok) {
-            console.log('Order mark saved to cart:', orderMarkValue);
             // Show success feedback (optional)
             const btnText = orderMarkButton.querySelector('.btn__text');
             const originalText = btnText.textContent;
@@ -1143,11 +1142,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function setCartPricesLoading() {
     if (!window.customer?.id) return;
     
-    console.log('Setting cart prices loading state...');
-    
     // Simply hide all cart price elements until they load
     const cartRows = document.querySelectorAll('tr[id^="CartItem-"]');
-    console.log(`Found ${cartRows.length} cart rows`);
     
     cartRows.forEach((row, index) => {
       const priceElements = row.querySelectorAll('.cart-item__prices .price');
@@ -1172,7 +1168,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Helper function to show prices after loading
   function showCartPrices() {
-    console.log('Showing cart prices...');
     
     const cartRows = document.querySelectorAll('tr[id^="CartItem-"]');
     cartRows.forEach((row) => {
@@ -1203,9 +1198,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    console.log('Updating cart page prices...');
-    console.log('Cart metafields data:', window.cartItemsMetafields);
-    
     // Set loading state first
     setCartPricesLoading();
     
@@ -1221,8 +1213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const variantId = `gid://shopify/ProductVariant/${item.variant_id}`;
         const customerId = `gid://shopify/Customer/${window.customer.id}`;
         const cacheKey = `${item.variant_id}-${window.customer.id}`;
-        
-        console.log(`Getting price for variant ${item.variant_id} (index ${index})`);
         
         // Check cache first
         let priceData = priceCache.get(cacheKey);
@@ -1252,15 +1242,12 @@ document.addEventListener('DOMContentLoaded', () => {
             })
           });
           
-          console.log(`Price response status: ${priceResponse.status}`);
-          
           if (!priceResponse.ok) {
             console.error(`Price API error: ${priceResponse.status} ${priceResponse.statusText}`);
             continue;
           }
           
           const responseText = await priceResponse.text();
-          console.log(`Price response text: ${responseText}`);
           
           try {
             priceData = JSON.parse(responseText);
@@ -1295,15 +1282,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const itemNumber = index + 1;
           const cartRow = document.querySelector(`tr#CartItem-${itemNumber}`);
           
-          console.log(`Looking for cart row: #CartItem-${itemNumber}, found:`, !!cartRow);
-          
           if (cartRow) {
             // Update individual item price displays
             const priceElements = cartRow.querySelectorAll('.cart-item__prices .price');
-            console.log(`Found ${priceElements.length} price elements for item ${itemNumber}`);
             
             priceElements.forEach((priceElement, priceIndex) => {
-              console.log(`Updating price element ${priceIndex} for item ${itemNumber}`);
               // Handle both regular and sale price structures
               const hasDiscount = priceElement.classList.contains('price--on-sale');
               if (hasDiscount) {
@@ -1352,16 +1335,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial setup
   if (!window.customer?.id) {
     // For non-logged-in customers, keep prices hidden - no pricing available
-    console.log('Non-logged-in customer - prices will remain hidden');
   } else {
     // For logged-in customers, update prices with loading state
-    console.log('Customer found, starting price update in 2 seconds...');
     setTimeout(updateCartPrices, 2000); // Increased delay to see spinners
   }
   
   // Update when cart items change
   document.addEventListener('cart:updated', () => {
-    console.log('Cart updated event, refreshing prices...');
     setTimeout(updateCartPrices, 100);
   });
   
@@ -1369,9 +1349,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkoutBtn = document.querySelector('button[name="checkout"][form="cart"]');
   
   if (checkoutBtn) {
-    console.log('Found checkout button:', checkoutBtn);
-    console.log('Customer object:', window.customer);
-    console.log('Customer ID:', window.customer?.id);
     
     // Mark as intercepted
     checkoutBtn.setAttribute('data-checkout-intercepted', 'true');
@@ -1379,8 +1356,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Strategy 4: Direct onclick handler (as backup)
     const originalOnClick = checkoutBtn.onclick;
     checkoutBtn.onclick = async function(e) {
-      console.log('Direct onclick handler fired');
-      console.log('Customer check in onclick:', window.customer?.id);
       await handleCheckoutInterception(e);
       if (originalOnClick) originalOnClick.call(this, e);
     };
@@ -1389,15 +1364,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Strategy 1: Capture phase click event (fires before other handlers)
     checkoutBtn.addEventListener('click', async (e) => {
-      console.log('Capture phase click event fired');
-      console.log('Customer check in capture click:', window.customer?.id);
       await handleCheckoutInterception(e);
     }, { capture: true });
     
     // Strategy 2: Normal click event 
     checkoutBtn.addEventListener('click', async (e) => {
-      console.log('Normal click event fired');
-      console.log('Customer check in normal click:', window.customer?.id);
       await handleCheckoutInterception(e);
     });
     
@@ -1405,21 +1376,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const cartForm = document.getElementById('cart');
     if (cartForm) {
       cartForm.addEventListener('submit', async (e) => {
-        console.log('Form submit event fired');
-        console.log('Customer check in submit:', window.customer?.id);
         await handleCheckoutInterception(e);
       }, { capture: true });
     }
     
     async function handleCheckoutInterception(e) {
-      console.log('handleCheckoutInterception called');
-      console.log('Event type:', e.type);
-      console.log('Event target:', e.target);
-      console.log('window.customer:', window.customer);
-      console.log('window.customer?.id:', window.customer?.id);
       
       if (window.customer?.id) {
-        console.log('Customer found, preventing default checkout');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -1464,21 +1427,15 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           });
           
-          console.log('Creating draft order with items:', items);
-          
           // Get customer's price list ID from the first cart item's metafields
           const firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
           const customerPriceListId = firstItemMetafields.customerPriceListId;
-          
-          console.log('Customer price list ID from metafields:', customerPriceListId);
           
           // Get goods label and order mark from cart
           const cartNoteElement = document.querySelector('textarea[name="note"][form="cart"]');
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
           // Get order mark from cart attributes (persisted value)
           const orderMark = cart.attributes?.order_mark || '';
-          console.log('Cart goods label:', goodsLabel);
-          console.log('Cart order mark (from cart attributes):', orderMark);
 
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1495,10 +1452,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           const result = await response.json();
-          console.log('Draft order API response:', result);
           
           if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
-            console.log('Success! Redirecting to invoice:', result.draftOrder.invoiceUrl);
             window.location.href = result.draftOrder.invoiceUrl;
             return false; // Prevent any further form submission
           } else {
@@ -1531,9 +1486,6 @@ document.addEventListener('DOMContentLoaded', () => {
           alert(errorMessage);
         }
       } else {
-        console.log('No customer logged in, allowing normal checkout');
-        console.log('Customer object was:', window.customer);
-        // Let normal checkout proceed for guests
         // Don't prevent default here - let the form submit normally
       }
     }

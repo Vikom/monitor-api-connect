@@ -983,8 +983,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (modal) {
               modal.setAttribute('hidden', '');
             }
-            
-            console.log('Order mark saved to cart:', orderMarkValue);
           } else {
             console.error('Failed to save order mark to cart');
           }
@@ -1064,7 +1062,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 10000); // 10 second timeout
     
     console.log('Updating cart drawer prices...');
-    console.log('Cart metafields data:', window.cartItemsMetafields);
     
     // Set loading state first
     setCartPricesLoading();
@@ -1103,8 +1100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             console.log(`Product page metafields applied:`, itemMetafields);
           }
-          
-          console.log(`Using metafields for ${item.variant_id}:`, itemMetafields);
         
           // Check if we have the essential monitor_id (required for pricing)
           const hasMonitorId = itemMetafields.monitorId;
@@ -1140,7 +1135,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           
           const responseText = await priceResponse.text();
-          console.log(`Price response text: ${responseText}`);
           
           try {
             priceData = JSON.parse(responseText);
@@ -1180,8 +1174,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const lineTotal = priceData.price * actualQuantity;
           cartTotal += lineTotal;
           
-          console.log(`Price for ${item.variant_id}: ${priceData.price} kr × ${actualQuantity} = ${lineTotal} kr`);
-          
           // Update the price display in the DOM
           if (cartItem) {
             const priceElement = cartItem.querySelector('.cart-item__prices .price');
@@ -1219,7 +1211,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const totalElement = document.querySelector('.totals__subtotal-value');
       if (totalElement && cartTotal > 0) {
         totalElement.textContent = `${formatPrice(cartTotal)} kr`;
-        console.log(`Updated cart total: ${formatPrice(cartTotal)} kr`);
       }
       
       // Remove loading state and show all prices
@@ -1269,8 +1260,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // Note: The cart metafields are pre-populated by Liquid on page load.
       // When items are added via AJAX, we should rely on the server-side API
       // to provide correct metafields rather than trying to guess from client-side data.
-      
-      console.log('Current cart metafields:', window.cartItemsMetafields);
     } catch (error) {
       console.error('Error refreshing cart metafields:', error);
     }
@@ -1292,11 +1281,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkoutForm = document.querySelector('form.drawer__footer-buttons');
   
   if (checkoutBtn) {
-    console.log('Found cart drawer checkout button:', checkoutBtn);
-    console.log('Found cart drawer checkout form:', checkoutForm);
-    console.log('Customer object:', window.customer);
-    console.log('Customer ID:', window.customer?.id);
-    
     // Mark as intercepted
     checkoutBtn.setAttribute('data-checkout-intercepted', 'true');
     
@@ -1304,23 +1288,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Strategy 1: Capture phase click event (fires before other handlers)
     checkoutBtn.addEventListener('click', async (e) => {
-      console.log('Cart drawer capture phase click event fired');
-      console.log('Customer check in capture click:', window.customer?.id);
       await handleCheckoutInterception(e);
     }, { capture: true });
     
     // Strategy 2: Normal click event 
     checkoutBtn.addEventListener('click', async (e) => {
-      console.log('Cart drawer normal click event fired');
-      console.log('Customer check in normal click:', window.customer?.id);
       await handleCheckoutInterception(e);
     });
     
     // Strategy 3: Form submission interception
     if (checkoutForm) {
       checkoutForm.addEventListener('submit', async (e) => {
-        console.log('Cart drawer form submit event fired');
-        console.log('Customer check in submit:', window.customer?.id);
         await handleCheckoutInterception(e);
       }, { capture: true });
     }
@@ -1328,18 +1306,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Strategy 4: Direct onclick handler (as backup)
     const originalOnClick = checkoutBtn.onclick;
     checkoutBtn.onclick = async function(e) {
-      console.log('Cart drawer direct onclick handler fired');
-      console.log('Customer check in onclick:', window.customer?.id);
       await handleCheckoutInterception(e);
       if (originalOnClick) originalOnClick.call(this, e);
     };
     
     async function handleCheckoutInterception(e) {
-      console.log('Cart drawer handleCheckoutInterception called');
-      console.log('Event type:', e.type);
-      console.log('Event target:', e.target);
-      console.log('window.customer:', window.customer);
-      console.log('window.customer?.id:', window.customer?.id);
       
       if (window.customer?.id) {
         console.log('Customer found, preventing default checkout');
@@ -1379,8 +1350,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           });
           
-          console.log('Creating draft order with items:', items);
-          
           // Get customer's price list ID from the first cart item's metafields (same as main cart)
           // Use the same fallback logic as the pricing system
           let firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
@@ -1388,7 +1357,6 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Fallback: use product page metafields if cart metafields are empty
           if (!customerPriceListId && window.customerPriceListId) {
-            console.log('Using product page metafields for customer price list ID');
             customerPriceListId = window.customerPriceListId;
             firstItemMetafields = {
               ...firstItemMetafields,
@@ -1398,15 +1366,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           }
           
-          console.log('Customer price list ID from metafields:', customerPriceListId);
-          
           // Get goods label and order mark from cart
           const cartNoteElement = document.querySelector('textarea[name="note"]');
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
           // Get order mark from cart attributes (persisted value)
           const orderMark = cart.attributes?.order_mark || '';
-          console.log('Cart drawer goods label:', goodsLabel);
-          console.log('Cart drawer order mark (from cart attributes):', orderMark);
           
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1423,7 +1387,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           const result = await response.json();
-          console.log('Draft order API response:', result);
           
           if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
             console.log('Success! Redirecting to invoice:', result.draftOrder.invoiceUrl);
@@ -1459,9 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
           alert(errorMessage);
         }
       } else {
-        console.log('No customer logged in, allowing normal checkout');
         console.log('Customer object was:', window.customer);
-        // Let normal checkout proceed for guests
         // Don't prevent default here - let the form submit normally
       }
     }
@@ -1474,8 +1435,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if this is the cart drawer checkout form
     if (e.target && e.target.classList.contains('drawer__footer-buttons')) {
       console.log('Document-level form submit interceptor fired for cart drawer!');
-      console.log('Form element:', e.target);
-      console.log('Customer check:', window.customer?.id);
       
       if (window.customer?.id) {
         console.log('Customer found in document-level interceptor, preventing form submission');
@@ -1513,8 +1472,6 @@ document.addEventListener('DOMContentLoaded', () => {
               };
             });
             
-            console.log('Creating draft order with items:', items);
-            
             // Get customer's price list ID from the first cart item's metafields
             // Use the same fallback logic as the pricing system
             let firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
@@ -1522,7 +1479,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Fallback: use product page metafields if cart metafields are empty
             if (!customerPriceListId && window.customerPriceListId) {
-              console.log('Using product page metafields for customer price list ID');
               customerPriceListId = window.customerPriceListId;
               firstItemMetafields = {
                 ...firstItemMetafields,
@@ -1532,15 +1488,11 @@ document.addEventListener('DOMContentLoaded', () => {
               };
             }
             
-            console.log('Customer price list ID from metafields:', customerPriceListId);
-            
             // Get goods label and order mark from cart
             const cartNoteElement = document.querySelector('textarea[name="note"]');
             const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
             // Get order mark from cart attributes (persisted value)
             const orderMark = cart.attributes?.order_mark || '';
-            console.log('Cart drawer goods label (fallback):', goodsLabel);
-            console.log('Cart drawer order mark (fallback, from cart attributes):', orderMark);
             
             // Create draft order with dynamic pricing
             const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1557,10 +1509,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             const result = await response.json();
-            console.log('Draft order API response:', result);
             
             if (result.success && result.draftOrder && result.draftOrder.invoiceUrl) {
-              console.log('Success! Redirecting to invoice:', result.draftOrder.invoiceUrl);
               window.location.href = result.draftOrder.invoiceUrl;
               return false;
             } else {

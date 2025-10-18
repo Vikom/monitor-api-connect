@@ -232,7 +232,7 @@ export async function syncCustomers(isIncrementalSync = false) {
 
     if (isUpdate) {
       // Update existing customer
-      console.log(`🔄 Updating existing customer: ${customer.email}`);
+      console.log(`Updating existing customer: ${customer.email}`);
       console.log(`   Customer ID: ${existingCustomer.id}`);
       
       mutation = `mutation customerUpdate($input: CustomerInput!) {
@@ -311,7 +311,7 @@ export async function syncCustomers(isIncrementalSync = false) {
       };
     } else {
       // Create new customer
-      console.log(`➕ Creating new customer: ${customer.email}`);
+      console.log(`Creating new customer: ${customer.email}`);
       
       mutation = `mutation customerCreate($input: CustomerInput!) {
         customerCreate(input: $input) {

@@ -188,8 +188,6 @@ async function pollForNewOrders() {
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
         const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
-        console.log(`  📋 Goods label for draft order ${order.name}: "${goodsLabel}"`);
-        console.log(`  📋 Order mark for draft order ${order.name}: "${orderMark}"`);
 
         // Create order in Monitor system (without Preliminary and GoodsLabel)
         const monitorOrderData = {
@@ -202,7 +200,7 @@ async function pollForNewOrders() {
           IsStockOrder: false
         };
 
-        console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
+        // console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
 
         const monitorOrderResult = await createOrderInMonitor(monitorOrderData);
         
@@ -223,9 +221,6 @@ async function pollForNewOrders() {
             GoodsLabel1: { Value: goodsLabel.substring(0, 80) }, // Limit to 80 characters
             BusinessContactOrderNumber: { Value: orderMark.substring(0, 30) } // Limit to 30 characters
           };
-
-          console.log('monitorOrderId', monitorOrderId);
-          console.log(`Setting order properties:`, JSON.stringify(orderProperties, null, 2));
           
           const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
           
@@ -234,11 +229,6 @@ async function pollForNewOrders() {
           } else {
             console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
           }
-          
-          // Update delivery address - use shipping address first, then billing address as fallback
-          console.log(`  🔍 Debug - Draft order ${order.name} addresses:`);
-          console.log(`    Shipping address:`, JSON.stringify(order.shippingAddress, null, 2));
-          console.log(`    Billing address:`, JSON.stringify(order.billingAddress, null, 2));
           
           const addressToUse = order.shippingAddress || order.billingAddress;
           
@@ -256,8 +246,6 @@ async function pollForNewOrders() {
               PostalCode: addressToUse.zip || '',
               LanguageId: 1 // Default to Swedish language ID, adjust if needed
             };
-            
-            console.log(`  📦 Updating delivery address:`, JSON.stringify(deliveryAddressData, null, 2));
             
             const addressUpdated = await updateDeliveryAddressInMonitor(monitorOrderId, deliveryAddressData);
             
@@ -285,11 +273,6 @@ async function pollForNewOrders() {
     console.error("Error polling for orders:", error);
   }
 }
-
-// Cron schedule is now handled by worker.js
-// Poll for orders every 5 minutes (managed by worker)
-// For testing - uncomment to run immediately
-// pollForNewOrders();
 
 /**
  * Get customer's monitor_id metafield from Shopify
@@ -451,7 +434,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         PartId: monitorPartId,
         OrderedQuantity: orderedQuantity,
         UnitPrice: unitPrice,
-        // Description: lineItem.title, // Optional: add product title as description
+        // Description: lineItem.title
       });
 
       console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}`);

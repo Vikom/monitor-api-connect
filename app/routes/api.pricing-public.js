@@ -473,7 +473,7 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
     }
     
     const data = await response.json();
-    console.log(`Shopify API response:`, JSON.stringify(data, null, 2));
+    // console.log(`Shopify API response:`, JSON.stringify(data, null, 2));
     
     if (data.errors) {
       console.error(`Shopify API errors:`, data.errors);
