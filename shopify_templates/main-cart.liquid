@@ -914,7 +914,7 @@
                     <details is="accordion-details" class="accordion-details cart-accordion-details">
                       <summary class="accordion-details__summary flex items-center justify-between h6">
                         <div class="flex gap-2 items-center">
-                          Ordermärkning
+                          Kommentar
                         </div>
                         {%- render 'icon-caret-down', size: 'small' -%}
                       </summary>
@@ -925,11 +925,11 @@
                             class="form-control form-control--textarea"
                             rows="3"
                             form="cart"
-                            placeholder="Din ordermärkning"
+                            placeholder="Ange om du har specifika önskemål kring beställning"
                             id="CartOrderMarkForm-{{ section.id }}"
                           >{{ cart.attributes['order_mark'] }}</textarea>
                           <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
-                            Ordermärkning
+                            Kommentar
                           </label>
                         </div>
                         <button

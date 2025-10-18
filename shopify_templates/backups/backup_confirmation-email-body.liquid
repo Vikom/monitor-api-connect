@@ -267,20 +267,7 @@
                 </td>
               {% else %}
                 <td class="order-list__image-cell">
-                  {% comment %} Check custom image properties first {% endcomment %}
-                  {% assign custom_image_url = '' %}
-                  {% assign custom_image_alt = '' %}
-                  {% for property in line.properties %}
-                    {% if property.first == '_image_url' %}
-                      {% assign custom_image_url = property.last %}
-                    {% elsif property.first == '_image_alt' %}
-                      {% assign custom_image_alt = property.last %}
-                    {% endif %}
-                  {% endfor %}
-                  
-                  {% if custom_image_url != blank %}
-                    <img src="{{ custom_image_url }}" align="left" width="60" height="60" class="order-list__product-image" alt="{{ custom_image_alt | default: line.title }}"/>
-                  {% elsif line.image %}
+                  {% if line.image %}
                     <img src="{{ line | img_url: 'compact_cropped' }}" align="left" width="60" height="60" class="order-list__product-image"/>
                   {% else %}
                     <div class="order-list__no-image-cell">
@@ -358,20 +345,7 @@
     <td class="{{ css_class }}" height="100%">
       <table height="100%">
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -524,20 +498,7 @@
             <div class="nested-line-item-spacer"></div>
           </td>
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -894,20 +855,7 @@
                 </td>
               {% else %}
                 <td class="order-list__image-cell">
-                  {% comment %} Check custom image properties first {% endcomment %}
-                  {% assign custom_image_url = '' %}
-                  {% assign custom_image_alt = '' %}
-                  {% for property in line.properties %}
-                    {% if property.first == '_image_url' %}
-                      {% assign custom_image_url = property.last %}
-                    {% elsif property.first == '_image_alt' %}
-                      {% assign custom_image_alt = property.last %}
-                    {% endif %}
-                  {% endfor %}
-                  
-                  {% if custom_image_url != blank %}
-                    <img src="{{ custom_image_url }}" align="left" width="60" height="60" class="order-list__product-image" alt="{{ custom_image_alt | default: line.title }}"/>
-                  {% elsif line.image %}
+                  {% if line.image %}
                     <img src="{{ line | img_url: 'compact_cropped' }}" align="left" width="60" height="60" class="order-list__product-image"/>
                   {% else %}
                     <div class="order-list__no-image-cell">
@@ -985,20 +933,7 @@
     <td class="{{ css_class }}" height="100%">
       <table height="100%">
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -1151,20 +1086,7 @@
             <div class="nested-line-item-spacer"></div>
           </td>
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -1845,20 +1767,7 @@
     <td class="{{ css_class }}" height="100%">
       <table height="100%">
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -2011,20 +1920,7 @@
             <div class="nested-line-item-spacer"></div>
           </td>
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -2110,20 +2006,7 @@
                 </td>
               {% else %}
                 <td class="order-list__image-cell">
-                  {% comment %} Check custom image properties first {% endcomment %}
-                  {% assign custom_image_url = '' %}
-                  {% assign custom_image_alt = '' %}
-                  {% for property in line.properties %}
-                    {% if property.first == '_image_url' %}
-                      {% assign custom_image_url = property.last %}
-                    {% elsif property.first == '_image_alt' %}
-                      {% assign custom_image_alt = property.last %}
-                    {% endif %}
-                  {% endfor %}
-                  
-                  {% if custom_image_url != blank %}
-                    <img src="{{ custom_image_url }}" align="left" width="60" height="60" class="order-list__product-image" alt="{{ custom_image_alt | default: line.title }}"/>
-                  {% elsif line.image %}
+                  {% if line.image %}
                     <img src="{{ line | img_url: 'compact_cropped' }}" align="left" width="60" height="60" class="order-list__product-image"/>
                   {% else %}
                     <div class="order-list__no-image-cell">
@@ -2201,20 +2084,7 @@
     <td class="{{ css_class }}" height="100%">
       <table height="100%">
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">
@@ -2367,20 +2237,7 @@
             <div class="nested-line-item-spacer"></div>
           </td>
         <td class="{{ css_image_class }}">
-          {% comment %} Check custom image properties first {% endcomment %}
-          {% assign custom_image_url = '' %}
-          {% assign custom_image_alt = '' %}
-          {% for property in child_line.properties %}
-            {% if property.first == '_image_url' %}
-              {% assign custom_image_url = property.last %}
-            {% elsif property.first == '_image_alt' %}
-              {% assign custom_image_alt = property.last %}
-            {% endif %}
-          {% endfor %}
-          
-          {% if custom_image_url != blank %}
-            <img src="{{ custom_image_url }}" align="left" width="40" height="40" class="order-list__product-image small" alt="{{ custom_image_alt | default: child_line.title }}"/>
-          {% elsif child_line.image %}
+          {% if child_line.image %}
             <img src="{{ child_line | img_url: 'compact_cropped' }}" align="left" width="40" height="40" class="order-list__product-image small"/>
           {% else %}
             <div class="order-list__no-image-cell small">

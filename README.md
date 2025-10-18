@@ -1,3 +1,41 @@
+# Custom built Shopify application for Sonsabs integration with Monitor
+
+This app was generated from a template to kickstart development. However because of that there is quite a lot of unused code in the project.
+
+## Sync jobs
+
+The sync jobs are started from /app/worker.js file. A lot of helpful code is left in the jobs for manually triggering syncs or debugging.
+
+To run to the advanced (production) store the `--advanced` flag is used.
+
+The syncImagesJob was written to bulk import product images but is no longer used.
+
+The active syncs are:
+Monitor > Shopify
+* Customer sync
+* Product sync
+* Inventory sync
+
+Shopify > Monitor
+* Order sync
+
+## Templates
+Templates that have been edited for the integration/adaptation have been saved in shopify_templates directory. This is to have our logic in version control. The theme in Shopify UI still needs to be updated when making changes to templates. There is also a backup folder in there.
+
+In Shopify Theme UI there is an option to download the whole theme to have it in version control which is probably a good idead moving forward. When updating the theme to a newer version that would make it easier to have control of changes needed to keep our bussiness logic.
+
+## Endpoints
+In app routes these are the important (used) endpoints that are being called from Shopify:
+api.pricing-public.js
+api.draft-order-public.js
+
+Since we have custom pricing and all prices are fetched from Monitor through this project we cannot work with standard orders, but need to build draft orders instead.
+
+## Notes
+The webhooks are not used but it could be an improvement to sync orders using webhooks instead of scheduled order polling.
+
+/*****************************/
+
 # Shopify App Template - Remix
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using the [Remix](https://remix.run) framework.

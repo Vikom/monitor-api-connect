@@ -648,7 +648,7 @@
                   aria-expanded="false"
                 >
                   <span class="btn__text flex gap-1 items-center">
-                    Ordermärkning
+                    Kommentar
                     {%- render 'icon-caret-right', size: 'extra-small' -%}
                   </span>
                 </button>
@@ -724,18 +724,18 @@
                       {%- render 'icon-close' -%}
                     </button>
                     <div class="drawer__content cart-addons-drawer__content grid gap-5">
-                      <h4>Ordermärkning</h4>
+                      <h4>Kommentar</h4>
                       <div class="flex flex-col items-start gap-5">
                         <div class="form-field w-full">
                           <textarea
                             name="order_mark"
                             class="form-control form-control--textarea"
                             rows="3"
-                            placeholder="Din ordermärkning"
+                            placeholder="Ange om du har specifika önskemål kring beställning "
                             id="CartOrderMarkForm-{{ section.id }}"
                           >{{ cart.attributes['order_mark'] }}</textarea>
                           <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
-                            Ordermärkning
+                            Kommentar
                           </label>
                         </div>
                         <button
