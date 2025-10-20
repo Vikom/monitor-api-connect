@@ -338,7 +338,7 @@
                   <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                   <span>
                     {{ discount_allocation.discount_application.title | upcase }}
-                    (-{{ discount_allocation.amount | money }})
+                    (-{{ discount_allocation.amount | money | replace: ".", " " }})
                   </span>
                 </span>
               </p>
@@ -352,11 +352,11 @@
             <td class="order-list__price-cell">
           {% endif %}
           {% if line.original_line_price != line.final_line_price %}
-            <del class="order-list__item-original-price">{{ line.original_line_price | money }}</del>
+            <del class="order-list__item-original-price">{{ line.original_line_price | money | replace: ".", " " }}</del>
           {% endif %}
             <p class="order-list__item-price">
               {% if line.final_line_price > 0 %}
-                {{ line.final_line_price | money }}
+                {{ line.final_line_price | money | replace: ".", " " }}
                 {% if line.unit_price_measurement %}
   <div class="order-list__unit-price">
     {{- line.unit_price | unit_price_with_measurement: line.unit_price_measurement -}}
@@ -535,7 +535,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                               {{ discount_allocation.discount_application.title | upcase }}
-                              (-{{ discount_allocation.amount | money }})
+                              (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                           </span>
                         </p>
@@ -561,7 +561,7 @@
                         <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                         <span>
                           {{ discount_title | upcase }}
-                          (-{{ discount_amount | money }})
+                          (-{{ discount_amount | money | replace: ".", " " }})
                         </span>
                       </span>
                     </p>
@@ -571,11 +571,11 @@
 
                 <td class="order-list__parent_price-cell">
                   {% if original_line_price != final_line_price %}
-                    <del class="order-list__item-original-price">{{ original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ original_line_price | money | replace: ".", " " }}</del>
                   {% endif %}
                   <p class="order-list__item-price">
                     {% if final_line_price > 0 %}
-                      {{ final_line_price | money }}
+                      {{ final_line_price | money | replace: ".", " " }}
                     {% else %}
                       {{ 'notifications.views.mailers.notifications.discount_free' | t }}
                     {% endif %}
@@ -623,7 +623,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -636,11 +636,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -699,7 +699,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -712,11 +712,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -945,7 +945,7 @@
                   <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                   <span>
                     {{ discount_allocation.discount_application.title | upcase }}
-                    (-{{ discount_allocation.amount | money }})
+                    (-{{ discount_allocation.amount | money | replace: ".", " " }})
                   </span>
                 </span>
               </p>
@@ -959,11 +959,11 @@
             <td class="order-list__price-cell">
           {% endif %}
           {% if line.original_line_price != line.final_line_price %}
-            <del class="order-list__item-original-price">{{ line.original_line_price | money }}</del>
+            <del class="order-list__item-original-price">{{ line.original_line_price | money | replace: ".", " " }}</del>
           {% endif %}
             <p class="order-list__item-price">
               {% if line.final_line_price > 0 %}
-                {{ line.final_line_price | money }}
+                {{ line.final_line_price | money | replace: ".", " " }}
                 {% if line.unit_price_measurement %}
   <div class="order-list__unit-price">
     {{- line.unit_price | unit_price_with_measurement: line.unit_price_measurement -}}
@@ -1140,7 +1140,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                               {{ discount_allocation.discount_application.title | upcase }}
-                              (-{{ discount_allocation.amount | money }})
+                              (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                           </span>
                         </p>
@@ -1166,7 +1166,7 @@
                         <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                         <span>
                           {{ discount_title | upcase }}
-                          (-{{ discount_amount | money }})
+                          (-{{ discount_amount | money | replace: ".", " " }})
                         </span>
                       </span>
                     </p>
@@ -1176,11 +1176,11 @@
 
                 <td class="order-list__parent_price-cell">
                   {% if original_line_price != final_line_price %}
-                    <del class="order-list__item-original-price">{{ original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ original_line_price | money | replace: ".", " " }}</del>
                   {% endif %}
                   <p class="order-list__item-price">
                     {% if final_line_price > 0 %}
-                      {{ final_line_price | money }}
+                      {{ final_line_price | money | replace: ".", " " }}
                     {% else %}
                       {{ 'notifications.views.mailers.notifications.discount_free' | t }}
                     {% endif %}
@@ -1228,7 +1228,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -1241,11 +1241,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -1304,7 +1304,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -1317,11 +1317,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -1405,7 +1405,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                               {{ discount_allocation.discount_application.title | upcase }}
-                              (-{{ discount_allocation.amount | money }})
+                              (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                           </span>
                         </p>
@@ -1431,7 +1431,7 @@
                         <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                         <span>
                           {{ discount_title | upcase }}
-                          (-{{ discount_amount | money }})
+                          (-{{ discount_amount | money | replace: ".", " " }})
                         </span>
                       </span>
                     </p>
@@ -1441,11 +1441,11 @@
 
                 <td class="order-list__parent_price-cell">
                   {% if original_line_price != final_line_price %}
-                    <del class="order-list__item-original-price">{{ original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ original_line_price | money | replace: ".", " " }}</del>
                   {% endif %}
                   <p class="order-list__item-price">
                     {% if final_line_price > 0 %}
-                      {{ final_line_price | money }}
+                      {{ final_line_price | money | replace: ".", " " }}
                     {% else %}
                       {{ 'notifications.views.mailers.notifications.discount_free' | t }}
                     {% endif %}
@@ -1493,7 +1493,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -1506,11 +1506,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -1569,7 +1569,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                                 {{ discount_allocation.discount_application.title | upcase }}
-                                (-{{ discount_allocation.amount | money }})
+                                (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                             </span>
                         </p>
@@ -1582,11 +1582,11 @@
         {% if line_item_group.deliverable? %}
             <td class="order-list__price-cell">
                 {% if component.original_line_price != component.final_line_price %}
-                    <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
                 {% endif %}
                 <p class="order-list__item-price">
                 {% if component.final_line_price > 0 %}
-                    {{ component.final_line_price | money }}
+                    {{ component.final_line_price | money | replace: ".", " " }}
                 {% else %}
                     Gratis
                 {% endif %}
@@ -1785,7 +1785,7 @@
                   <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                   <span>
                     {{ discount_allocation.discount_application.title | upcase }}
-                    (-{{ discount_allocation.amount | money }})
+                    (-{{ discount_allocation.amount | money | replace: ".", " " }})
                   </span>
                 </span>
               </p>
@@ -1799,11 +1799,11 @@
             <td class="order-list__price-cell">
           {% endif %}
           {% if component.original_line_price != component.final_line_price %}
-            <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+            <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
           {% endif %}
             <p class="order-list__item-price">
               {% if component.final_line_price > 0 %}
-                {{ component.final_line_price | money }}
+                {{ component.final_line_price | money | replace: ".", " " }}
                 {% if component.unit_price_measurement %}
   <div class="order-list__unit-price">
     {{- component.unit_price | unit_price_with_measurement: component.unit_price_measurement -}}
@@ -1967,9 +1967,9 @@
 
         {% if line.quantity %}
           {% if line.original_line_price != line.final_line_price %}
-            <span><del class="order-list__item-original-price">{{ line.original_price | money }}</del></span>
+            <span><del class="order-list__item-original-price">{{ line.original_price | money | replace: ".", " " }}</del></span>
           {% endif %}
-            <span>{{ line.final_price | money }} × {{ line.quantity }} </span><br/>
+            <span>{{ line.final_price | money | replace: ".", " " }} × {{ line.quantity }} </span><br/>
         {% endif %}
 
         {% if expand_bundles %}
@@ -2047,7 +2047,7 @@
                 <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                 <span>
                   {{ discount_allocation.discount_application.title | upcase }}
-                  (-{{ discount_allocation.amount | money }})
+                  (-{{ discount_allocation.amount | money | replace: ".", " " }})
                 </span>
               </span>
             {% endif %}
@@ -2061,7 +2061,7 @@
         {% endif %}
           <p class="order-list__item-price">
             {% if line.final_line_price > 0 %}
-              {{ line.final_line_price | money }}
+              {{ line.final_line_price | money | replace: ".", " " }}
               {% if line.unit_price_measurement %}
   <div class="order-list__unit-price">
     {{- line.unit_price | unit_price_with_measurement: line.unit_price_measurement -}}
@@ -2141,7 +2141,7 @@
                             <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                             <span>
                               {{ discount_allocation.discount_application.title | upcase }}
-                              (-{{ discount_allocation.amount | money }})
+                              (-{{ discount_allocation.amount | money | replace: ".", " " }})
                             </span>
                           </span>
                         </p>
@@ -2167,7 +2167,7 @@
                         <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                         <span>
                           {{ discount_title | upcase }}
-                          (-{{ discount_amount | money }})
+                          (-{{ discount_amount | money | replace: ".", " " }})
                         </span>
                       </span>
                     </p>
@@ -2177,11 +2177,11 @@
 
                 <td class="order-list__parent_price-cell">
                   {% if original_line_price != final_line_price %}
-                    <del class="order-list__item-original-price">{{ original_line_price | money }}</del>
+                    <del class="order-list__item-original-price">{{ original_line_price | money | replace: ".", " " }}</del>
                   {% endif %}
                   <p class="order-list__item-price">
                     {% if final_line_price > 0 %}
-                      {{ final_line_price | money }}
+                      {{ final_line_price | money | replace: ".", " " }}
                     {% else %}
                       Gratis
                     {% endif %}
@@ -2229,7 +2229,7 @@
                 <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                 <span>
                     {{ discount_allocation.discount_application.title | upcase }}
-                    (-{{ discount_allocation.amount | money }})
+                    (-{{ discount_allocation.amount | money | replace: ".", " " }})
                 </span>
                 </span>
             </p>
@@ -2242,11 +2242,11 @@
         {% if line_item_group.deliverable? %}
         <td class="order-list__price-cell">
             {% if component.original_line_price != component.final_line_price %}
-            <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+            <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
             {% endif %}
             <p class="order-list__item-price">
             {% if component.final_line_price > 0 %}
-                {{ component.final_line_price | money }}
+                {{ component.final_line_price | money | replace: ".", " " }}
             {% else %}
                 Gratis
             {% endif %}
@@ -2305,7 +2305,7 @@
                 <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
                 <span>
                     {{ discount_allocation.discount_application.title | upcase }}
-                    (-{{ discount_allocation.amount | money }})
+                    (-{{ discount_allocation.amount | money | replace: ".", " " }})
                 </span>
                 </span>
             </p>
@@ -2318,11 +2318,11 @@
         {% if line_item_group.deliverable? %}
         <td class="order-list__price-cell">
             {% if component.original_line_price != component.final_line_price %}
-            <del class="order-list__item-original-price">{{ component.original_line_price | money }}</del>
+            <del class="order-list__item-original-price">{{ component.original_line_price | money | replace: ".", " " }}</del>
             {% endif %}
             <p class="order-list__item-price">
             {% if component.final_line_price > 0 %}
-                {{ component.final_line_price | money }}
+                {{ component.final_line_price | money | replace: ".", " " }}
             {% else %}
                 Gratis
             {% endif %}
@@ -2386,9 +2386,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ subtotal_price | plus: total_order_discount_amount | money }}</strong>
+      <strong>{{ subtotal_price | plus: total_order_discount_amount | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ subtotal_price | plus: total_order_discount_amount | money }}
+      {{ subtotal_price | plus: total_order_discount_amount | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2404,7 +2404,7 @@
     </p>
   </td>
   <td class="subtotal-line__value">
-      <span>-{{ total_order_discount_amount | money }}</span>
+      <span>-{{ total_order_discount_amount | money | replace: ".", " " }}</span>
   </td>
 </tr>
 
@@ -2418,7 +2418,7 @@
     </p>
   </td>
   <td class="subtotal-line__value">
-      <span>-{{ total_order_discount_amount  | money }}</span>
+      <span>-{{ total_order_discount_amount  | money | replace: ".", " " }}</span>
   </td>
 </tr>
 
@@ -2432,7 +2432,7 @@
       <span class="subtotal-line__discount">
         <img src="{{ 'notifications/discounttag.png' | shopify_asset_url }}" width="18" height="18" class="discount-tag-icon" />
         <span class="subtotal-line__discount-title">
-            {{ discount_application.title }} (-{{ discount_application.total_allocated_amount | money }})
+            {{ discount_application.title }} (-{{ discount_application.total_allocated_amount | money | replace: ".", " " }})
         </span>
       </span>
     </p>
@@ -2458,9 +2458,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ shipping_price | money }}</strong>
+      <strong>{{ shipping_price | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ shipping_price | money }}
+      {{ shipping_price | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2483,7 +2483,7 @@
     </p>
   </td>
   <td class="subtotal-line__value">
-      <del>{% if shipping_price != 0 %}{{ shipping_price | money}}{% endif %}</del>
+      <del>{% if shipping_price != 0 %}{{ shipping_price | money | replace: ".", " "}}{% endif %}</del>
     {% if valueBold %}
       <strong>Gratis</strong>
     {% else %}
@@ -2510,9 +2510,9 @@
   <td class="subtotal-line__value">
       <del>{{ shipping_price | money }}</del>
     {% if valueBold %}
-      <strong>{{ discounted_shipping_price | money }}</strong>
+      <strong>{{ discounted_shipping_price | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ discounted_shipping_price | money }}
+      {{ discounted_shipping_price | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2526,7 +2526,7 @@
         <span class="subtotal-line__discount-title">
             {{ shipping_discount_title }} 
             {% if discount_value_price != 0 %}
-              (-{{ discount_value_price | money }})
+              (-{{ discount_value_price | money | replace: ".", " " }})
             {% endif %}
         </span>
       </span>
@@ -2551,9 +2551,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ shipping_price | money }}</strong>
+      <strong>{{ shipping_price | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ shipping_price | money }}
+      {{ shipping_price | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2576,9 +2576,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ total_duties | money }}</strong>
+      <strong>{{ total_duties | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ total_duties | money }}
+      {{ total_duties | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2602,9 +2602,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ tax_line.price | money }}</strong>
+      <strong>{{ tax_line.price | money | replace: ".", " " }}</strong>
     {% else %}
-      {{ tax_line.price | money }}
+      {{ tax_line.price | money | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
@@ -2626,9 +2626,9 @@
   </td>
   <td class="subtotal-line__value">
     {% if valueBold %}
-      <strong>{{ total_price | money_with_currency }}</strong>
+      <strong>{{ total_price | money_with_currency | replace: ".", " " }}</strong>
     {% else %}
-      {{ total_price | money_with_currency }}
+      {{ total_price | money_with_currency | replace: ".", " " }}
     {% endif %}
   </td>
 </tr>
