@@ -733,6 +733,7 @@
                             rows="3"
                             placeholder="Ange om du har specifika önskemål kring beställning "
                             id="CartOrderMarkForm-{{ section.id }}"
+                            data-cart-drawer="true"
                           >{{ cart.attributes['order_mark'] }}</textarea>
                           <label class="visually-hidden" for="CartOrderMarkForm-{{ section.id }}">
                             Kommentar
@@ -958,10 +959,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const orderMarkButton = document.querySelector('button[is="order-mark-save"]');
     if (orderMarkButton) {
       orderMarkButton.addEventListener('click', async () => {
-        const orderMarkTextarea = document.querySelector('textarea[name="order_mark"]');
-        if (!orderMarkTextarea) return;
+        // Be more specific with cart drawer textarea selector for Edge compatibility
+        const orderMarkTextarea = document.querySelector('textarea[name="order_mark"][data-cart-drawer="true"]') || 
+                                  document.querySelector('#CartOrderMarkForm-{{ section.id }}') ||
+                                  document.querySelector('textarea[name="order_mark"]');
+        
+        if (!orderMarkTextarea) {
+          console.error('Could not find order mark textarea in cart drawer');
+          return;
+        }
         
         const orderMarkValue = orderMarkTextarea.value.trim();
+        console.log('Cart drawer - Saving order mark:', orderMarkValue);
         
         try {
           // Save order mark to cart attributes
@@ -978,18 +987,59 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           if (response.ok) {
-            // Close the modal
+            console.log('Cart drawer - Order mark saved successfully');
+            
+            // Verify the save by fetching cart again (Edge-specific verification)
+            try {
+              const verifyResponse = await fetch('/cart.js');
+              const verifyCart = await verifyResponse.json();
+              const savedOrderMark = verifyCart.attributes?.order_mark || verifyCart.attributes?.['order_mark'] || '';
+              console.log('Cart drawer - Verification: Order mark in cart after save:', savedOrderMark);
+              
+              if (savedOrderMark === orderMarkValue) {
+                console.log('Cart drawer - Order mark verification successful');
+              } else {
+                console.warn('Cart drawer - Order mark verification failed. Expected:', orderMarkValue, 'Got:', savedOrderMark);
+              }
+            } catch (verifyError) {
+              console.warn('Cart drawer - Could not verify order mark save:', verifyError);
+            }
+            
+            // Close the modal with Edge-compatible method
             const modal = document.querySelector('#OrderMark-{{ section.id }}');
             if (modal) {
+              // Use multiple methods for Edge compatibility
               modal.setAttribute('hidden', '');
+              modal.style.display = 'none';
+              
+              // Also try to remove any open state classes
+              modal.classList.remove('open', 'active', 'show');
+              
+              // Edge-specific: Force a small delay before showing success
+              setTimeout(() => {
+                console.log('Order mark modal closed');
+              }, 100);
+            }
+            
+            // Show success feedback
+            const btnText = orderMarkButton.querySelector('.btn__text');
+            if (btnText) {
+              const originalText = btnText.textContent;
+              btnText.textContent = 'Sparad!';
+              setTimeout(() => {
+                btnText.textContent = originalText;
+              }, 1500);
             }
           } else {
-            console.error('Failed to save order mark to cart');
+            console.error('Failed to save order mark to cart - Response not OK');
           }
         } catch (error) {
           console.error('Error saving order mark:', error);
+          alert('Kunde inte spara kommentar. Försök igen.');
         }
       });
+    } else {
+      console.error('Order mark save button not found in cart drawer');
     }
   }
   
@@ -1369,8 +1419,17 @@ document.addEventListener('DOMContentLoaded', () => {
           // Get goods label and order mark from cart
           const cartNoteElement = document.querySelector('textarea[name="note"]');
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
-          // Get order mark from cart attributes (persisted value)
-          const orderMark = cart.attributes?.order_mark || '';
+          
+          // Get order mark from cart attributes (persisted value) with Edge-compatible fallback
+          let orderMark = '';
+          if (cart.attributes && cart.attributes.order_mark) {
+            orderMark = cart.attributes.order_mark;
+          } else if (cart.attributes && cart.attributes['order_mark']) {
+            orderMark = cart.attributes['order_mark'];
+          }
+          
+          console.log('Cart drawer checkout - Order mark from cart attributes:', orderMark);
+          console.log('Cart drawer checkout - Full cart attributes:', cart.attributes);
           
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1491,8 +1550,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get goods label and order mark from cart
             const cartNoteElement = document.querySelector('textarea[name="note"]');
             const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
-            // Get order mark from cart attributes (persisted value)
-            const orderMark = cart.attributes?.order_mark || '';
+            
+            // Get order mark from cart attributes (persisted value) with Edge-compatible fallback  
+            let orderMark = '';
+            if (cart.attributes && cart.attributes.order_mark) {
+              orderMark = cart.attributes.order_mark;
+            } else if (cart.attributes && cart.attributes['order_mark']) {
+              orderMark = cart.attributes['order_mark'];
+            }
+            
+            console.log('Cart drawer fallback checkout - Order mark from cart attributes:', orderMark);
             
             // Create draft order with dynamic pricing
             const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
