@@ -10,33 +10,58 @@ To run to the advanced (production) store the `--advanced` flag is used.
 
 The syncImagesJob was written to bulk import product images but is no longer used.
 
-The active syncs are:
-Monitor > Shopify
+The active scheduled syncs are:
+
+### Monitor > Shopify
+
 * Customer sync
 * Product sync
 * Inventory sync
 
-Shopify > Monitor
+### Shopify > Monitor
+
 * Order sync
 
 ## Templates
+
 Templates that have been edited for the integration/adaptation have been saved in shopify_templates directory. This is to have our logic in version control. The theme in Shopify UI still needs to be updated when making changes to templates. There is also a backup folder in there.
 
 In Shopify Theme UI there is an option to download the whole theme to have it in version control which is probably a good idead moving forward. When updating the theme to a newer version that would make it easier to have control of changes needed to keep our bussiness logic.
 
+In the sopify_templates folder we have a couple of other files that have also been edited and put in there for version control (theme.js and cart.js).
+
 ## Endpoints
+
 In app routes these are the important (used) endpoints that are being called from Shopify:
 api.pricing-public.js
 api.draft-order-public.js
+api.pricelist.js
 
 Since we have custom pricing and all prices are fetched from Monitor through this project we cannot work with standard orders, but need to build draft orders instead.
 
+## Utils
+
+Here we have utility files.
+auth.server.js Authentication with Shopify.
+email.js Sending out the pricelist emails.
+monitor.js For fetching Monitor data.
+
+## Custom theme files
+
+public/decimal-quantity.css
+public/pricing-client.js
+
+These files have been uploaded to the themes asset folder and loaded in the theme.
+
 ## Notes
+
 The webhooks are not used but it could be an improvement to sync orders using webhooks instead of scheduled order polling.
+
+The project is hosted on Railway where it is being built (production updates) on each commit in the `main` branch.
 
 /*****************************/
 
-# Shopify App Template - Remix
+## Shopify App Template - Remix
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using the [Remix](https://remix.run) framework.
 
