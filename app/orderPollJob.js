@@ -73,6 +73,33 @@ async function pollForNewOrders() {
               lastName
               email
             }
+            order {
+              id
+              shippingAddress {
+                firstName
+                lastName
+                company
+                address1
+                address2
+                city
+                province
+                country
+                zip
+                phone
+              }
+              billingAddress {
+                firstName
+                lastName
+                company
+                address1
+                address2
+                city
+                province
+                country
+                zip
+                phone
+              }
+            }
             lineItems(first: 50) {
               edges {
                 node {
@@ -231,11 +258,14 @@ async function pollForNewOrders() {
             console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
           }
 
-          const addressToUse = order.shippingAddress || order.billingAddress;
+          // Get address from the order created from this draft order, fallback to draft order addresses
+          let addressToUse = order.order?.shippingAddress || order.order?.billingAddress || order.shippingAddress || order.billingAddress;
           
           if (addressToUse) {
-            const addressType = order.shippingAddress ? 'shipping' : 'billing';
-            console.log(`  📦 Using ${addressType} address for delivery address`);
+            const addressSource = order.order?.shippingAddress ? 'order_shipping' : 
+                                 order.order?.billingAddress ? 'order_billing' :
+                                 order.shippingAddress ? 'draft_shipping' : 'draft_billing';
+            console.log(`  📦 Using ${addressSource} address for delivery address`);
             
             const deliveryAddressData = {
               Addressee: `${addressToUse.firstName || ''} ${addressToUse.lastName || ''}`.trim() || addressToUse.company || '',
@@ -256,8 +286,9 @@ async function pollForNewOrders() {
               console.error(`  ⚠️  Failed to update delivery address for Monitor order ${monitorOrderId}, but order was created`);
             }
           } else {
-            console.log(`  ⚠️  No shipping or billing address found for draft order ${order.name}!`);
-            console.log(`  🔍 Full draft order data for debugging:`, JSON.stringify(order, null, 2));
+            console.log(`  ⚠️  No address found for draft order ${order.name}!`);
+            console.log(`  🔍 Draft order addresses - shipping: ${order.shippingAddress ? 'present' : 'null'}, billing: ${order.billingAddress ? 'present' : 'null'}`);
+            console.log(`  🔍 Order addresses - shipping: ${order.order?.shippingAddress ? 'present' : 'null'}, billing: ${order.order?.billingAddress ? 'present' : 'null'}`);
           }
           
           // Mark draft order as sent to Monitor
