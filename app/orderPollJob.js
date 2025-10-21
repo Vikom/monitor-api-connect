@@ -145,6 +145,7 @@ async function pollForNewOrders() {
     // Process each unsent completed draft order
     for (const orderEdge of unsentOrders) {
       const order = orderEdge.node;
+      console.log("Full draft order", order);
       console.log(`Processing completed draft order: ${order.name} (${order.totalPrice}) - Status: ${order.status}`);
       console.log(`Draft order line items count: ${order.lineItems?.edges?.length || 0}`);
       
@@ -229,7 +230,7 @@ async function pollForNewOrders() {
           } else {
             console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
           }
-          
+
           const addressToUse = order.shippingAddress || order.billingAddress;
           
           if (addressToUse) {

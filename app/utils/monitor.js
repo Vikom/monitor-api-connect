@@ -1442,6 +1442,7 @@ export async function setOrderPropertiesInMonitor(customerOrderId, properties) {
 
 export async function updateDeliveryAddressInMonitor(customerOrderId, addressData) {
   try {
+    console.log(`Updating delivery address for Monitor order ID ${customerOrderId} with data:`, addressData);
     const sessionId = await monitorClient.getSessionId();
     
     const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/UpdateDeliveryAddress`;
