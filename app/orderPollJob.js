@@ -172,7 +172,6 @@ async function pollForNewOrders() {
     // Process each unsent completed draft order
     for (const orderEdge of unsentOrders) {
       const order = orderEdge.node;
-      console.log("Full draft order", order);
       console.log(`Processing completed draft order: ${order.name} (${order.totalPrice}) - Status: ${order.status}`);
       console.log(`Draft order line items count: ${order.lineItems?.edges?.length || 0}`);
       
@@ -268,14 +267,12 @@ async function pollForNewOrders() {
             console.log(`  📦 Using ${addressSource} address for delivery address`);
             
             const deliveryAddressData = {
-              Addressee: `${addressToUse.firstName || ''} ${addressToUse.lastName || ''}`.trim() || addressToUse.company || '',
-              Field1: addressToUse.company || '',
-              Field2: addressToUse.address1 || '',
-              Field3: addressToUse.address2 || '',
-              Locality: addressToUse.city || '',
-              Region: addressToUse.province || '',
-              PostalCode: addressToUse.zip || '',
-              LanguageId: 1 // Default to Swedish language ID, adjust if needed
+              Addressee: {Value: `${addressToUse.firstName || ''} ${addressToUse.lastName || ''}`.trim() || addressToUse.company || ''},
+              Field1: {Value: addressToUse.address1 || ''},
+              Field2: {Value: addressToUse.address2 || ''},
+              Locality: {Value: addressToUse.city || ''},
+              Region: {Value: addressToUse.province || ''},
+              PostalCode: {Value: addressToUse.zip || ''},
             };
             
             const addressUpdated = await updateDeliveryAddressInMonitor(monitorOrderId, deliveryAddressData);
