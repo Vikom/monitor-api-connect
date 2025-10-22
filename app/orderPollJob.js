@@ -218,16 +218,14 @@ async function pollForNewOrders() {
 
         // Create order in Monitor system (without Preliminary and GoodsLabel)
         const monitorOrderData = {
-          CustomerId: monitorCustomerId, // Try as string first - these IDs are too large for JavaScript integers
+          CustomerId: monitorCustomerId,
           // OrderNumber: order.name,
           BusinessContactOrderNumber: order.name,
-          // OrderTypeId: 4, // As specified in requirements
+          // OrderTypeId: 4, // As specified
           OrderTypeId: '980267526921268926',
           Rows: orderRows,
           IsStockOrder: false
         };
-
-        // console.log(`  📦 Creating order in Monitor:`, JSON.stringify(monitorOrderData, null, 2));
 
         const monitorOrderResult = await createOrderInMonitor(monitorOrderData);
         
@@ -244,7 +242,7 @@ async function pollForNewOrders() {
 
           // Set order properties (Preliminary, GoodsLabel1, and BusinessContactOrderNumber) in a second request
           const orderProperties = {
-            Preliminary: { Value: true }, // NotNullBooleanInput type may require object format
+            Preliminary: { Value: true }, // NotNullBooleanInput
             GoodsLabel1: { Value: goodsLabel.substring(0, 80) }, // Limit to 80 characters
             BusinessContactOrderNumber: { Value: orderMark.substring(0, 30) } // Limit to 30 characters
           };
@@ -258,12 +256,10 @@ async function pollForNewOrders() {
           }
 
           // Get address from the order created from this draft order, fallback to draft order addresses
-          let addressToUse = order.order?.shippingAddress || order.order?.billingAddress || order.shippingAddress || order.billingAddress;
+          let addressToUse = order.order?.shippingAddress || order.shippingAddress;
           
           if (addressToUse) {
-            const addressSource = order.order?.shippingAddress ? 'order_shipping' : 
-                                 order.order?.billingAddress ? 'order_billing' :
-                                 order.shippingAddress ? 'draft_shipping' : 'draft_billing';
+            const addressSource = order.order?.shippingAddress ? 'order_shipping' : 'draft_shipping';
             console.log(`  📦 Using ${addressSource} address for delivery address`);
             
             const deliveryAddressData = {
@@ -284,8 +280,6 @@ async function pollForNewOrders() {
             }
           } else {
             console.log(`  ⚠️  No address found for draft order ${order.name}!`);
-            console.log(`  🔍 Draft order addresses - shipping: ${order.shippingAddress ? 'present' : 'null'}, billing: ${order.billingAddress ? 'present' : 'null'}`);
-            console.log(`  🔍 Order addresses - shipping: ${order.order?.shippingAddress ? 'present' : 'null'}, billing: ${order.order?.billingAddress ? 'present' : 'null'}`);
           }
           
           // Mark draft order as sent to Monitor

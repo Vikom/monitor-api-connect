@@ -411,7 +411,7 @@ export async function action({ request }) {
       }
     };
     
-    console.log(`🟦 Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
+    // console.log(`🟦 Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
     
     const draftOrderResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/draft_orders.json`, {
       method: 'POST',
@@ -424,7 +424,7 @@ export async function action({ request }) {
     
     const draftOrderData = await draftOrderResponse.json();
     
-    console.log(`🟦 Draft order response:`, JSON.stringify(draftOrderData, null, 2));
+    // console.log(`🟦 Draft order response:`, JSON.stringify(draftOrderData, null, 2));
     
     if (draftOrderData.errors) {
       console.error('🟦 Draft order creation errors:', draftOrderData.errors);

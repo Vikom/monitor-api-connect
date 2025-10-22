@@ -54,10 +54,31 @@
       endif
     endfor
     
+    # Check if product is in Kakel & Klinker collection
+    assign is_kakel_klinker = false
+    for collection in product.collections
+      if collection.id == 650145923406
+        assign is_kakel_klinker = true
+        break
+      endif
+    endfor
+    
+    # Get quantity package from variant metafield
+    assign quantity_package = blank
+    assign quantity_package_metafield = product.selected_or_first_available_variant.metafields.custom.quantity_package
+    if quantity_package_metafield
+      assign quantity_package = quantity_package_metafield.value
+    endif
+    
     # Set step and unit display
     if allows_decimal
-      assign quantity_step = 0.05
-      assign min_quantity = 0.05
+      if is_kakel_klinker and quantity_package != blank
+        assign quantity_step = quantity_package
+        assign min_quantity = quantity_package
+      else
+        assign quantity_step = 0.05
+        assign min_quantity = 0.05
+      endif
       if standard_unit != blank
         assign quantity_unit = standard_unit
       else
@@ -160,12 +181,13 @@
                     id="Quantity-{{ section.id }}"
                     data-cart-quantity="{{ cart_qty }}"
                     {% if allows_decimal %}
-                      step="0.05"
-                      value="1.00"
-                      data-min="0.05"
-                      min="0.05"
+                      step="{{ quantity_step }}"
+                      value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% else %}1.00{% endif %}"
+                      data-min="{{ min_quantity }}"
+                      min="{{ min_quantity }}"
                       data-decimal="true"
                       data-unit="{{ quantity_unit }}"
+                      {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
                     {% else %}
                       step="{{ product.selected_or_first_available_variant.quantity_rule.increment }}"
                       value="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
@@ -382,12 +404,13 @@
                 id="Quantity-{{ section.id }}"
                 data-cart-quantity="{{ cart_qty }}"
                 {% if allows_decimal %}
-                  step="0.05"
-                  value="1.00"
-                  data-min="0.05"
-                  min="0.05"
+                  step="{{ quantity_step }}"
+                  value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% else %}1.00{% endif %}"
+                  data-min="{{ min_quantity }}"
+                  min="{{ min_quantity }}"
                   data-decimal="true"
                   data-unit="{{ quantity_unit }}"
+                  {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
                 {% else %}
                   step="{{ product.selected_or_first_available_variant.quantity_rule.increment }}"
                   value="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
