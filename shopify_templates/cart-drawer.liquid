@@ -354,10 +354,31 @@
                                   endif
                                 endfor
                                 
+                                # Check if product is in Kakel & Klinker collection
+                                assign is_kakel_klinker = false
+                                for collection in item.product.collections
+                                  if collection.id == 650145923406
+                                    assign is_kakel_klinker = true
+                                    break
+                                  endif
+                                endfor
+                                
+                                # Get quantity package from variant metafield
+                                assign quantity_package = blank
+                                assign quantity_package_metafield = item.variant.metafields.custom.quantity_package
+                                if quantity_package_metafield
+                                  assign quantity_package = quantity_package_metafield.value
+                                endif
+                                
                                 # Set step and unit display
                                 if allows_decimal
-                                  assign quantity_step = 0.05
-                                  assign min_quantity = 1.00
+                                  if is_kakel_klinker and quantity_package != blank
+                                    assign quantity_step = quantity_package
+                                    assign min_quantity = quantity_package
+                                  else
+                                    assign quantity_step = 0.05
+                                    assign min_quantity = 0.05
+                                  endif
                                   if standard_unit != blank
                                     assign quantity_unit = standard_unit
                                   else
@@ -387,7 +408,12 @@
                                     name="quantity_decimal_{{ item.variant_id }}"
                                     data-cart-updates-name="updates[]"
                                     data-cart-updates-index="{{ item.index }}"
-                                    value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                    {% if is_kakel_klinker and quantity_package != blank %}
+                                      {% assign conversion_factor = 1.0 | divided_by: quantity_package %}
+                                      value="{{ item.quantity | divided_by: conversion_factor | round: 2 | replace: '.', ',' }}"
+                                    {% else %}
+                                      value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                    {% endif %}
                                   {% else %}
                                     name="updates[]"
                                     value="{{ item.quantity }}"
@@ -395,11 +421,12 @@
                                   id="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}"
                                   aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
                                   {% if allows_decimal %}
-                                    step="0,05"
-                                    data-min="0,05"
-                                    min="0,05"
+                                    step="{{ quantity_step | replace: '.', ',' }}"
+                                    data-min="{{ min_quantity | replace: '.', ',' }}"
+                                    min="{{ min_quantity | replace: '.', ',' }}"
                                     data-decimal="true"
                                     data-unit="{{ quantity_unit }}"
+                                    {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
                                   {% else %}
                                     step="{{ item.variant.quantity_rule.increment }}"
                                     data-min="{{ item.variant.quantity_rule.min }}"
@@ -1218,7 +1245,11 @@ document.addEventListener('DOMContentLoaded', () => {
           let actualQuantity = item.quantity;
           if (isDecimalUnit) {
             // This is a decimal product, convert integer quantity back to decimal
-            actualQuantity = item.quantity / 20.0; // Convert back from integer to decimal
+            // Get step size from the DOM element to calculate conversion factor
+            const stepAttr = quantityInput.getAttribute('step') || quantityInput.step;
+            const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+            const conversionFactor = 1 / stepSize;
+            actualQuantity = item.quantity / conversionFactor;
           }
           
           const lineTotal = priceData.price * actualQuantity;
@@ -1392,7 +1423,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
             if (quantityInput) {
               // This is a decimal product, convert integer quantity back to decimal
-              actualQuantity = item.quantity / 20.0;
+              // Get step size from the DOM element to calculate conversion factor
+              const stepAttr = quantityInput.getAttribute('step') || quantityInput.step;
+              const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+              const conversionFactor = 1 / stepSize;
+              actualQuantity = item.quantity / conversionFactor;
             }
             return {
               variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
@@ -1523,7 +1558,11 @@ document.addEventListener('DOMContentLoaded', () => {
               const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
               if (quantityInput) {
                 // This is a decimal product, convert integer quantity back to decimal
-                actualQuantity = item.quantity / 20.0;
+                // Get step size from the DOM element to calculate conversion factor
+                const stepAttr = quantityInput.getAttribute('step') || quantityInput.step;
+                const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+                const conversionFactor = 1 / stepSize;
+                actualQuantity = item.quantity / conversionFactor;
               }
               return {
                 variantId: `gid://shopify/ProductVariant/${item.variant_id}`,

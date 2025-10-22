@@ -258,11 +258,18 @@ class CartItems extends HTMLElement {
     const isDecimalInput = target && target.dataset.decimal === 'true';
     
     if (isDecimalInput) {
-      // Parse Swedish decimal format and convert to integer by multiplying by 20 (for 0.05 steps)
+      // Parse Swedish decimal format and convert to integer for Shopify API
       const decimalValue = typeof quantity === 'string' ? 
         parseFloat(quantity.replace(',', '.')) : 
         parseFloat(quantity);
-      apiQuantity = Math.round(decimalValue * 20);
+      
+      // Get the step size from the input to calculate the correct conversion factor
+      const stepAttr = target.getAttribute('step') || target.step;
+      const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+      const conversionFactor = 1 / stepSize;
+      
+      apiQuantity = Math.round(decimalValue * conversionFactor);
+      console.log(`🔄 Converting cart quantity for API: ${decimalValue} → ${apiQuantity} (conversion factor: ${conversionFactor})`);
     }
 
     const body = JSON.stringify({

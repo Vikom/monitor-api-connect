@@ -1315,11 +1315,14 @@ class QuantityInput extends HTMLElement {
             if (attribute === 'data-cart-quantity') {
               const isDecimal = current.dataset.decimal === 'true' || updated.getAttribute('data-decimal') === 'true';
               if (isDecimal && valueUpdated) {
-                // Convert integer cart quantity back to decimal display value (divide by 20 for 0.05 steps)
-                const numericValue = parseInt(valueUpdated) / 20;
+                // Get step size to calculate conversion factor
+                const stepSize = window.FoxTheme.utils.parseSwedishDecimal(current.step) || 0.05;
+                const conversionFactor = 1 / stepSize;
+                // Convert integer cart quantity back to decimal display value
+                const numericValue = parseInt(valueUpdated) / conversionFactor;
                 const decimalValue = window.FoxTheme.utils.formatSwedishDecimal(numericValue, 2);
                 current.setAttribute(attribute, decimalValue);
-                console.log('🔄 Converting cart quantity for display:', valueUpdated, '→', decimalValue);
+                console.log('🔄 Converting cart quantity for display:', valueUpdated, '→', decimalValue, 'step:', stepSize);
               } else {
                 current.setAttribute(attribute, valueUpdated);
               }
@@ -1346,8 +1349,11 @@ class QuantityInput extends HTMLElement {
     if (this.input.hasAttribute('data-cart-quantity')) {
       const cartQuantityAttr = this.input.getAttribute('data-cart-quantity');
       if (isDecimal) {
-        // For decimal inputs, the cart quantity is stored as integer, convert to decimal (divide by 20 for 0.05 steps)
-        cartQuantityValue = parseFloat(cartQuantityAttr) / 20;
+        // Get step size to calculate conversion factor
+        const stepSize = window.FoxTheme.utils.parseSwedishDecimal(this.input.step) || 0.05;
+        const conversionFactor = 1 / stepSize;
+        // For decimal inputs, the cart quantity is stored as integer, convert to decimal
+        cartQuantityValue = parseFloat(cartQuantityAttr) / conversionFactor;
         // Convert cart quantity for boundaries display
       } else {
         cartQuantityValue = parseInt(cartQuantityAttr);
@@ -2578,11 +2584,14 @@ class ProductForm extends HTMLFormElement {
     const quantityInput = this.querySelector('input[name="quantity"]');
     if (quantityInput && quantityInput.dataset.decimal === 'true') {
       const decimalQuantity = quantityInput.value;
-      // Parse Swedish decimal format and convert to integer by multiplying by 20 (for 0.05 steps)
+      // Get step size to calculate conversion factor
+      const stepSize = window.FoxTheme.utils.parseSwedishDecimal(quantityInput.step) || 0.05;
+      const conversionFactor = 1 / stepSize;
+      // Parse Swedish decimal format and convert to integer using dynamic conversion factor
       const numericValue = typeof decimalQuantity === 'string' ? 
         parseFloat(decimalQuantity.replace(',', '.')) : 
         parseFloat(decimalQuantity);
-      const integerQuantity = Math.round(numericValue * 20);
+      const integerQuantity = Math.round(numericValue * conversionFactor);
       this.formData.set('quantity', integerQuantity);
     }
     

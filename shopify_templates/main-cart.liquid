@@ -221,7 +221,7 @@
                 {%- endif -%}
 
                 {%- capture cart_item -%}
-                    <tr class="cart-item" id="CartItem-{{ item.index | plus: 1 }}">
+                    <tr class="cart-item" id="CartItem-{{ item.index | plus: 1 }}" data-variant-id="{{ item.variant.id }}">
                       <td class="cart-item__product">
                         <div class="flex items-start md:items-center gap-3 md:gap-6">
                           <a id="Loader-{{ section.id }}-{{ item.index | plus: 1 }}"{% unless is_gift_wrap_item %} is="cart-remove-item"{% else %} is="gift-wrap-remove-item"{% endunless %} class="items-center justify-center relative hidden md:flex btn-remove" href="{{ item.url_to_remove }}" data-index="{{ item.index | plus: 1 }}">
@@ -377,6 +377,31 @@
                                       {%- endfor -%}
                                     {%- endif -%}
                                     
+                                    {%- comment -%}Add Kakel & Klinker collection logic{%- endcomment -%}
+                                    {%- assign is_kakel_klinker = false -%}
+                                    {%- for collection in item.product.collections -%}
+                                      {%- if collection.id == 650145923406 -%}
+                                        {%- assign is_kakel_klinker = true -%}
+                                        {%- break -%}
+                                      {%- endif -%}
+                                    {%- endfor -%}
+                                    
+                                    {%- assign quantity_package = blank -%}
+                                    {%- assign quantity_package_metafield = item.variant.metafields.custom.quantity_package -%}
+                                    {%- if quantity_package_metafield -%}
+                                      {%- assign quantity_package = quantity_package_metafield.value -%}
+                                    {%- endif -%}
+                                    
+                                    {%- if is_decimal_unit -%}
+                                      {%- if is_kakel_klinker and quantity_package != blank -%}
+                                        {%- assign quantity_step = quantity_package -%}
+                                        {%- assign min_quantity = quantity_package -%}
+                                      {%- else -%}
+                                        {%- assign quantity_step = 0.05 -%}
+                                        {%- assign min_quantity = 0.05 -%}
+                                      {%- endif -%}
+                                    {%- endif -%}
+                                    
                                     <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
                                       <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
                                       <button type="button" name="minus" class="quantity__button" aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
@@ -390,7 +415,12 @@
                                           name="quantity_decimal_{{ item.variant.id }}"
                                           data-cart-updates-name="updates[]"
                                           data-cart-updates-index="{{ item.index }}"
-                                          value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                          {% if is_kakel_klinker and quantity_package != blank %}
+                                            {% assign conversion_factor = 1.0 | divided_by: quantity_package %}
+                                            value="{{ item.quantity | divided_by: conversion_factor | round: 2 | replace: '.', ',' }}"
+                                          {% else %}
+                                            value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                          {% endif %}
                                         {% else %}
                                           name="updates[]"
                                           value="{{ item.quantity }}"
@@ -405,17 +435,27 @@
                                         data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
                                         data-decimal="{% if is_decimal_unit %}true{% else %}false{% endif %}"
                                         {% if is_decimal_unit %}
-                                          step="0,05"
-                                          data-min="0,05"
-                                          min="0,05"
+                                          step="{{ quantity_step | replace: '.', ',' }}"
+                                          data-min="{{ min_quantity | replace: '.', ',' }}"
+                                          min="{{ min_quantity | replace: '.', ',' }}"
                                           data-unit="{{ quantity_unit }}"
+                                          {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
                                         {% else %}
                                           step="{{ item.variant.quantity_rule.increment }}"
                                           data-min="{{ item.variant.quantity_rule.min }}"
                                           min="{{ item.variant.quantity_rule.min }}"
                                         {% endif %}
                                         {% if item.variant.quantity_rule.max != null %}
-                                          max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                          {% if is_decimal_unit %}
+                                            {% if is_kakel_klinker and quantity_package != blank %}
+                                              {% assign max_conversion_factor = 1.0 | divided_by: quantity_package %}
+                                              max="{{ item.variant.quantity_rule.max | divided_by: max_conversion_factor | replace: '.', ',' }}"
+                                            {% else %}
+                                              max="{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}"
+                                            {% endif %}
+                                          {% else %}
+                                            max="{{ item.variant.quantity_rule.max }}"
+                                          {% endif %}
                                         {% endif %}
                                       />
                                       <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
@@ -596,6 +636,31 @@
                                   {%- endfor -%}
                                 {%- endif -%}
                                 
+                                {%- comment -%}Add Kakel & Klinker collection logic{%- endcomment -%}
+                                {%- assign is_kakel_klinker = false -%}
+                                {%- for collection in item.product.collections -%}
+                                  {%- if collection.id == 650145923406 -%}
+                                    {%- assign is_kakel_klinker = true -%}
+                                    {%- break -%}
+                                  {%- endif -%}
+                                {%- endfor -%}
+                                
+                                {%- assign quantity_package = blank -%}
+                                {%- assign quantity_package_metafield = item.variant.metafields.custom.quantity_package -%}
+                                {%- if quantity_package_metafield -%}
+                                  {%- assign quantity_package = quantity_package_metafield.value -%}
+                                {%- endif -%}
+                                
+                                {%- if is_decimal_unit -%}
+                                  {%- if is_kakel_klinker and quantity_package != blank -%}
+                                    {%- assign quantity_step = quantity_package -%}
+                                    {%- assign min_quantity = quantity_package -%}
+                                  {%- else -%}
+                                    {%- assign quantity_step = 0.05 -%}
+                                    {%- assign min_quantity = 0.05 -%}
+                                  {%- endif -%}
+                                {%- endif -%}
+                                
                                 <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
                                   <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
                                   <button type="button" name="minus" class="quantity__button" aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
@@ -609,7 +674,12 @@
                                       name="quantity_decimal_{{ item.variant.id }}"
                                       data-cart-updates-name="updates[]"
                                       data-cart-updates-index="{{ item.index }}"
-                                      value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                      {% if is_kakel_klinker and quantity_package != blank %}
+                                        {% assign conversion_factor = 1.0 | divided_by: quantity_package %}
+                                        value="{{ item.quantity | divided_by: conversion_factor | round: 2 | replace: '.', ',' }}"
+                                      {% else %}
+                                        value="{{ item.quantity | divided_by: 20.0 | round: 2 | replace: '.', ',' }}"
+                                      {% endif %}
                                     {% else %}
                                       name="updates[]"
                                       value="{{ item.quantity }}"
@@ -624,17 +694,27 @@
                                     data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
                                     data-decimal="{% if is_decimal_unit %}true{% else %}false{% endif %}"
                                     {% if is_decimal_unit %}
-                                      step="0,05"
-                                      data-min="0,05"
-                                      min="0,05"
+                                      step="{{ quantity_step | replace: '.', ',' }}"
+                                      data-min="{{ min_quantity | replace: '.', ',' }}"
+                                      min="{{ min_quantity | replace: '.', ',' }}"
                                       data-unit="{{ quantity_unit }}"
+                                      {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
                                     {% else %}
                                       step="{{ item.variant.quantity_rule.increment }}"
                                       data-min="{{ item.variant.quantity_rule.min }}"
                                       min="{{ item.variant.quantity_rule.min }}"
                                     {% endif %}
                                     {% if item.variant.quantity_rule.max != null %}
-                                      max="{% if is_decimal_unit %}{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}{% else %}{{ item.variant.quantity_rule.max }}{% endif %}"
+                                      {% if is_decimal_unit %}
+                                        {% if is_kakel_klinker and quantity_package != blank %}
+                                          {% assign max_conversion_factor = 1.0 | divided_by: quantity_package %}
+                                          max="{{ item.variant.quantity_rule.max | divided_by: max_conversion_factor | replace: '.', ',' }}"
+                                        {% else %}
+                                          max="{{ item.variant.quantity_rule.max | divided_by: 20.0 | replace: '.', ',' }}"
+                                        {% endif %}
+                                      {% else %}
+                                        max="{{ item.variant.quantity_rule.max }}"
+                                      {% endif %}
                                     {% endif %}
                                   />
                                   <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
@@ -751,14 +831,28 @@
                               endfor
                             endif
                             
+                            # Add Kakel & Klinker collection logic for price calculation
+                            assign is_kakel_klinker = false
+                            for collection in item.product.collections
+                              if collection.id == 650145923406
+                                assign is_kakel_klinker = true
+                                break
+                              endif
+                            endfor
+                            
+                            assign quantity_package = blank
+                            assign quantity_package_metafield = item.variant.metafields.custom.quantity_package
+                            if quantity_package_metafield
+                              assign quantity_package = quantity_package_metafield.value
+                            endif
+                            
                             if is_decimal_unit
-                              assign display_quantity = item.quantity | divided_by: 20.0
-                              assign unit_price = item.final_price
-                              assign line_total = unit_price | times: display_quantity
+                              # For decimal units, just use the final line price directly
+                              # The item.final_line_price already represents the correct total
                               if settings.currency_code_enabled
-                                echo line_total | money_with_currency
+                                echo item.final_line_price | money_with_currency
                               else
-                                echo line_total | money
+                                echo item.final_line_price | money
                               endif
                             else
                               if settings.currency_code_enabled
@@ -1273,7 +1367,20 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log(`Variant ${item.variant_id} - Unit: ${itemMetafields.standardUnit}, IsDecimal: ${isDecimalUnit}, Quantity: ${item.quantity}`);
           
           // For decimal products, convert quantity for cart total calculation
-          const displayQuantity = isDecimalUnit ? item.quantity / 20.0 : item.quantity;
+          let displayQuantity = item.quantity;
+          if (isDecimalUnit) {
+            // Check if this is a Kakel & Klinker product with custom quantity package
+            const cartItem = document.querySelector(`tr[data-variant-id="${item.variant_id}"]`);
+            const quantityInput = cartItem?.querySelector('input[data-decimal="true"]');
+            if (quantityInput) {
+              const stepAttr = quantityInput.getAttribute('step') || quantityInput.step;
+              const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+              const conversionFactor = 1 / stepSize;
+              displayQuantity = item.quantity / conversionFactor;
+            } else {
+              displayQuantity = item.quantity / 20.0; // fallback for non-cart contexts
+            }
+          }
           cartTotal += priceData.price * displayQuantity;
           
           console.log(`Updated price for ${item.variant_id}: ${priceData.price} kr (quantity: ${displayQuantity})`);
@@ -1417,7 +1524,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (isDecimalUnit) {
               // This is a decimal product, convert integer quantity back to decimal
-              actualQuantity = item.quantity / 20.0;
+              // Get step size from the DOM element to calculate conversion factor
+              const cartItem = document.querySelector(`tr[data-variant-id="${item.variant_id}"]`);
+              const quantityInput = cartItem?.querySelector('input[data-decimal="true"]');
+              if (quantityInput) {
+                const stepAttr = quantityInput.getAttribute('step') || quantityInput.step;
+                const stepSize = parseFloat(stepAttr.replace(',', '.')) || 0.05;
+                const conversionFactor = 1 / stepSize;
+                actualQuantity = item.quantity / conversionFactor;
+              } else {
+                actualQuantity = item.quantity / 20.0; // fallback
+              }
               console.log(`Converting decimal quantity for ${item.variant_id}: ${item.quantity} -> ${actualQuantity} ${itemMetafields.standardUnit}`);
             }
             
