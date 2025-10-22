@@ -10,6 +10,117 @@
   {% render 'buy-buttons', block: block, product: product, product_form_id: product_form_id, section_id: section.id %}
 {% endcomment %}
 
+<script>
+  // Global Balk calculator functions - defined at the very top
+  window.addBalkRow = function(sectionId) {
+    const rowsContainer = document.getElementById('balk-rows-' + sectionId);
+    const newRow = document.createElement('div');
+    newRow.className = 'balk-row';
+    newRow.style.cssText = 'display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;';
+    
+    newRow.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+        <label style="font-size: 0.875rem;">Antal</label>
+        <input 
+          type="number" 
+          class="balk-antal" 
+          min="1" 
+          value="1" 
+          style="width: 70px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+          onchange="updateBalkTotalQuantity('${sectionId}')"
+          oninput="updateBalkTotalQuantity('${sectionId}')"
+        />
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+        <label style="font-size: 0.875rem;">Längd</label>
+        <input 
+          type="number" 
+          class="balk-langd" 
+          min="0.1" 
+          step="0.1" 
+          value="1.0" 
+          style="width: 80px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+          onchange="updateBalkTotalQuantity('${sectionId}')"
+          oninput="updateBalkTotalQuantity('${sectionId}')"
+        />
+      </div>
+      <button 
+        type="button" 
+        class="balk-add-row" 
+        onclick="addBalkRow('${sectionId}')"
+        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+        title="Lägg till rad"
+      >
+        <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+          <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+      <button 
+        type="button" 
+        class="balk-remove-row" 
+        onclick="removeBalkRow(this, '${sectionId}')"
+        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+        title="Ta bort rad"
+      >
+        <span style="pointer-events: none;">−</span>
+      </button>
+    `;
+    
+    rowsContainer.appendChild(newRow);
+    updateBalkTotalQuantity(sectionId);
+  }
+  
+  window.removeBalkRow = function(button, sectionId) {
+    const row = button.closest('.balk-row');
+    const rowsContainer = document.getElementById('balk-rows-' + sectionId);
+    
+    // Don't remove if it's the only row
+    if (rowsContainer.children.length > 1) {
+      row.remove();
+      updateBalkTotalQuantity(sectionId);
+    }
+  }
+  
+  window.updateBalkTotalQuantity = function(sectionId) {
+    const rowsContainer = document.getElementById('balk-rows-' + sectionId);
+    const quantityInput = document.getElementById('Quantity-' + sectionId);
+    
+    if (rowsContainer && quantityInput) {
+      let totalQuantity = 0;
+      
+      // Sum all rows
+      const rows = rowsContainer.querySelectorAll('.balk-row');
+      rows.forEach(row => {
+        const antalInput = row.querySelector('.balk-antal');
+        const langdInput = row.querySelector('.balk-langd');
+        
+        if (antalInput && langdInput) {
+          const antal = parseInt(antalInput.value) || 0;
+          const langd = parseFloat(langdInput.value) || 0;
+          totalQuantity += antal * langd;
+        }
+      });
+      
+      quantityInput.value = totalQuantity.toFixed(2);
+      
+      // Trigger change event to update any other listeners
+      quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      // Force disable buttons for Balk products (override theme logic)
+      setTimeout(() => {
+        const quantityElement = quantityInput.closest('quantity-input');
+        if (quantityElement) {
+          const minusButton = quantityElement.querySelector('button[name="minus"]');
+          const plusButton = quantityElement.querySelector('button[name="plus"]');
+          if (minusButton) minusButton.disabled = true;
+          if (plusButton) plusButton.disabled = true;
+        }
+      }, 10);
+    }
+  }
+</script>
+
 <!-- Debug: Check if this snippet is being rendered multiple times -->
 {% comment %}
   Debug info:
@@ -59,6 +170,15 @@
     for collection in product.collections
       if collection.id == 650145923406
         assign is_kakel_klinker = true
+        break
+      endif
+    endfor
+    
+    # Check if product is in Balk collection
+    assign is_balk = false
+    for collection in product.collections
+      if collection.id == 650179477838
+        assign is_balk = true
         break
       endif
     endfor
@@ -168,7 +288,7 @@
               </label>
               <div class="flex items-center gap-4">
                 <quantity-input class="quantity" data-section-id="{{ section_id }}" data-product-id="{{ product_id }}">
-                  <button class="quantity__button" name="minus" type="button">
+                  <button class="quantity__button" name="minus" type="button"{% if is_balk %} disabled{% endif %}>
                     <span class="visually-hidden">
                       {{- 'products.product.quantity.decrease' | t: product: product.title | escape -}}
                     </span>
@@ -182,18 +302,20 @@
                     data-cart-quantity="{{ cart_qty }}"
                     {% if allows_decimal %}
                       step="{{ quantity_step }}"
-                      value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% else %}1.00{% endif %}"
+                      value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1.00{% else %}1.00{% endif %}"
                       data-min="{{ min_quantity }}"
                       min="{{ min_quantity }}"
                       data-decimal="true"
                       data-unit="{{ quantity_unit }}"
                       {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
+                      {% if is_balk %}readonly{% endif %}
                     {% else %}
                       step="{{ product.selected_or_first_available_variant.quantity_rule.increment }}"
                       value="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                       data-min="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                       min="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                       data-decimal="false"
+                      {% if is_balk %}readonly{% endif %}
                     {% endif %}
                     data-quantity-variant-id="{{ product.selected_or_first_available_variant.id }}"
                     {% if product.selected_or_first_available_variant.quantity_rule.max != null %}
@@ -204,7 +326,7 @@
                     autocomplete="off"
                     form="{{ product_form_id }}"
                   >
-                  <button class="quantity__button" name="plus" type="button">
+                  <button class="quantity__button" name="plus" type="button"{% if is_balk %} disabled{% endif %}>
                     <span class="visually-hidden">
                       {{- 'products.product.quantity.increase' | t: product: product.title | escape -}}
                     </span>
@@ -391,7 +513,7 @@
               data-section-id="{{ section_id }}"
               data-product-id="{{ product_id }}"
             >
-              <button class="quantity__button" name="minus" type="button">
+              <button class="quantity__button" name="minus" type="button"{% if is_balk %} disabled{% endif %}>
                 <span class="visually-hidden">
                   {{- 'products.product.quantity.decrease' | t: product: product.title | escape -}}
                 </span>
@@ -405,18 +527,20 @@
                 data-cart-quantity="{{ cart_qty }}"
                 {% if allows_decimal %}
                   step="{{ quantity_step }}"
-                  value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% else %}1.00{% endif %}"
+                  value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1.00{% else %}1.00{% endif %}"
                   data-min="{{ min_quantity }}"
                   min="{{ min_quantity }}"
                   data-decimal="true"
                   data-unit="{{ quantity_unit }}"
                   {% if is_kakel_klinker and quantity_package != blank %}readonly{% endif %}
+                  {% if is_balk %}readonly{% endif %}
                 {% else %}
                   step="{{ product.selected_or_first_available_variant.quantity_rule.increment }}"
                   value="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                   data-min="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                   min="{{ product.selected_or_first_available_variant.quantity_rule.min }}"
                   data-decimal="false"
+                  {% if is_balk %}readonly{% endif %}
                 {% endif %}
                 data-quantity-variant-id="{{ product.selected_or_first_available_variant.id }}"
                 {% if product.selected_or_first_available_variant.quantity_rule.max != null %}
@@ -427,7 +551,7 @@
                 autocomplete="off"
                 form="{{ product_form_id }}"
               >
-              <button class="quantity__button" name="plus" type="button">
+              <button class="quantity__button" name="plus" type="button"{% if is_balk %} disabled{% endif %}>
                 <span class="visually-hidden">
                   {{- 'products.product.quantity.increase' | t: product: product.title | escape -}}
                 </span>
@@ -458,6 +582,78 @@
           </span>
           {%- render 'loading-spinner' -%}
         </button>
+        
+        {%- if is_balk -%}
+          <div class="balk-custom-calculator" style="margin-top: 1rem;">
+            <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
+            <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <!-- Initial row -->
+              <div class="balk-row" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <label style="font-size: 0.875rem;">Antal</label>
+                  <input 
+                    type="number" 
+                    class="balk-antal" 
+                    min="1" 
+                    value="1" 
+                    style="width: 70px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                  />
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <label style="font-size: 0.875rem;">Längd</label>
+                  <input 
+                    type="number" 
+                    class="balk-langd" 
+                    min="0.1" 
+                    step="0.1" 
+                    value="1.0" 
+                    style="width: 80px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                  />
+                </div>
+                <button 
+                  type="button" 
+                  class="balk-add-row" 
+                  onclick="addBalkRow('{{ section_id }}')"
+                  style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+                  title="Lägg till rad"
+                >
+                  <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+                    <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <script>
+            // Initialize calculation on page load for this specific section
+            document.addEventListener('DOMContentLoaded', function() {
+              updateBalkTotalQuantity('{{ section_id }}');
+              
+              // Also listen for any quantity changes and re-disable buttons
+              const quantityInput = document.getElementById('Quantity-{{ section_id }}');
+              if (quantityInput) {
+                quantityInput.addEventListener('change', function() {
+                  setTimeout(() => {
+                    const quantityElement = quantityInput.closest('quantity-input');
+                    if (quantityElement) {
+                      const minusButton = quantityElement.querySelector('button[name="minus"]');
+                      const plusButton = quantityElement.querySelector('button[name="plus"]');
+                      if (minusButton) minusButton.disabled = true;
+                      if (plusButton) plusButton.disabled = true;
+                    }
+                  }, 10);
+                });
+              }
+            });
+          </script>
+        {%- endif -%}
+        
         {%- if show_dynamic_checkout -%}
           {{ form | payment_button }}
         {%- endif -%}
