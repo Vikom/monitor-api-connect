@@ -26,9 +26,9 @@ export async function action({ request }) {
     console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, shop, priceListId, goodsLabel, orderMark, beamData } = body; // items: [{ variantId, quantity }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
+    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark, beamDataLength: beamData?.length });
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
@@ -466,6 +466,16 @@ export async function action({ request }) {
         key: "order_mark",
         value: orderMark.replace(/"/g, '\\"').replace(/\n/g, '\\n'),
         type: "multi_line_text_field"
+      });
+    }
+    
+    if (beamData && Array.isArray(beamData) && beamData.length > 0) {
+      metafieldsToAdd.push({
+        ownerId: `gid://shopify/DraftOrder/${draftOrder.id}`,
+        namespace: "custom",
+        key: "beam_data",
+        value: JSON.stringify(beamData),
+        type: "json"
       });
     }
     

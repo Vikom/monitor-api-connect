@@ -202,19 +202,30 @@ async function pollForNewOrders() {
           console.log(`  🔍 First draft order line item structure:`, JSON.stringify(lineItems[0], null, 2));
         }
         
-        const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
-        
-        if (orderRows.length === 0) {
-          console.log(`  ⚠️  Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
-          continue;
-        }
-
-        // Extract goods label and order mark from draft order metafields
+        // Extract goods label, order mark, and beam data from draft order metafields
         const metafields = order.metafields?.edges || [];
         const goodsLabelMetafield = metafields.find(mf => mf.node.key === "goods_label");
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
         const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
+        const beamDataMetafield = metafields.find(mf => mf.node.key === "beam_data");
+        let beamData = null;
+        
+        if (beamDataMetafield) {
+          try {
+            beamData = JSON.parse(beamDataMetafield.node.value);
+            console.log(`  📏 Found beam data for draft order ${order.name}:`, beamData);
+          } catch (error) {
+            console.error(`  ⚠️  Error parsing beam_data for draft order ${order.name}:`, error);
+          }
+        }
+        
+        const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems, beamData);
+        
+        if (orderRows.length === 0) {
+          console.log(`  ⚠️  Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
+          continue;
+        }
 
         // Create order in Monitor system (without Preliminary and GoodsLabel)
         const monitorOrderData = {
@@ -346,7 +357,7 @@ async function getCustomerMonitorId(shop, accessToken, customerId) {
 /**
  * Build Monitor order rows from Shopify line items
  */
-async function buildMonitorOrderRows(shop, accessToken, lineItems) {
+async function buildMonitorOrderRows(shop, accessToken, lineItems, beamData = null) {
   const fetch = (await import('node-fetch')).default;
   const rows = [];
 
@@ -453,14 +464,40 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         }
       }
       
-      rows.push({
+      // Check if this variant has beam data (Balk configuration)
+      let subRowContent = null;
+      if (beamData && Array.isArray(beamData)) {
+        const beamConfig = beamData.find(beam => beam.id === variantId);
+        if (beamConfig && beamConfig.selected && Array.isArray(beamConfig.selected)) {
+          // Build SubRowContent in the specified format
+          const subRowLines = [];
+          beamConfig.selected.forEach((selection, index) => {
+            const rowNum = index + 1;
+            subRowLines.push(`Antal ${rowNum}:\t${selection.count},00 st`);
+            // Convert length from meters to millimeters and format with Swedish comma
+            const lengthInMm = (parseFloat(selection.length) * 1000).toFixed(2).replace('.', ',');
+            subRowLines.push(`Längd ${rowNum}:\t${lengthInMm} mm`);
+          });
+          subRowContent = subRowLines.join('\n');
+          console.log(`    📏 Created SubRowContent for variant ${variantId}:`, subRowContent);
+        }
+      }
+      
+      const orderRow = {
         PartId: monitorPartId,
         OrderedQuantity: orderedQuantity,
         UnitPrice: unitPrice,
         // Description: lineItem.title
-      });
+      };
+      
+      // Add SubRowContent if we have beam data for this variant
+      if (subRowContent) {
+        orderRow.SubRowContent = subRowContent;
+      }
+      
+      rows.push(orderRow);
 
-      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}`);
+      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}${subRowContent ? ' with beam data' : ''}`);
     } catch (error) {
       console.error(`Error processing line item ${lineItem.id}:`, error);
       continue;

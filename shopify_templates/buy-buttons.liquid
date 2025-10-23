@@ -111,6 +111,9 @@
       const formattedQuantity = totalQuantity.toFixed(2).replace('.', ',');
       quantityInput.value = formattedQuantity;
       
+      // Save Balk configuration to cart attributes
+      saveBalkConfigToCart(sectionId);
+      
       // Trigger change event to update any other listeners
       quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
       
@@ -125,6 +128,82 @@
         }
       }, 10);
     }
+  }
+  
+  window.saveBalkConfigToCart = function(sectionId) {
+    const rowsContainer = document.getElementById('balk-rows-' + sectionId);
+    const quantityInput = document.getElementById('Quantity-' + sectionId);
+    
+    if (!rowsContainer || !quantityInput) return;
+    
+    // Get the variant ID from the quantity input
+    const variantId = quantityInput.getAttribute('data-quantity-variant-id');
+    if (!variantId) return;
+    
+    // Get existing beam_data from cart to merge with new data
+    fetch('/cart.js')
+      .then(response => response.json())
+      .then(cart => {
+        let existingBeamData = [];
+        
+        // Parse existing beam_data if it exists
+        if (cart.attributes && cart.attributes.beam_data) {
+          try {
+            existingBeamData = JSON.parse(cart.attributes.beam_data);
+          } catch (error) {
+            console.error('Error parsing existing beam_data:', error);
+          }
+        }
+        
+        // Build the beam data structure for this variant
+        const rows = rowsContainer.querySelectorAll('.balk-row');
+        const selectedLengths = [];
+        
+        rows.forEach(row => {
+          const antalInput = row.querySelector('.balk-antal');
+          const langdInput = row.querySelector('.balk-langd');
+          
+          if (antalInput && langdInput) {
+            const antal = parseInt(antalInput.value) || 0;
+            const langdValue = langdInput.value.replace(',', '.');
+            const langd = parseFloat(langdValue) || 0;
+            
+            if (antal > 0 && langd > 0) {
+              selectedLengths.push({
+                length: langd.toString(),
+                count: antal
+              });
+            }
+          }
+        });
+        
+        if (selectedLengths.length > 0) {
+          // Remove any existing entry for this variant ID
+          const filteredBeamData = existingBeamData.filter(item => item.id !== variantId);
+          
+          // Add the new configuration for this variant
+          filteredBeamData.push({
+            id: variantId,
+            selected: selectedLengths
+          });
+          
+          // Save to cart attributes
+          return fetch('/cart/update.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              attributes: {
+                'beam_data': JSON.stringify(filteredBeamData)
+              }
+            })
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error saving beam data to cart:', error);
+      });
   }
 </script>
 

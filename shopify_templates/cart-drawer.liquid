@@ -1435,6 +1435,16 @@ document.addEventListener('DOMContentLoaded', () => {
             };
           });
           
+          // Extract beam_data from cart attributes
+          let beamData = null;
+          if (cart.attributes && cart.attributes.beam_data) {
+            try {
+              beamData = JSON.parse(cart.attributes.beam_data);
+            } catch (error) {
+              console.error('Error parsing beam_data from cart attributes:', error);
+            }
+          }
+          
           // Get customer's price list ID from the first cart item's metafields (same as main cart)
           // Use the same fallback logic as the pricing system
           let firstItemMetafields = Object.values(window.cartItemsMetafields)[0] || {};
@@ -1476,7 +1486,8 @@ document.addEventListener('DOMContentLoaded', () => {
               shop: window.Shopify?.shop?.domain || window.location.hostname,
               priceListId: customerPriceListId, // Add the missing price list ID!
               goodsLabel: goodsLabel, // Add the goods label from cart note
-              orderMark: orderMark // Add the order mark
+              orderMark: orderMark, // Add the order mark
+              beamData: beamData // Add the beam data
             })
           });
           
