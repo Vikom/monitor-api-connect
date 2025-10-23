@@ -25,30 +25,33 @@
           type="number" 
           class="balk-antal" 
           min="1" 
+          step="1"
+          pattern="[0-9]*"
           value="1" 
-          style="width: 70px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+          style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
           onchange="updateBalkTotalQuantity('${sectionId}')"
           oninput="updateBalkTotalQuantity('${sectionId}')"
+          onkeypress="return event.charCode >= 48 && event.charCode <= 57"
         />
       </div>
       <div style="display: flex; flex-direction: column; gap: 0.25rem;">
         <label style="font-size: 0.875rem;">Längd</label>
         <input 
-          type="number" 
+          type="text" 
           class="balk-langd" 
-          min="0.1" 
-          step="0.1" 
-          value="1.0" 
-          style="width: 80px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+          value="1,0" 
+          style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
           onchange="updateBalkTotalQuantity('${sectionId}')"
           oninput="updateBalkTotalQuantity('${sectionId}')"
+          pattern="[0-9]+([,][0-9]+)?"
+          title="Använd komma som decimalseparator (t.ex. 2,5)"
         />
       </div>
       <button 
         type="button" 
         class="balk-add-row" 
         onclick="addBalkRow('${sectionId}')"
-        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
         title="Lägg till rad"
       >
         <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
@@ -60,7 +63,7 @@
         type="button" 
         class="balk-remove-row" 
         onclick="removeBalkRow(this, '${sectionId}')"
-        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+        style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
         title="Ta bort rad"
       >
         <span style="pointer-events: none;">−</span>
@@ -97,12 +100,16 @@
         
         if (antalInput && langdInput) {
           const antal = parseInt(antalInput.value) || 0;
-          const langd = parseFloat(langdInput.value) || 0;
+          // Parse Swedish decimal format (comma as decimal separator)
+          const langdValue = langdInput.value.replace(',', '.');
+          const langd = parseFloat(langdValue) || 0;
           totalQuantity += antal * langd;
         }
       });
       
-      quantityInput.value = totalQuantity.toFixed(2);
+      // Format with Swedish decimal separator (comma)
+      const formattedQuantity = totalQuantity.toFixed(2).replace('.', ',');
+      quantityInput.value = formattedQuantity;
       
       // Trigger change event to update any other listeners
       quantityInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -302,7 +309,7 @@
                     data-cart-quantity="{{ cart_qty }}"
                     {% if allows_decimal %}
                       step="{{ quantity_step }}"
-                      value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1.00{% else %}1.00{% endif %}"
+                      value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1,00{% else %}1.00{% endif %}"
                       data-min="{{ min_quantity }}"
                       min="{{ min_quantity }}"
                       data-decimal="true"
@@ -527,7 +534,7 @@
                 data-cart-quantity="{{ cart_qty }}"
                 {% if allows_decimal %}
                   step="{{ quantity_step }}"
-                  value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1.00{% else %}1.00{% endif %}"
+                  value="{% if is_kakel_klinker and quantity_package != blank %}{{ quantity_package }}{% elsif is_balk %}1,00{% else %}1.00{% endif %}"
                   data-min="{{ min_quantity }}"
                   min="{{ min_quantity }}"
                   data-decimal="true"
@@ -584,7 +591,7 @@
         </button>
         
         {%- if is_balk -%}
-          <div class="balk-custom-calculator" style="margin-top: 1rem;">
+          <div class="balk-custom-calculator" style="margin-top: 0;">
             <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
             <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
               <!-- Initial row -->
@@ -595,30 +602,33 @@
                     type="number" 
                     class="balk-antal" 
                     min="1" 
+                    step="1"
+                    pattern="[0-9]*"
                     value="1" 
-                    style="width: 70px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                    style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
                     onchange="updateBalkTotalQuantity('{{ section_id }}')"
                     oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                    onkeypress="return event.charCode >= 48 && event.charCode <= 57"
                   />
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                   <label style="font-size: 0.875rem;">Längd</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     class="balk-langd" 
-                    min="0.1" 
-                    step="0.1" 
-                    value="1.0" 
-                    style="width: 80px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                    value="1,0" 
+                    style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
                     onchange="updateBalkTotalQuantity('{{ section_id }}')"
                     oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                    pattern="[0-9]+([,][0-9]+)?"
+                    title="Använd komma som decimalseparator (t.ex. 2,5)"
                   />
                 </div>
                 <button 
                   type="button" 
                   class="balk-add-row" 
                   onclick="addBalkRow('{{ section_id }}')"
-                  style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+                  style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
                   title="Lägg till rad"
                 >
                   <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
