@@ -1540,7 +1540,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return {
               variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
-              quantity: actualQuantity
+              quantity: actualQuantity,
+              properties: item.properties || {}
             };
           });
           
@@ -1553,22 +1554,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const goodsLabel = cartNoteElement ? cartNoteElement.value.trim() : '';
           // Get order mark from cart attributes (persisted value)
           const orderMark = cart.attributes?.order_mark || '';
-          
-          // Extract beam_data from cart attributes
-          let beamData = null;
-          console.log('🛒 Main cart - Checking cart attributes for beam_data:', cart.attributes);
-          if (cart.attributes && cart.attributes.beam_data) {
-            try {
-              beamData = JSON.parse(cart.attributes.beam_data);
-              console.log('🛒 Main cart - Successfully parsed beam_data:', beamData);
-            } catch (error) {
-              console.error('❌ Main cart - Error parsing beam_data from cart attributes:', error);
-            }
-          } else {
-            console.log('🛒 Main cart - No beam_data found in cart attributes');
-          }
-
-          console.log('🛒 Main cart checkout - Final beam_data being sent:', beamData);
 
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {
@@ -1580,8 +1565,7 @@ document.addEventListener('DOMContentLoaded', () => {
               shop: window.Shopify?.shop?.domain || window.location.hostname,
               priceListId: customerPriceListId, // Add the missing price list ID!
               goodsLabel: goodsLabel, // Add the goods label from cart note
-              orderMark: orderMark, // Add the order mark
-              beamData: beamData // Add the beam data
+              orderMark: orderMark // Add the order mark
             })
           });
           

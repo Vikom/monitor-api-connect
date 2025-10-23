@@ -208,19 +208,9 @@ async function pollForNewOrders() {
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
         const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
-        const beamDataMetafield = metafields.find(mf => mf.node.key === "beam_data");
-        let beamData = null;
         
-        if (beamDataMetafield) {
-          try {
-            beamData = JSON.parse(beamDataMetafield.node.value);
-            console.log(`  📏 Found beam data for draft order ${order.name}:`, beamData);
-          } catch (error) {
-            console.error(`  ⚠️  Error parsing beam_data for draft order ${order.name}:`, error);
-          }
-        }
-        
-        const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems, beamData);
+        // Note: Beam data is now stored as line item properties, not as a draft order metafield
+        const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
         
         if (orderRows.length === 0) {
           console.log(`  ⚠️  Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
@@ -357,7 +347,7 @@ async function getCustomerMonitorId(shop, accessToken, customerId) {
 /**
  * Build Monitor order rows from Shopify line items
  */
-async function buildMonitorOrderRows(shop, accessToken, lineItems, beamData = null) {
+async function buildMonitorOrderRows(shop, accessToken, lineItems) {
   const fetch = (await import('node-fetch')).default;
   const rows = [];
 
@@ -464,22 +454,56 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems, beamData = nu
         }
       }
       
-      // Check if this variant has beam data (Balk configuration)
+      // Check if this line item has beam data (Balk configuration) in its properties
       let subRowContent = null;
-      if (beamData && Array.isArray(beamData)) {
-        const beamConfig = beamData.find(beam => beam.id === variantId);
-        if (beamConfig && beamConfig.selected && Array.isArray(beamConfig.selected)) {
-          // Build SubRowContent in the specified format
-          const subRowLines = [];
-          beamConfig.selected.forEach((selection, index) => {
-            const rowNum = index + 1;
-            subRowLines.push(`Antal ${rowNum}:\t${selection.count},00 st`);
+      
+      // Look for beam-related properties in customAttributes (Balk configuration)
+      const beamProperties = {};
+      let beamSummary = null;
+      
+      if (lineItem.customAttributes && Array.isArray(lineItem.customAttributes)) {
+        lineItem.customAttributes.forEach(attr => {
+          if (attr.key.startsWith('balk_')) {
+            beamProperties[attr.key] = attr.value;
+          } else if (attr.key === 'Balkspecifikation') {
+            beamSummary = attr.value;
+          }
+        });
+      }
+      
+      console.log(`    🔧 Beam properties for line item ${lineItem.id}:`, beamProperties);
+      console.log(`    🔧 Beam summary: ${beamSummary || 'none'}`);
+      
+      // If we have beam properties, build SubRowContent
+      if (Object.keys(beamProperties).length > 0) {
+        const subRowLines = [];
+        
+        // Group properties by row number (balk_length_1, balk_count_1, etc.)
+        const rowGroups = {};
+        Object.keys(beamProperties).forEach(key => {
+          const match = key.match(/^balk_(length|count)_(\d+)$/);
+          if (match) {
+            const [, type, rowNum] = match;
+            if (!rowGroups[rowNum]) rowGroups[rowNum] = {};
+            rowGroups[rowNum][type] = beamProperties[key];
+          }
+        });
+        
+        // Build SubRowContent for each row
+        Object.keys(rowGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(rowNum => {
+          const row = rowGroups[rowNum];
+          if (row.length && row.count) {
+            subRowLines.push(`Antal ${rowNum}:\t${row.count},00 st`);
             // Convert length from meters to millimeters and format with Swedish comma
-            const lengthInMm = (parseFloat(selection.length) * 1000).toFixed(2).replace('.', ',');
+            const lengthInM = parseFloat(row.length.replace(',', '.'));
+            const lengthInMm = (lengthInM * 1000).toFixed(2).replace('.', ',');
             subRowLines.push(`Längd ${rowNum}:\t${lengthInMm} mm`);
-          });
+          }
+        });
+        
+        if (subRowLines.length > 0) {
           subRowContent = subRowLines.join('\n');
-          console.log(`    📏 Created SubRowContent for variant ${variantId}:`, subRowContent);
+          console.log(`    📏 Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
         }
       }
       

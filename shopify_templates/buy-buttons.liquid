@@ -150,103 +150,137 @@
     
     console.log('🔧 Processing variant:', variantId);
     
-    // Get existing beam_data from cart to merge with new data
-    fetch('/cart.js')
-      .then(response => response.json())
-      .then(cart => {
-        console.log('🔧 Current cart attributes:', cart.attributes);
+    // Build the beam data structure for this variant
+    const rows = rowsContainer.querySelectorAll('.balk-row');
+    const selectedLengths = [];
+    
+    console.log('🔧 Found', rows.length, 'balk rows to process');
+    
+    rows.forEach((row, index) => {
+      const antalInput = row.querySelector('.balk-antal');
+      const langdInput = row.querySelector('.balk-langd');
+      
+      if (antalInput && langdInput) {
+        const antal = parseInt(antalInput.value) || 0;
+        const langdValue = langdInput.value.replace(',', '.');
+        const langd = parseFloat(langdValue) || 0;
         
-        let existingBeamData = [];
+        console.log(`🔧 Row ${index + 1}: antal=${antal}, längd=${langd} (input: "${langdInput.value}")`);
         
-        // Parse existing beam_data if it exists
-        if (cart.attributes && cart.attributes.beam_data) {
-          try {
-            existingBeamData = JSON.parse(cart.attributes.beam_data);
-            console.log('🔧 Parsed existing beam_data:', existingBeamData);
-          } catch (error) {
-            console.error('❌ Error parsing existing beam_data:', error);
-          }
-        } else {
-          console.log('🔧 No existing beam_data in cart');
-        }
-        
-        // Build the beam data structure for this variant
-        const rows = rowsContainer.querySelectorAll('.balk-row');
-        const selectedLengths = [];
-        
-        console.log('🔧 Found', rows.length, 'balk rows to process');
-        
-        rows.forEach((row, index) => {
-          const antalInput = row.querySelector('.balk-antal');
-          const langdInput = row.querySelector('.balk-langd');
-          
-          if (antalInput && langdInput) {
-            const antal = parseInt(antalInput.value) || 0;
-            const langdValue = langdInput.value.replace(',', '.');
-            const langd = parseFloat(langdValue) || 0;
-            
-            console.log(`🔧 Row ${index + 1}: antal=${antal}, längd=${langd} (input: "${langdInput.value}")`);
-            
-            if (antal > 0 && langd > 0) {
-              selectedLengths.push({
-                length: langd.toString(),
-                count: antal
-              });
-            }
-          } else {
-            console.log(`❌ Missing inputs in row ${index + 1} - antal:`, !!antalInput, 'längd:', !!langdInput);
-          }
-        });
-        
-        console.log('🔧 Selected lengths array:', selectedLengths);
-        
-        if (selectedLengths.length > 0) {
-          // Remove any existing entry for this variant ID
-          const filteredBeamData = existingBeamData.filter(item => item.id !== variantId);
-          console.log('🔧 Filtered beam data (removed existing for this variant):', filteredBeamData);
-          
-          // Add the new configuration for this variant
-          const newBeamConfig = {
-            id: variantId,
-            selected: selectedLengths
-          };
-          filteredBeamData.push(newBeamConfig);
-          
-          console.log('🔧 Final beam data to save:', filteredBeamData);
-          
-          // Save to cart attributes
-          return fetch('/cart/update.js', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              attributes: {
-                'beam_data': JSON.stringify(filteredBeamData)
-              }
-            })
-          }).then(response => {
-            if (response.ok) {
-              console.log('✅ Successfully saved beam_data to cart attributes');
-              return response.json();
-            } else {
-              console.error('❌ Failed to save beam_data, status:', response.status);
-              return response.text().then(text => {
-                console.error('❌ Response text:', text);
-                throw new Error(`HTTP ${response.status}: ${text}`);
-              });
-            }
-          }).then(result => {
-            console.log('🔧 Cart update result:', result);
+        if (antal > 0 && langd > 0) {
+          selectedLengths.push({
+            length: langd.toString(),
+            count: antal
           });
-        } else {
-          console.log('⚠️ No valid length selections found, not saving beam_data');
         }
-      })
-      .catch(error => {
-        console.error('❌ Error saving beam data to cart:', error);
+      } else {
+        console.log(`❌ Missing inputs in row ${index + 1} - antal:`, !!antalInput, 'längd:', !!langdInput);
+      }
+    });
+    
+    console.log('🔧 Selected lengths array:', selectedLengths);
+    
+    if (selectedLengths.length > 0) {
+      // Store the beam configuration in a data attribute on the quantity input
+      // This will be picked up when the product is added to cart
+      const beamConfig = {
+        id: variantId,
+        selected: selectedLengths
+      };
+      
+      quantityInput.setAttribute('data-beam-config', JSON.stringify(beamConfig));
+      console.log('✅ Beam configuration stored on quantity input:', beamConfig);
+      
+      // Also trigger a custom event so the add to cart handler can pick this up
+      const beamConfigEvent = new CustomEvent('beamConfigUpdated', {
+        detail: { variantId, beamConfig }
       });
+      document.dispatchEvent(beamConfigEvent);
+      console.log('✅ Beam config event dispatched');
+    } else {
+      console.log('⚠️ No valid length selections found, clearing beam config');
+      quantityInput.removeAttribute('data-beam-config');
+    }
   }
+
+  // Add form submission interceptor for beam data
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 Setting up beam data form interceptor');
+    
+    // Find all product forms and add event listeners
+    const productForms = document.querySelectorAll('form[action*="/cart/add"]');
+    console.log('🔧 Found', productForms.length, 'product forms');
+    
+    productForms.forEach(form => {
+      // Only add listener if this form doesn't already have our beam interceptor
+      if (form.dataset.beamInterceptorAdded) return;
+      form.dataset.beamInterceptorAdded = 'true';
+      
+      form.addEventListener('submit', function(event) {
+        console.log('🔧 Form submission intercepted for beam data processing');
+        
+        // Find the quantity input in this specific form
+        const quantityInput = form.querySelector('input[name="quantity"]');
+        if (!quantityInput) {
+          console.log('🔧 No quantity input found in this form');
+          return;
+        }
+        
+        // Check if this quantity input has beam configuration
+        const beamConfigStr = quantityInput.getAttribute('data-beam-config');
+        if (!beamConfigStr) {
+          console.log('🔧 No beam config found on quantity input');
+          return;
+        }
+        
+        try {
+          const beamConfig = JSON.parse(beamConfigStr);
+          console.log('🔧 Found beam config to add as properties:', beamConfig);
+          
+          // Remove any existing beam properties from this form to avoid duplicates
+          const existingBeamProperties = form.querySelectorAll('input[name*="properties[balk_"], input[name="properties[Balkspecifikation]"]');
+          existingBeamProperties.forEach(prop => {
+            console.log('🔧 Removing existing beam property:', prop.name);
+            prop.remove();
+          });
+          
+          // Add beam configuration as hidden line item properties
+          beamConfig.selected.forEach((item, index) => {
+            // Add length property
+            const lengthInput = document.createElement('input');
+            lengthInput.type = 'hidden';
+            lengthInput.name = `properties[balk_length_${index + 1}]`;
+            lengthInput.value = item.length.replace('.', ','); // Swedish format
+            form.appendChild(lengthInput);
+            
+            // Add count property
+            const countInput = document.createElement('input');
+            countInput.type = 'hidden';
+            countInput.name = `properties[balk_count_${index + 1}]`;
+            countInput.value = item.count;
+            form.appendChild(countInput);
+            
+            console.log(`🔧 Added balk properties ${index + 1}: length=${item.length}, count=${item.count}`);
+          });
+          
+          // Add summary property for easy reading
+          const summaryParts = beamConfig.selected.map(item => 
+            `${item.count}×${item.length.replace('.', ',')}m`
+          );
+          const summaryInput = document.createElement('input');
+          summaryInput.type = 'hidden';
+          summaryInput.name = 'properties[Balkspecifikation]';
+          summaryInput.value = summaryParts.join(', ');
+          form.appendChild(summaryInput);
+          
+          console.log('✅ Added beam data as line item properties');
+          
+        } catch (error) {
+          console.error('❌ Error parsing beam config:', error);
+        }
+      }, { capture: true }); // Use capture to run before other form handlers
+    });
+  });
 </script>
 
 <!-- Debug: Check if this snippet is being rendered multiple times -->

@@ -26,16 +26,14 @@ export async function action({ request }) {
     console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop, priceListId, goodsLabel, orderMark, beamData } = body; // items: [{ variantId, quantity }]
+    const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity, properties }]
     
     console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
-    console.log('🟦 BEAM DATA RECEIVED:', beamData);
-    console.log('🟦 Beam data type:', typeof beamData);
-    console.log('🟦 Beam data is array:', Array.isArray(beamData));
-    console.log('🟦 Beam data length:', beamData?.length);
-    if (beamData) {
-      console.log('🟦 Beam data content:', JSON.stringify(beamData, null, 2));
-    }
+    
+    // Log properties for each item
+    items?.forEach((item, index) => {
+      console.log(`🟦 Item ${index + 1} properties:`, item.properties);
+    });
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
@@ -71,8 +69,8 @@ export async function action({ request }) {
     
     for (const item of items) {
       try {
-        const { variantId, quantity } = item;
-        console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}`);
+        const { variantId, quantity, properties } = item;
+        console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}, properties:`, properties);
         
         // Get variant details using GraphQL including image
         const variantQuery = `
@@ -179,6 +177,21 @@ export async function action({ request }) {
         const imageAlt = variantImage?.altText || productImage?.altText || variant.product.title;
         
         console.log(`🟦 Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
+        
+        // Check if this item has beam data in its properties (for Balk products)
+        const itemBeamData = item.properties || {};
+        const beamProperties = {};
+        const beamSummary = itemBeamData['Balkspecifikation'];
+        
+        // Extract beam-related properties
+        Object.keys(itemBeamData).forEach(key => {
+          if (key.startsWith('balk_')) {
+            beamProperties[key] = itemBeamData[key];
+          }
+        });
+        
+        console.log(`🟦 Item beam properties for variant ${variantId}:`, beamProperties);
+        console.log(`🟦 Beam summary: ${beamSummary || 'none'}`);
         
         // Get customer Monitor ID and discount category using GraphQL
         const customerQuery = `
@@ -474,19 +487,6 @@ export async function action({ request }) {
         value: orderMark.replace(/"/g, '\\"').replace(/\n/g, '\\n'),
         type: "multi_line_text_field"
       });
-    }
-    
-    if (beamData && Array.isArray(beamData) && beamData.length > 0) {
-      console.log('🟦 Adding beam_data metafield with data:', JSON.stringify(beamData, null, 2));
-      metafieldsToAdd.push({
-        ownerId: `gid://shopify/DraftOrder/${draftOrder.id}`,
-        namespace: "custom",
-        key: "beam_data",
-        value: JSON.stringify(beamData),
-        type: "json"
-      });
-    } else {
-      console.log('🟦 No beam_data to add - beamData:', beamData, 'isArray:', Array.isArray(beamData), 'length:', beamData?.length);
     }
     
     if (metafieldsToAdd.length > 0) {
