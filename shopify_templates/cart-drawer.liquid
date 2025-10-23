@@ -1437,12 +1437,16 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Extract beam_data from cart attributes
           let beamData = null;
+          console.log('🛒 Cart drawer - Checking cart attributes for beam_data:', cart.attributes);
           if (cart.attributes && cart.attributes.beam_data) {
             try {
               beamData = JSON.parse(cart.attributes.beam_data);
+              console.log('🛒 Cart drawer - Successfully parsed beam_data:', beamData);
             } catch (error) {
-              console.error('Error parsing beam_data from cart attributes:', error);
+              console.error('❌ Cart drawer - Error parsing beam_data from cart attributes:', error);
             }
+          } else {
+            console.log('🛒 Cart drawer - No beam_data found in cart attributes');
           }
           
           // Get customer's price list ID from the first cart item's metafields (same as main cart)
@@ -1473,8 +1477,9 @@ document.addEventListener('DOMContentLoaded', () => {
             orderMark = cart.attributes['order_mark'];
           }
           
-          console.log('Cart drawer checkout - Order mark from cart attributes:', orderMark);
-          console.log('Cart drawer checkout - Full cart attributes:', cart.attributes);
+          console.log('🛒 Cart drawer checkout - Order mark from cart attributes:', orderMark);
+          console.log('🛒 Cart drawer checkout - Full cart attributes:', cart.attributes);
+          console.log('🛒 Cart drawer checkout - Final beam_data being sent:', beamData);
           
           // Create draft order with dynamic pricing
           const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {

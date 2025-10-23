@@ -131,35 +131,52 @@
   }
   
   window.saveBalkConfigToCart = function(sectionId) {
+    console.log('🔧 saveBalkConfigToCart called for section:', sectionId);
+    
     const rowsContainer = document.getElementById('balk-rows-' + sectionId);
     const quantityInput = document.getElementById('Quantity-' + sectionId);
     
-    if (!rowsContainer || !quantityInput) return;
+    if (!rowsContainer || !quantityInput) {
+      console.log('❌ Missing DOM elements - rowsContainer:', !!rowsContainer, 'quantityInput:', !!quantityInput);
+      return;
+    }
     
     // Get the variant ID from the quantity input
     const variantId = quantityInput.getAttribute('data-quantity-variant-id');
-    if (!variantId) return;
+    if (!variantId) {
+      console.log('❌ No variant ID found on quantity input');
+      return;
+    }
+    
+    console.log('🔧 Processing variant:', variantId);
     
     // Get existing beam_data from cart to merge with new data
     fetch('/cart.js')
       .then(response => response.json())
       .then(cart => {
+        console.log('🔧 Current cart attributes:', cart.attributes);
+        
         let existingBeamData = [];
         
         // Parse existing beam_data if it exists
         if (cart.attributes && cart.attributes.beam_data) {
           try {
             existingBeamData = JSON.parse(cart.attributes.beam_data);
+            console.log('🔧 Parsed existing beam_data:', existingBeamData);
           } catch (error) {
-            console.error('Error parsing existing beam_data:', error);
+            console.error('❌ Error parsing existing beam_data:', error);
           }
+        } else {
+          console.log('🔧 No existing beam_data in cart');
         }
         
         // Build the beam data structure for this variant
         const rows = rowsContainer.querySelectorAll('.balk-row');
         const selectedLengths = [];
         
-        rows.forEach(row => {
+        console.log('🔧 Found', rows.length, 'balk rows to process');
+        
+        rows.forEach((row, index) => {
           const antalInput = row.querySelector('.balk-antal');
           const langdInput = row.querySelector('.balk-langd');
           
@@ -168,24 +185,34 @@
             const langdValue = langdInput.value.replace(',', '.');
             const langd = parseFloat(langdValue) || 0;
             
+            console.log(`🔧 Row ${index + 1}: antal=${antal}, längd=${langd} (input: "${langdInput.value}")`);
+            
             if (antal > 0 && langd > 0) {
               selectedLengths.push({
                 length: langd.toString(),
                 count: antal
               });
             }
+          } else {
+            console.log(`❌ Missing inputs in row ${index + 1} - antal:`, !!antalInput, 'längd:', !!langdInput);
           }
         });
+        
+        console.log('🔧 Selected lengths array:', selectedLengths);
         
         if (selectedLengths.length > 0) {
           // Remove any existing entry for this variant ID
           const filteredBeamData = existingBeamData.filter(item => item.id !== variantId);
+          console.log('🔧 Filtered beam data (removed existing for this variant):', filteredBeamData);
           
           // Add the new configuration for this variant
-          filteredBeamData.push({
+          const newBeamConfig = {
             id: variantId,
             selected: selectedLengths
-          });
+          };
+          filteredBeamData.push(newBeamConfig);
+          
+          console.log('🔧 Final beam data to save:', filteredBeamData);
           
           // Save to cart attributes
           return fetch('/cart/update.js', {
@@ -198,11 +225,26 @@
                 'beam_data': JSON.stringify(filteredBeamData)
               }
             })
+          }).then(response => {
+            if (response.ok) {
+              console.log('✅ Successfully saved beam_data to cart attributes');
+              return response.json();
+            } else {
+              console.error('❌ Failed to save beam_data, status:', response.status);
+              return response.text().then(text => {
+                console.error('❌ Response text:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+              });
+            }
+          }).then(result => {
+            console.log('🔧 Cart update result:', result);
           });
+        } else {
+          console.log('⚠️ No valid length selections found, not saving beam_data');
         }
       })
       .catch(error => {
-        console.error('Error saving beam data to cart:', error);
+        console.error('❌ Error saving beam data to cart:', error);
       });
   }
 </script>

@@ -28,7 +28,14 @@ export async function action({ request }) {
     const body = await request.json();
     const { customerId, items, shop, priceListId, goodsLabel, orderMark, beamData } = body; // items: [{ variantId, quantity }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark, beamDataLength: beamData?.length });
+    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
+    console.log('🟦 BEAM DATA RECEIVED:', beamData);
+    console.log('🟦 Beam data type:', typeof beamData);
+    console.log('🟦 Beam data is array:', Array.isArray(beamData));
+    console.log('🟦 Beam data length:', beamData?.length);
+    if (beamData) {
+      console.log('🟦 Beam data content:', JSON.stringify(beamData, null, 2));
+    }
     
     if (!customerId) {
       return json({ error: "Customer ID is required" }, { status: 400, headers: corsHeaders() });
@@ -470,6 +477,7 @@ export async function action({ request }) {
     }
     
     if (beamData && Array.isArray(beamData) && beamData.length > 0) {
+      console.log('🟦 Adding beam_data metafield with data:', JSON.stringify(beamData, null, 2));
       metafieldsToAdd.push({
         ownerId: `gid://shopify/DraftOrder/${draftOrder.id}`,
         namespace: "custom",
@@ -477,11 +485,15 @@ export async function action({ request }) {
         value: JSON.stringify(beamData),
         type: "json"
       });
+    } else {
+      console.log('🟦 No beam_data to add - beamData:', beamData, 'isArray:', Array.isArray(beamData), 'length:', beamData?.length);
     }
     
     if (metafieldsToAdd.length > 0) {
       try {
-        console.log(`🟦 Adding metafields: ${metafieldsToAdd.map(m => m.key).join(', ')}`);
+        console.log(`🟦 Adding ${metafieldsToAdd.length} metafields: ${metafieldsToAdd.map(m => m.key).join(', ')}`);
+        console.log('🟦 Metafields being added:', JSON.stringify(metafieldsToAdd, null, 2));
+        
         const metafieldMutation = `
           mutation {
             metafieldsSet(metafields: [
@@ -506,6 +518,8 @@ export async function action({ request }) {
           }
         `;
         
+        console.log('🟦 GraphQL mutation being sent:', metafieldMutation);
+        
         const metafieldResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
@@ -517,10 +531,17 @@ export async function action({ request }) {
         
         const metafieldResult = await metafieldResponse.json();
         
+        console.log('🟦 Metafield creation response:', JSON.stringify(metafieldResult, null, 2));
+        
         if (metafieldResult.data?.metafieldsSet?.userErrors?.length > 0) {
-          console.error('🟦 Metafield creation errors:', metafieldResult.data.metafieldsSet.userErrors);
+          console.error('❌ Metafield creation errors:', metafieldResult.data.metafieldsSet.userErrors);
         } else {
-          console.log(`🟦 ✅ Added metafields to draft order ${draftOrder.id}`);
+          console.log(`✅ Successfully added metafields to draft order ${draftOrder.id}`);
+          if (metafieldResult.data?.metafieldsSet?.metafields) {
+            metafieldResult.data.metafieldsSet.metafields.forEach(mf => {
+              console.log(`✅ Created metafield ${mf.key}: ${mf.value?.substring(0, 100)}${mf.value?.length > 100 ? '...' : ''}`);
+            });
+          }
         }
       } catch (metafieldError) {
         console.error('🟦 Failed to add metafields:', metafieldError);
