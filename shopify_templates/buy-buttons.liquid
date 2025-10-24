@@ -778,18 +778,31 @@
             {% endif %}
           </div>
         {%- endif -%}
+        {%- comment -%} Check if this is a balk product in cart for button state {%- endcomment -%}
+        {%- assign balk_variant_in_cart = false -%}
+        {%- if is_balk -%}
+          {%- for item in cart.items -%}
+            {%- if item.variant_id == product.selected_or_first_available_variant.id -%}
+              {%- assign balk_variant_in_cart = true -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endif -%}
+        
         <button
           id="ProductSubmitButton-{{ section_id }}"
           type="submit"
           name="add"
           class="product-form__submit btn{% if show_dynamic_checkout %} btn--secondary{% else %} btn--primary{% endif %}"
-          {% if product.selected_or_first_available_variant.available == false or quantity_rule_soldout %}
+          {% if product.selected_or_first_available_variant.available == false or quantity_rule_soldout or balk_variant_in_cart %}
             disabled
           {% endif %}
         >
           <span class="btn__text">
             {%- if product.selected_or_first_available_variant.available == false or quantity_rule_soldout -%}
               {{ 'products.product.sold_out' | t }}
+            {%- elsif balk_variant_in_cart -%}
+              Redan i varukorg
             {%- else -%}
               {{ 'products.product.add_to_cart' | t }}
             {%- endif -%}
@@ -798,56 +811,71 @@
         </button>
         
         {%- if is_balk -%}
-          <div class="balk-custom-calculator" style="margin-top: 0;">
-            <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
-            <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
-              <!-- Initial row -->
-              <div class="balk-row" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                  <label style="font-size: 0.875rem;">Antal</label>
-                  <input 
-                    type="number" 
-                    class="balk-antal" 
-                    min="1" 
-                    step="1"
-                    pattern="[0-9]*"
-                    value="1" 
-                    style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
-                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
-                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
-                    onkeypress="return event.charCode >= 48 && event.charCode <= 57"
-                  />
+          {%- comment -%} Check if this variant is already in cart {%- endcomment -%}
+          {%- assign variant_in_cart = false -%}
+          {%- for item in cart.items -%}
+            {%- if item.variant_id == product.selected_or_first_available_variant.id -%}
+              {%- assign variant_in_cart = true -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+          
+          {%- if variant_in_cart -%}
+            <div class="balk-in-cart-message" style="margin-top: 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px;">
+              <p style="margin: 0; font-weight: bold; color: #333;">
+                Produkten är redan tillagd i varukorgen, ta bort den om du behöver ändra.
+              </p>
+            </div>
+          {%- else -%}
+            <div class="balk-custom-calculator" style="margin-top: 0;">
+              <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
+              <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <!-- Initial row -->
+                <div class="balk-row" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                  <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <label style="font-size: 0.875rem;">Antal</label>
+                    <input 
+                      type="number" 
+                      class="balk-antal" 
+                      min="1" 
+                      step="1"
+                      pattern="[0-9]*"
+                      value="1" 
+                      style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
+                      onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                      oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                      onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                    />
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <label style="font-size: 0.875rem;">Längd</label>
+                    <input 
+                      type="text" 
+                      class="balk-langd" 
+                      value="1,0" 
+                      style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
+                      onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                      oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                      pattern="[0-9]+([,][0-9]+)?"
+                      title="Använd komma som decimalseparator (t.ex. 2,5)"
+                    />
+                  </div>
+                  <button 
+                    type="button" 
+                    class="balk-add-row" 
+                    onclick="addBalkRow('{{ section_id }}')"
+                    style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+                    title="Lägg till rad"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+                      <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                      <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </button>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                  <label style="font-size: 0.875rem;">Längd</label>
-                  <input 
-                    type="text" 
-                    class="balk-langd" 
-                    value="1,0" 
-                    style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
-                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
-                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
-                    pattern="[0-9]+([,][0-9]+)?"
-                    title="Använd komma som decimalseparator (t.ex. 2,5)"
-                  />
-                </div>
-                <button 
-                  type="button" 
-                  class="balk-add-row" 
-                  onclick="addBalkRow('{{ section_id }}')"
-                  style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
-                  title="Lägg till rad"
-                >
-                  <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
-                    <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                    <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                  </svg>
-                </button>
               </div>
             </div>
-          </div>
-          
-          {%- comment -%} Build variant-to-cart mapping for all beam products in cart {%- endcomment -%}
+          {%- endif -%}          {%- comment -%} Build variant-to-cart mapping for all beam products in cart {%- endcomment -%}
           <script type="application/json" id="beam-cart-data-{{ section_id }}">
             {
               {% for item in cart.items %}
