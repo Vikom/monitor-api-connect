@@ -183,6 +183,8 @@ export async function action({ request }) {
         const beamProperties = {};
         const beamSummary = itemBeamData['Balkspecifikation'];
         
+        console.log(`🟦 All properties for variant ${variantId}:`, itemBeamData);
+        
         // Extract beam-related properties
         Object.keys(itemBeamData).forEach(key => {
           if (key.startsWith('balk_')) {
@@ -190,7 +192,7 @@ export async function action({ request }) {
           }
         });
         
-        console.log(`🟦 Item beam properties for variant ${variantId}:`, beamProperties);
+        console.log(`🟦 Extracted beam properties for variant ${variantId}:`, beamProperties);
         console.log(`🟦 Beam summary: ${beamSummary || 'none'}`);
         
         // Get customer Monitor ID and discount category using GraphQL
@@ -409,16 +411,20 @@ export async function action({ request }) {
           }
           
           // Add beam properties if they exist in the item properties
+          console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.properties || {}));
           if (item.properties && typeof item.properties === 'object') {
             Object.keys(item.properties).forEach(key => {
+              console.log(`🟦 Checking property key: ${key}, starts with balk_: ${key.startsWith('balk_')}, is Balkspecifikation: ${key === 'Balkspecifikation'}`);
               if (key.startsWith('balk_') || key === 'Balkspecifikation') {
                 lineItemProperties.push({
                   name: key,
                   value: item.properties[key]
                 });
-                console.log(`🟦 Added beam property to line item: ${key} = ${item.properties[key]}`);
+                console.log(`🟦 ✅ Added beam property to line item: ${key} = ${item.properties[key]}`);
               }
             });
+          } else {
+            console.log(`🟦 No properties found on item or properties is not an object. Type:`, typeof item.properties);
           }
           
           // Add image information as properties
@@ -436,8 +442,13 @@ export async function action({ request }) {
           }
           
           if (lineItemProperties.length > 0) {
-            lineItem.properties = lineItemProperties;
+            lineItem.custom_attributes = lineItemProperties;
+            console.log(`🟦 Final line item custom_attributes being added:`, lineItemProperties);
+          } else {
+            console.log(`🟦 No custom_attributes to add to line item`);
           }
+          
+          console.log(`🟦 Complete line item being added to draft order:`, JSON.stringify(lineItem, null, 2));
           
           return lineItem;
         })
