@@ -390,10 +390,10 @@ export async function action({ request }) {
           };
           
           // Add custom properties to preserve decimal unit information and custom pricing
-          const properties = [];
+          const lineItemProperties = [];
           
           // Always add variant ID for tracking
-          properties.push({
+          lineItemProperties.push({
             name: "_variant_id",
             value: item.variantId.replace('gid://shopify/ProductVariant/', '')
           });
@@ -402,28 +402,41 @@ export async function action({ request }) {
           if (item.isDecimalUnit) {
             // Format quantity with Swedish decimal separator
             const formattedQuantity = item.displayQuantity.toString().replace('.', ',');
-            properties.push({
+            lineItemProperties.push({
               name: "Enhet",
               value: `${formattedQuantity} ${item.standardUnit}`
             });
           }
           
+          // Add beam properties if they exist in the item properties
+          if (item.properties && typeof item.properties === 'object') {
+            Object.keys(item.properties).forEach(key => {
+              if (key.startsWith('balk_') || key === 'Balkspecifikation') {
+                lineItemProperties.push({
+                  name: key,
+                  value: item.properties[key]
+                });
+                console.log(`🟦 Added beam property to line item: ${key} = ${item.properties[key]}`);
+              }
+            });
+          }
+          
           // Add image information as properties
           if (item.imageUrl) {
-            properties.push({
+            lineItemProperties.push({
               name: "_image_url",
               value: item.imageUrl
             });
             if (item.imageAlt) {
-              properties.push({
+              lineItemProperties.push({
                 name: "_image_alt",
                 value: item.imageAlt
               });
             }
           }
           
-          if (properties.length > 0) {
-            lineItem.properties = properties;
+          if (lineItemProperties.length > 0) {
+            lineItem.properties = lineItemProperties;
           }
           
           return lineItem;
