@@ -847,34 +847,83 @@
             </div>
           </div>
           
-          {%- comment -%} Check if this variant is already in cart with beam configuration {%- endcomment -%}
-          {%- assign existing_beam_config = blank -%}
-          {%- assign existing_cart_quantity = 0 -%}
-          {%- for item in cart.items -%}
-            {%- if item.variant.id == product.selected_or_first_available_variant.id -%}
-              {%- assign existing_cart_quantity = item.quantity -%}
-              {%- for property in item.properties -%}
-                {%- if property.first == 'Balkspecifikation' -%}
-                  {%- assign existing_beam_config = property.last -%}
-                  {%- break -%}
-                {%- endif -%}
-              {%- endfor -%}
-              {%- break -%}
-            {%- endif -%}
-          {%- endfor -%}
+          {%- comment -%} Build variant-to-cart mapping for all beam products in cart {%- endcomment -%}
+          <script type="application/json" id="beam-cart-data-{{ section_id }}">
+            {
+              {% for item in cart.items %}
+                {% if item.product.collections contains collections['balk'] %}
+                  "{{ item.variant.id }}": {
+                    "config": {{ item.properties['Balkspecifikation'] | json }},
+                    "quantity": {{ item.quantity }}
+                  }{% unless forloop.last %},{% endunless %}
+                {% endif %}
+              {% endfor %}
+            }
+          </script>
           
           <script>
-            // Initialize calculation on page load for this specific section
-            document.addEventListener('DOMContentLoaded', function() {
-              // Check for existing beam configuration and prepopulate
-              const existingConfig = {{ existing_beam_config | json }};
-              const existingQuantity = {{ existing_cart_quantity }};
+            // Get beam cart data from Liquid-generated JSON
+            const beamCartData = JSON.parse(document.getElementById('beam-cart-data-{{ section_id }}').textContent || '{}');
+            
+            // Function to update beam config based on variant
+            function updateBeamConfigForVariant(variantId) {
+              console.log('🔧 Updating beam config for variant:', variantId);
               
-              if (existingConfig && existingConfig.trim()) {
-                prepopulateBeamConfig('{{ section_id }}', existingConfig, existingQuantity);
+              const cartData = beamCartData[variantId];
+              const rowsContainer = document.getElementById('balk-rows-{{ section_id }}');
+              
+              if (cartData && cartData.config && cartData.config.trim()) {
+                console.log('✅ Found beam config for variant in cart:', cartData.config);
+                prepopulateBeamConfig('{{ section_id }}', cartData.config, cartData.quantity);
               } else {
+                console.log('🔧 No beam config found for variant, using defaults');
+                // Reset to default values
+                if (rowsContainer) {
+                  // Clear all but first row
+                  const existingRows = rowsContainer.querySelectorAll('.balk-row');
+                  for (let i = 1; i < existingRows.length; i++) {
+                    existingRows[i].remove();
+                  }
+                  
+                  // Reset first row to defaults
+                  const firstRow = rowsContainer.querySelector('.balk-row');
+                  if (firstRow) {
+                    const antalInput = firstRow.querySelector('.balk-antal');
+                    const langdInput = firstRow.querySelector('.balk-langd');
+                    if (antalInput) antalInput.value = '1';
+                    if (langdInput) langdInput.value = '1,0';
+                  }
+                }
                 updateBalkTotalQuantity('{{ section_id }}');
               }
+            }
+
+            // Initialize calculation on page load for this specific section
+            document.addEventListener('DOMContentLoaded', function() {
+              // Get initial variant and update beam config
+              const initialVariantInput = document.querySelector('input[name="id"]:checked, select[name="id"], input[name="id"]');
+              if (initialVariantInput) {
+                updateBeamConfigForVariant(initialVariantInput.value);
+              }
+              
+              // Listen for variant changes using the same approach as product-information-blocks
+              document.addEventListener('change', function(event) {
+                if (event.target.name === 'id' || event.target.matches('[data-variant-id]')) {
+                  const variantId = event.target.value || event.target.dataset.variantId;
+                  if (variantId) {
+                    console.log('🔧 Form change detected for variant:', variantId);
+                    updateBeamConfigForVariant(variantId);
+                  }
+                }
+              });
+              
+              // Also listen for custom variant change events
+              document.addEventListener('variant:change', function(event) {
+                if (event.detail && event.detail.variant) {
+                  console.log('🔧 Variant change event:', event.detail.variant.id);
+                  updateBeamConfigForVariant(event.detail.variant.id);
+                }
+              });
               
               // Also listen for any quantity changes and re-disable buttons
               const quantityInput = document.getElementById('Quantity-{{ section_id }}');
