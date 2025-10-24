@@ -130,6 +130,75 @@
     }
   }
   
+  window.prepopulateBeamConfig = function(sectionId, configString, cartQuantity) {
+    console.log('🔄 Prepopulating beam config for section:', sectionId, 'config:', configString);
+    
+    const rowsContainer = document.getElementById('balk-rows-' + sectionId);
+    if (!rowsContainer) {
+      console.log('❌ No rows container found');
+      return;
+    }
+    
+    // Clear existing rows except the first one
+    const existingRows = rowsContainer.querySelectorAll('.balk-row');
+    for (let i = 1; i < existingRows.length; i++) {
+      existingRows[i].remove();
+    }
+    
+    // Parse the config string (format: "3×5,5m | 2×2,0m")
+    const beamSpecs = configString.split(' | ').map(spec => spec.trim()).filter(spec => spec);
+    
+    beamSpecs.forEach((spec, index) => {
+      // Parse each spec (format: "3×5,5m")
+      const match = spec.match(/^(\d+)×([\d,]+)m?$/);
+      if (match) {
+        const antal = match[1];
+        const langd = match[2];
+        
+        if (index === 0) {
+          // Update the first row
+          const firstRow = rowsContainer.querySelector('.balk-row');
+          if (firstRow) {
+            const antalInput = firstRow.querySelector('.balk-antal');
+            const langdInput = firstRow.querySelector('.balk-langd');
+            if (antalInput) antalInput.value = antal;
+            if (langdInput) langdInput.value = langd;
+          }
+        } else {
+          // Add new row
+          addBalkRow(sectionId);
+          const newRow = rowsContainer.querySelector('.balk-row:last-child');
+          if (newRow) {
+            const antalInput = newRow.querySelector('.balk-antal');
+            const langdInput = newRow.querySelector('.balk-langd');
+            if (antalInput) antalInput.value = antal;
+            if (langdInput) langdInput.value = langd;
+          }
+        }
+      }
+    });
+    
+    // Update the total quantity (this should match the cart quantity)
+    updateBalkTotalQuantity(sectionId);
+    
+    // Verify the calculated quantity matches cart quantity
+    setTimeout(() => {
+      if (cartQuantity > 0) {
+        const quantityInput = document.getElementById('Quantity-' + sectionId);
+        if (quantityInput) {
+          const calculatedQuantity = parseFloat(quantityInput.value.replace(',', '.'));
+          if (Math.abs(calculatedQuantity - cartQuantity) > 0.01) {
+            console.warn('⚠️ Calculated quantity (' + calculatedQuantity + ') does not match cart quantity (' + cartQuantity + ')');
+          } else {
+            console.log('✅ Quantity sync verified: ' + calculatedQuantity);
+          }
+        }
+      }
+    }, 100);
+    
+    console.log('✅ Beam config prepopulated successfully');
+  }
+  
   window.saveBalkConfigToCart = function(sectionId) {
     console.log('🔧 saveBalkConfigToCart called for section:', sectionId);
     
@@ -778,10 +847,34 @@
             </div>
           </div>
           
+          {%- comment -%} Check if this variant is already in cart with beam configuration {%- endcomment -%}
+          {%- assign existing_beam_config = blank -%}
+          {%- assign existing_cart_quantity = 0 -%}
+          {%- for item in cart.items -%}
+            {%- if item.variant.id == product.selected_or_first_available_variant.id -%}
+              {%- assign existing_cart_quantity = item.quantity -%}
+              {%- for property in item.properties -%}
+                {%- if property.first == 'Balkspecifikation' -%}
+                  {%- assign existing_beam_config = property.last -%}
+                  {%- break -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+          
           <script>
             // Initialize calculation on page load for this specific section
             document.addEventListener('DOMContentLoaded', function() {
-              updateBalkTotalQuantity('{{ section_id }}');
+              // Check for existing beam configuration and prepopulate
+              const existingConfig = {{ existing_beam_config | json }};
+              const existingQuantity = {{ existing_cart_quantity }};
+              
+              if (existingConfig && existingConfig.trim()) {
+                prepopulateBeamConfig('{{ section_id }}', existingConfig, existingQuantity);
+              } else {
+                updateBalkTotalQuantity('{{ section_id }}');
+              }
               
               // Also listen for any quantity changes and re-disable buttons
               const quantityInput = document.getElementById('Quantity-{{ section_id }}');
