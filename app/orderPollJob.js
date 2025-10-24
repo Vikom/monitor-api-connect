@@ -458,52 +458,43 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       let subRowContent = null;
       
       // Look for beam-related properties in customAttributes (Balk configuration)
-      const beamProperties = {};
+      // Now simplified to just look for Balkspecifikation with pipe-separated format
       let beamSummary = null;
       
       if (lineItem.customAttributes && Array.isArray(lineItem.customAttributes)) {
         lineItem.customAttributes.forEach(attr => {
-          if (attr.key.startsWith('Längd ') || attr.key.startsWith('Antal ')) {
-            beamProperties[attr.key] = attr.value;
-          } else if (attr.key === 'Balkspecifikation') {
+          if (attr.key === 'Balkspecifikation') {
             beamSummary = attr.value;
           }
         });
       }
       
-      console.log(`    🔧 Beam properties for line item ${lineItem.id}:`, beamProperties);
       console.log(`    🔧 Beam summary: ${beamSummary || 'none'}`);
       
-      // If we have beam properties, build SubRowContent
-      if (Object.keys(beamProperties).length > 0) {
+      // If we have beam specification, build SubRowContent from the pipe-separated format
+      if (beamSummary) {
         const subRowLines = [];
         
-        // Group properties by row number (Längd 1, Antal 1, etc.)
-        const rowGroups = {};
-        Object.keys(beamProperties).forEach(key => {
-          const lengthMatch = key.match(/^Längd (\d+)$/);
-          const countMatch = key.match(/^Antal (\d+)$/);
-          
-          if (lengthMatch) {
-            const rowNum = lengthMatch[1];
-            if (!rowGroups[rowNum]) rowGroups[rowNum] = {};
-            rowGroups[rowNum].length = beamProperties[key];
-          } else if (countMatch) {
-            const rowNum = countMatch[1];
-            if (!rowGroups[rowNum]) rowGroups[rowNum] = {};
-            rowGroups[rowNum].count = beamProperties[key];
-          }
-        });
+        // Parse the pipe-separated format: "3×5,5m | 1×8,4m"
+        const beamParts = beamSummary.split(' | ');
         
-        // Build SubRowContent for each row
-        Object.keys(rowGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(rowNum => {
-          const row = rowGroups[rowNum];
-          if (row.length && row.count) {
-            subRowLines.push(`Antal ${rowNum}:\t${row.count},00 st`);
-            // Convert length from meters to millimeters and format with Swedish comma
-            const lengthInM = parseFloat(row.length.replace(',', '.'));
+        beamParts.forEach((part, index) => {
+          const rowNum = index + 1;
+          
+          // Parse each part: "3×5,5m" -> count=3, length=5,5m
+          const match = part.trim().match(/^(\d+)×([\d,]+)m$/);
+          if (match) {
+            const count = match[1];
+            const lengthStr = match[2]; // Already in Swedish format with comma
+            
+            subRowLines.push(`Antal ${rowNum}:\t${count},00 st`);
+            
+            // Convert length from meters to millimeters and keep Swedish comma format
+            const lengthInM = parseFloat(lengthStr.replace(',', '.'));
             const lengthInMm = (lengthInM * 1000).toFixed(2).replace('.', ',');
             subRowLines.push(`Längd ${rowNum}:\t${lengthInMm} mm`);
+          } else {
+            console.warn(`    ⚠️ Could not parse beam part: "${part}"`);
           }
         });
         
