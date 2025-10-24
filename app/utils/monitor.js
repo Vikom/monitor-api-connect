@@ -119,7 +119,8 @@ class MonitorClient {
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
       url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
-      url += '&$filter=Status eq 4 OR Status eq 6'; // Include Active and Inactive products
+      // url += '&$filter=Status eq 4 OR Status eq 6'; // Include Active and Inactive products
+      url += '&$filter=BlockedStatus Neq 2 and Status Le 6 and Status Ge 4'; // Correct filter
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
         headers: {
@@ -322,7 +323,7 @@ class MonitorClient {
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
     
     // Build filter - base filter for active parts
-    let filter = `BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
+    let filter = `BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`; // Correct filter
     
     // Add specific part ID filter if provided (for debugging specific parts)
     if (specificPartId) {

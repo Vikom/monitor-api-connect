@@ -402,14 +402,23 @@
                                       {%- endif -%}
                                     {%- endif -%}
                                     
-                                    <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
+                                    {%- comment -%} Check if this item is in the beam collection {%- endcomment -%}
+                                    {%- assign is_beam_product = false -%}
+                                    {%- for collection in item.product.collections -%}
+                                      {%- if collection.id == 650179477838 -%}
+                                        {%- assign is_beam_product = true -%}
+                                        {%- break -%}
+                                      {%- endif -%}
+                                    {%- endfor -%}
+                                    
+                                    <quantity-input class="cart-quantity quantity{% if is_beam_product %} beam-config-disabled{% endif %}" data-is-decimal="{{ is_decimal_unit }}">
                                       <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
-                                      <button type="button" name="minus" class="quantity__button" aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
+                                      <button type="button" name="minus" class="quantity__button{% if is_beam_product %} opacity-50 cursor-not-allowed{% endif %}"{% if is_beam_product %} disabled{% endif %} aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
                                         <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                                           <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                       </button>
-                                      <input class="quantity__input"
+                                      <input class="quantity__input{% if is_beam_product %} opacity-75 cursor-not-allowed{% endif %}"
                                         {% if is_decimal_unit %}type="text"{% else %}type="number"{% endif %}
                                         {% if is_decimal_unit %}
                                           name="quantity_decimal_{{ item.variant.id }}"
@@ -457,8 +466,11 @@
                                             max="{{ item.variant.quantity_rule.max }}"
                                           {% endif %}
                                         {% endif %}
+                                        {% if is_beam_product %}
+                                          disabled
+                                        {% endif %}
                                       />
-                                      <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
+                                      <button type="button" name="plus" class="quantity__button{% if is_beam_product %} opacity-50 cursor-not-allowed{% endif %}"{% if is_beam_product %} disabled{% endif %} aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
                                         <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                                           <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                           <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -469,6 +481,8 @@
                                     {% if quantity_unit != blank and quantity_unit != 'items' %}
                                       <span class="quantity-unit">{{ quantity_unit }}</span>  
                                     {% endif %}
+                                    
+
                                   {%- else -%}
                                     <div class="cart-quantity quantity cart-quantity-gift-wrap">
                                       <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
@@ -661,14 +675,23 @@
                                   {%- endif -%}
                                 {%- endif -%}
                                 
-                                <quantity-input class="cart-quantity quantity" data-is-decimal="{{ is_decimal_unit }}">
+                                {%- comment -%} Check if this item is in the beam collection {%- endcomment -%}
+                                {%- assign is_beam_product = false -%}
+                                {%- for collection in item.product.collections -%}
+                                  {%- if collection.id == 650179477838 -%}
+                                    {%- assign is_beam_product = true -%}
+                                    {%- break -%}
+                                  {%- endif -%}
+                                {%- endfor -%}
+                                
+                                <quantity-input class="cart-quantity quantity{% if is_beam_product %} beam-config-disabled{% endif %}" data-is-decimal="{{ is_decimal_unit }}">
                                   <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
-                                  <button type="button" name="minus" class="quantity__button" aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
+                                  <button type="button" name="minus" class="quantity__button{% if is_beam_product %} opacity-50 cursor-not-allowed{% endif %}"{% if is_beam_product %} disabled{% endif %} aria-label="{{ 'products.product.quantity.decrease' | t: product: item.product.title | escape }}">
                                     <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                                       <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                     </svg>
                                   </button>
-                                  <input class="quantity__input"
+                                  <input class="quantity__input{% if is_beam_product %} opacity-75 cursor-not-allowed{% endif %}"
                                     {% if is_decimal_unit %}type="text"{% else %}type="number"{% endif %}
                                     {% if is_decimal_unit %}
                                       name="quantity_decimal_{{ item.variant.id }}"
@@ -716,8 +739,11 @@
                                         max="{{ item.variant.quantity_rule.max }}"
                                       {% endif %}
                                     {% endif %}
+                                    {% if is_beam_product %}
+                                      disabled
+                                    {% endif %}
                                   />
-                                  <button type="button" name="plus" class="quantity__button" aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
+                                  <button type="button" name="plus" class="quantity__button{% if is_beam_product %} opacity-50 cursor-not-allowed{% endif %}"{% if is_beam_product %} disabled{% endif %} aria-label="{{ 'products.product.quantity.increase' | t: product: item.product.title | escape }}">
                                     <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                                       <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                       <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -728,6 +754,8 @@
                                 {% if quantity_unit != blank and quantity_unit != 'items' %}
                                   <span class="quantity-unit">{{ quantity_unit }}</span>
                                 {% endif %}
+                                
+
                               {%- else -%}
                                 <div class="cart-quantity quantity cart-quantity-gift-wrap">
                                   <label class="visually-hidden" for="Quantity-{{ section.id }}-{{ item.index | plus: 1 }}">{{ 'products.product.quantity.label' | t }}</label>
@@ -1143,6 +1171,21 @@
 /* Show prices for f-price--loading elements when they're made visible via JS */
 .cart .price.f-price--loading {
   visibility: hidden !important;
+}
+
+/* Beam configuration disabled quantity controls */
+.beam-config-disabled .quantity__button:disabled {
+  pointer-events: none;
+}
+
+.beam-config-disabled .quantity__input:disabled {
+  pointer-events: none;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.beam-config-info {
+  font-size: 11px;
+  opacity: 0.8;
 }
 </style>
   {% if customer %}

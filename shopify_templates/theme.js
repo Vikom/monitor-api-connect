@@ -1273,6 +1273,11 @@ class QuantityInput extends HTMLElement {
   }
 
   validateQtyRules() {
+    // Skip validation for beam products - they have their own disabled state
+    if (this.classList.contains('beam-config-disabled')) {
+      return;
+    }
+    
     const isDecimal = this.input.dataset.decimal === 'true';
     let value;
     
