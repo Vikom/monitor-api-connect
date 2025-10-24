@@ -442,10 +442,10 @@ export async function action({ request }) {
           }
           
           if (lineItemProperties.length > 0) {
-            lineItem.custom_attributes = lineItemProperties;
-            console.log(`🟦 Final line item custom_attributes being added:`, lineItemProperties);
+            lineItem.properties = lineItemProperties;
+            console.log(`🟦 Final line item properties being added:`, lineItemProperties);
           } else {
-            console.log(`🟦 No custom_attributes to add to line item`);
+            console.log(`🟦 No properties to add to line item`);
           }
           
           console.log(`🟦 Complete line item being added to draft order:`, JSON.stringify(lineItem, null, 2));
