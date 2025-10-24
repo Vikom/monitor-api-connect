@@ -811,71 +811,61 @@
         </button>
         
         {%- if is_balk -%}
-          {%- comment -%} Check if this variant is already in cart {%- endcomment -%}
-          {%- assign variant_in_cart = false -%}
-          {%- for item in cart.items -%}
-            {%- if item.variant_id == product.selected_or_first_available_variant.id -%}
-              {%- assign variant_in_cart = true -%}
-              {%- break -%}
-            {%- endif -%}
-          {%- endfor -%}
+          {%- comment -%} Always render both message and calculator, JavaScript will control visibility {%- endcomment -%}
+          <div class="balk-in-cart-message" style="margin-top: 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; display: none;">
+            <p style="margin: 0; font-weight: bold; color: #333;">
+              Produkten är redan tillagd i varukorgen, ta bort den om du behöver ändra.
+            </p>
+          </div>
           
-          {%- if variant_in_cart -%}
-            <div class="balk-in-cart-message" style="margin-top: 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px;">
-              <p style="margin: 0; font-weight: bold; color: #333;">
-                Produkten är redan tillagd i varukorgen, ta bort den om du behöver ändra.
-              </p>
-            </div>
-          {%- else -%}
-            <div class="balk-custom-calculator" style="margin-top: 0;">
-              <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
-              <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <!-- Initial row -->
-                <div class="balk-row" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                  <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                    <label style="font-size: 0.875rem;">Antal</label>
-                    <input 
-                      type="number" 
-                      class="balk-antal" 
-                      min="1" 
-                      step="1"
-                      pattern="[0-9]*"
-                      value="1" 
-                      style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
-                      onchange="updateBalkTotalQuantity('{{ section_id }}')"
-                      oninput="updateBalkTotalQuantity('{{ section_id }}')"
-                      onkeypress="return event.charCode >= 48 && event.charCode <= 57"
-                    />
-                  </div>
-                  <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                    <label style="font-size: 0.875rem;">Längd</label>
-                    <input 
-                      type="text" 
-                      class="balk-langd" 
-                      value="1,0" 
-                      style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
-                      onchange="updateBalkTotalQuantity('{{ section_id }}')"
-                      oninput="updateBalkTotalQuantity('{{ section_id }}')"
-                      pattern="[0-9]+([,][0-9]+)?"
-                      title="Använd komma som decimalseparator (t.ex. 2,5)"
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    class="balk-add-row" 
-                    onclick="addBalkRow('{{ section_id }}')"
-                    style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
-                    title="Lägg till rad"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
-                      <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                      <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                    </svg>
-                  </button>
+          <div class="balk-custom-calculator" style="margin-top: 0;">
+            <p style="margin-bottom: 0.5rem; font-weight: bold;">Välj antal och längder</p>
+            <div id="balk-rows-{{ section_id }}" style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <!-- Initial row -->
+              <div class="balk-row" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <label style="font-size: 0.875rem;">Antal</label>
+                  <input 
+                    type="number" 
+                    class="balk-antal" 
+                    min="1" 
+                    step="1"
+                    pattern="[0-9]*"
+                    value="1" 
+                    style="width: 70px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
+                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                    onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                  />
                 </div>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <label style="font-size: 0.875rem;">Längd</label>
+                  <input 
+                    type="text" 
+                    class="balk-langd" 
+                    value="1,0" 
+                    style="width: 80px; padding: 1rem; border: 1px solid #ccc; border-radius: 20px;"
+                    onchange="updateBalkTotalQuantity('{{ section_id }}')"
+                    oninput="updateBalkTotalQuantity('{{ section_id }}')"
+                    pattern="[0-9]+([,][0-9]+)?"
+                    title="Använd komma som decimalseparator (t.ex. 2,5)"
+                  />
+                </div>
+                <button 
+                  type="button" 
+                  class="balk-add-row" 
+                  onclick="addBalkRow('{{ section_id }}')"
+                  style="margin-top: 1.25rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 20px; background: #f8f9fa; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;"
+                  title="Lägg till rad"
+                >
+                  <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+                    <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                  </svg>
+                </button>
               </div>
             </div>
-          {%- endif -%}          {%- comment -%} Build variant-to-cart mapping for all beam products in cart {%- endcomment -%}
+          </div>          {%- comment -%} Build variant-to-cart mapping for all beam products in cart {%- endcomment -%}
           <script type="application/json" id="beam-cart-data-{{ section_id }}">
             {
               {% for item in cart.items %}
@@ -899,12 +889,40 @@
               
               const cartData = beamCartData[variantId];
               const rowsContainer = document.getElementById('balk-rows-{{ section_id }}');
+              const submitButton = document.getElementById('ProductSubmitButton-{{ section_id }}');
+              const buttonText = submitButton ? submitButton.querySelector('.btn__text') : null;
+              const calculatorContainer = document.querySelector('.balk-custom-calculator');
+              const inCartMessage = document.querySelector('.balk-in-cart-message');
               
-              if (cartData && cartData.config && cartData.config.trim()) {
-                console.log('✅ Found beam config for variant in cart:', cartData.config);
+              // Check if this variant is in cart
+              const variantInCart = cartData && cartData.config && cartData.config.trim();
+              
+              // Update button state and text
+              if (submitButton && buttonText) {
+                if (variantInCart) {
+                  submitButton.disabled = true;
+                  buttonText.textContent = 'Redan i varukorg';
+                } else {
+                  submitButton.disabled = false;
+                  buttonText.textContent = '{{ 'products.product.add_to_cart' | t }}';
+                }
+              }
+              
+              // Show/hide calculator vs. message
+              if (calculatorContainer && inCartMessage) {
+                if (variantInCart) {
+                  calculatorContainer.style.display = 'none';
+                  inCartMessage.style.display = 'block';
+                } else {
+                  calculatorContainer.style.display = 'block';
+                  inCartMessage.style.display = 'none';
+                }
+              }
+              
+              // Update beam configuration
+              if (variantInCart) {
                 prepopulateBeamConfig('{{ section_id }}', cartData.config, cartData.quantity);
               } else {
-                console.log('🔧 No beam config found for variant, using defaults');
                 // Reset to default values
                 if (rowsContainer) {
                   // Clear all but first row
@@ -939,7 +957,6 @@
                 if (event.target.name === 'id' || event.target.matches('[data-variant-id]')) {
                   const variantId = event.target.value || event.target.dataset.variantId;
                   if (variantId) {
-                    console.log('🔧 Form change detected for variant:', variantId);
                     updateBeamConfigForVariant(variantId);
                   }
                 }
@@ -948,7 +965,6 @@
               // Also listen for custom variant change events
               document.addEventListener('variant:change', function(event) {
                 if (event.detail && event.detail.variant) {
-                  console.log('🔧 Variant change event:', event.detail.variant.id);
                   updateBeamConfigForVariant(event.detail.variant.id);
                 }
               });
