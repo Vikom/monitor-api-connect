@@ -1514,6 +1514,9 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Create items array with corrected decimal quantities
           const items = cart.items.map((item, index) => {
+            console.log(`🛒 Main cart - Processing cart item ${item.variant_id}:`, item);
+            console.log(`🛒 Main cart - Item properties:`, item.properties);
+            
             let actualQuantity = item.quantity;
             
             // Check if this is a decimal product using same logic as Liquid template
@@ -1538,11 +1541,16 @@ document.addEventListener('DOMContentLoaded', () => {
               console.log(`Converting decimal quantity for ${item.variant_id}: ${item.quantity} -> ${actualQuantity} ${itemMetafields.standardUnit}`);
             }
             
-            return {
+            const itemForAPI = {
               variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
               quantity: actualQuantity,
               properties: item.properties || {}
             };
+            
+            console.log(`🛒 Main cart - Item being sent to API:`, itemForAPI);
+            console.log(`🛒 Main cart - Properties being sent:`, itemForAPI.properties);
+            
+            return itemForAPI;
           });
           
           // Get customer's price list ID from the first cart item's metafields

@@ -1419,6 +1419,9 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Create items array with corrected decimal quantities (original working logic)
           const items = cart.items.map(item => {
+            console.log(`🛒 Processing cart item ${item.variant_id}:`, item);
+            console.log(`🛒 Item properties:`, item.properties);
+            
             let actualQuantity = item.quantity;
             const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
             if (quantityInput) {
@@ -1429,11 +1432,17 @@ document.addEventListener('DOMContentLoaded', () => {
               const conversionFactor = 1 / stepSize;
               actualQuantity = item.quantity / conversionFactor;
             }
-            return {
+            
+            const itemForAPI = {
               variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
               quantity: actualQuantity,
               properties: item.properties || {}
             };
+            
+            console.log(`🛒 Item being sent to API:`, itemForAPI);
+            console.log(`🛒 Properties being sent:`, itemForAPI.properties);
+            
+            return itemForAPI;
           });
           
           // Get customer's price list ID from the first cart item's metafields (same as main cart)
@@ -1553,8 +1562,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const cartResponse = await fetch('/cart.js');
             const cart = await cartResponse.json();
             
+            console.log('🛒 Document interceptor - Full cart object:', cart);
+            console.log('🛒 Document interceptor - Cart items:', cart.items);
+            
             // Create items array with corrected decimal quantities (original working logic)
             const items = cart.items.map(item => {
+              console.log(`🛒 Document interceptor - Processing cart item ${item.variant_id}:`, item);
+              console.log(`🛒 Document interceptor - Item properties:`, item.properties);
+              
               let actualQuantity = item.quantity;
               const quantityInput = document.querySelector(`li[data-variant-id="${item.variant_id}"] input[data-decimal="true"]`);
               if (quantityInput) {
@@ -1565,10 +1580,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const conversionFactor = 1 / stepSize;
                 actualQuantity = item.quantity / conversionFactor;
               }
-              return {
+              
+              const itemForAPI = {
                 variantId: `gid://shopify/ProductVariant/${item.variant_id}`,
-                quantity: actualQuantity
+                quantity: actualQuantity,
+                properties: item.properties || {}
               };
+              
+              console.log(`🛒 Document interceptor - Item being sent to API:`, itemForAPI);
+              console.log(`🛒 Document interceptor - Properties being sent:`, itemForAPI.properties);
+              
+              return itemForAPI;
             });
             
             // Get customer's price list ID from the first cart item's metafields

@@ -316,7 +316,10 @@ export async function action({ request }) {
           standardUnit: standardUnit || 'st',
           isDecimalUnit: isDecimalUnit,
           imageUrl: imageUrl,
-          imageAlt: imageAlt
+          imageAlt: imageAlt,
+          // Add beam properties to the line item so they can be accessed later
+          beamProperties: beamProperties,
+          beamSummary: beamSummary
         });
         
         console.log(`🟦 Added line item: variant ${variantId}, API quantity ${apiQuantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
@@ -412,20 +415,47 @@ export async function action({ request }) {
           
           // Add beam properties if they exist in the item properties
           console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.properties || {}));
+          console.log(`🟦 Checking for beam properties stored in line item object:`, item.beamProperties);
+          
+          // Also check for beam properties that were extracted earlier in the processing
+          // (they might not be in item.properties anymore but were stored as beamProperties variable)
+          // First, try to get beam properties from current item.properties
+          let beamPropertiesToAdd = {};
           if (item.properties && typeof item.properties === 'object') {
             Object.keys(item.properties).forEach(key => {
               console.log(`🟦 Checking property key: ${key}, starts with Längd: ${key.startsWith('Längd ')}, starts with Antal: ${key.startsWith('Antal ')}, is Balkspecifikation: ${key === 'Balkspecifikation'}`);
               if (key.startsWith('Längd ') || key.startsWith('Antal ') || key === 'Balkspecifikation') {
-                lineItemProperties.push({
-                  name: key,
-                  value: item.properties[key]
-                });
-                console.log(`🟦 ✅ Added beam property to line item: ${key} = ${item.properties[key]}`);
+                beamPropertiesToAdd[key] = item.properties[key];
               }
             });
           } else {
             console.log(`🟦 No properties found on item or properties is not an object. Type:`, typeof item.properties);
+            
+            // Try to get beam properties from the line item object where they were stored
+            if (item.beamProperties && typeof item.beamProperties === 'object') {
+              console.log(`🟦 Found beam properties in line item object:`, item.beamProperties);
+              beamPropertiesToAdd = { ...item.beamProperties };
+              
+              // Also add beam summary if available
+              if (item.beamSummary) {
+                beamPropertiesToAdd['Balkspecifikation'] = item.beamSummary;
+              }
+            }
           }
+          
+          // If we don't have beam properties from either source, log for debugging
+          if (Object.keys(beamPropertiesToAdd).length === 0) {
+            console.log(`🟦 No beam properties found in item.properties or item.beamProperties`);
+          }
+          
+          // Add the beam properties to line item properties
+          Object.keys(beamPropertiesToAdd).forEach(key => {
+            lineItemProperties.push({
+              name: key,
+              value: beamPropertiesToAdd[key]
+            });
+            console.log(`🟦 ✅ Added beam property to line item: ${key} = ${beamPropertiesToAdd[key]}`);
+          });
           
           // Add image information as properties
           if (item.imageUrl) {
