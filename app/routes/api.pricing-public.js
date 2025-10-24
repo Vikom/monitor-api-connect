@@ -139,7 +139,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
     }
     
     const prices = await res.json();
-    console.log(`Price list API response for part ${partId}, price list ${priceListId}:`, prices);
+    // console.log(`Price list API response for part ${partId}, price list ${priceListId}:`, prices);
     
     if (!Array.isArray(prices)) {
       console.log(`Price list response is not an array`);
