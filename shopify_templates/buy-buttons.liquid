@@ -238,7 +238,7 @@
           console.log('🔧 Found beam config to add as properties:', beamConfig);
           
           // Remove any existing beam properties from this form to avoid duplicates
-          const existingBeamProperties = form.querySelectorAll('input[name*="properties[balk_"], input[name="properties[Balkspecifikation]"]');
+          const existingBeamProperties = form.querySelectorAll('input[name*="properties[Längd "], input[name*="properties[Antal "], input[name="properties[Balkspecifikation]"]');
           existingBeamProperties.forEach(prop => {
             console.log('🔧 Removing existing beam property:', prop.name);
             prop.remove();
@@ -246,21 +246,21 @@
           
           // Add beam configuration as hidden line item properties
           beamConfig.selected.forEach((item, index) => {
-            // Add length property
+            // Add length property with simpler naming
             const lengthInput = document.createElement('input');
             lengthInput.type = 'hidden';
-            lengthInput.name = `properties[balk_length_${index + 1}]`;
+            lengthInput.name = `properties[Längd ${index + 1}]`;
             lengthInput.value = item.length.replace('.', ','); // Swedish format
             form.appendChild(lengthInput);
             
-            // Add count property
+            // Add count property with simpler naming
             const countInput = document.createElement('input');
             countInput.type = 'hidden';
-            countInput.name = `properties[balk_count_${index + 1}]`;
+            countInput.name = `properties[Antal ${index + 1}]`;
             countInput.value = item.count;
             form.appendChild(countInput);
             
-            console.log(`🔧 Added balk properties ${index + 1}: length=${item.length}, count=${item.count}`);
+            console.log(`🔧 Added balk properties ${index + 1}: Längd ${index + 1}=${item.length}, Antal ${index + 1}=${item.count}`);
           });
           
           // Add summary property for easy reading

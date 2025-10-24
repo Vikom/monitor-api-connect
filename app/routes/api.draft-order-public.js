@@ -185,9 +185,9 @@ export async function action({ request }) {
         
         console.log(`🟦 All properties for variant ${variantId}:`, itemBeamData);
         
-        // Extract beam-related properties
+        // Extract beam-related properties (now using Swedish names)
         Object.keys(itemBeamData).forEach(key => {
-          if (key.startsWith('balk_')) {
+          if (key.startsWith('Längd ') || key.startsWith('Antal ')) {
             beamProperties[key] = itemBeamData[key];
           }
         });
@@ -414,8 +414,8 @@ export async function action({ request }) {
           console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.properties || {}));
           if (item.properties && typeof item.properties === 'object') {
             Object.keys(item.properties).forEach(key => {
-              console.log(`🟦 Checking property key: ${key}, starts with balk_: ${key.startsWith('balk_')}, is Balkspecifikation: ${key === 'Balkspecifikation'}`);
-              if (key.startsWith('balk_') || key === 'Balkspecifikation') {
+              console.log(`🟦 Checking property key: ${key}, starts with Längd: ${key.startsWith('Längd ')}, starts with Antal: ${key.startsWith('Antal ')}, is Balkspecifikation: ${key === 'Balkspecifikation'}`);
+              if (key.startsWith('Längd ') || key.startsWith('Antal ') || key === 'Balkspecifikation') {
                 lineItemProperties.push({
                   name: key,
                   value: item.properties[key]

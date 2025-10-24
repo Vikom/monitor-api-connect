@@ -463,7 +463,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       
       if (lineItem.customAttributes && Array.isArray(lineItem.customAttributes)) {
         lineItem.customAttributes.forEach(attr => {
-          if (attr.key.startsWith('balk_')) {
+          if (attr.key.startsWith('Längd ') || attr.key.startsWith('Antal ')) {
             beamProperties[attr.key] = attr.value;
           } else if (attr.key === 'Balkspecifikation') {
             beamSummary = attr.value;
@@ -478,14 +478,20 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       if (Object.keys(beamProperties).length > 0) {
         const subRowLines = [];
         
-        // Group properties by row number (balk_length_1, balk_count_1, etc.)
+        // Group properties by row number (Längd 1, Antal 1, etc.)
         const rowGroups = {};
         Object.keys(beamProperties).forEach(key => {
-          const match = key.match(/^balk_(length|count)_(\d+)$/);
-          if (match) {
-            const [, type, rowNum] = match;
+          const lengthMatch = key.match(/^Längd (\d+)$/);
+          const countMatch = key.match(/^Antal (\d+)$/);
+          
+          if (lengthMatch) {
+            const rowNum = lengthMatch[1];
             if (!rowGroups[rowNum]) rowGroups[rowNum] = {};
-            rowGroups[rowNum][type] = beamProperties[key];
+            rowGroups[rowNum].length = beamProperties[key];
+          } else if (countMatch) {
+            const rowNum = countMatch[1];
+            if (!rowGroups[rowNum]) rowGroups[rowNum] = {};
+            rowGroups[rowNum].count = beamProperties[key];
           }
         });
         
