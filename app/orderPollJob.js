@@ -499,7 +499,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         });
         
         if (subRowLines.length > 0) {
-          subRowContent = subRowLines.join('\n');
+          subRowContent = subRowLines.join('\r\n');
           console.log(`    📏 Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
         }
       }
