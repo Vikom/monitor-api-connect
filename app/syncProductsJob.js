@@ -221,6 +221,16 @@ async function generateMetafieldsForVariation(variation) {
     });
   }
 
+  // Add outlet metafield if ProductGroup is 1229581166640460381
+  if (variation.productGroupId === "1229581166640460381") {
+    metafields.push({
+      namespace: "custom",
+      key: "outlet",
+      value: "true",
+      type: "boolean"
+    });
+  }
+
   // Fetch ARTFSC data if the variation has the ARTFSC field
   if (variation.hasARTFSC) {
     try {
@@ -418,12 +428,12 @@ export async function syncProducts(isIncrementalSync = false) {
       }
       
       // Check if any variation has status = 6 (outlet), add outlet collection as last collection
-      const hasOutletVariant = variations.some(variation => variation.status === 6);
+      /*const hasOutletVariant = variations.some(variation => variation.status === 6);
       if (hasOutletVariant) {
         const outletCollectionId = "gid://shopify/Collection/651232051534";
         console.log(`  🏷️  Product has outlet variant (status=6), adding to outlet collection`);
         collectionIds.push(outletCollectionId);
-      }
+      }*/
       
       // Check if product already exists in Shopify by productName
       let existingProduct;
@@ -540,11 +550,11 @@ export async function syncProducts(isIncrementalSync = false) {
           }
           
           // Check if any variation has status = 6 (outlet), add outlet collection as last collection
-          const hasOutletVariant = variations.some(variation => variation.status === 6);
+          /*const hasOutletVariant = variations.some(variation => variation.status === 6);
           if (hasOutletVariant) {
             const outletCollectionId = "gid://shopify/Collection/651232051534";
             collectionIds.push(outletCollectionId);
-          }
+          }*/
           
           // Check if product already exists in Shopify by productName
           const existingProduct = await findExistingProductByName(shop, accessToken, productName);

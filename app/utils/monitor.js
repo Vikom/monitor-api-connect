@@ -103,11 +103,6 @@ class MonitorClient {
     return sessionId;
   }
 
-  /**
-   * Should we first filter by ExtraFields value like this:
-   * https://185.186.56.206:8001/sv/008_3.1/api/v1/Common/ExtraFields?$filter=Identifier eq 'ARTWEBAKTIV'
-   */
-
   async fetchProducts() {
     const sessionId = await this.getSessionId();
     let allProducts = [];
@@ -119,8 +114,7 @@ class MonitorClient {
       url += `?$top=${pageSize}`;
       url += `&$skip=${skip}`;
       url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
-      // url += '&$filter=Status eq 4 OR Status eq 6'; // Include Active and Inactive products
-      url += '&$filter=BlockedStatus Neq 2 and Status Le 6 and Status Ge 4'; // Correct filter
+      url += '&$filter=BlockedStatus Neq 2 and Status Le 6 and Status Ge 4';
       url += '&$expand=ExtraFields,ProductGroup,PartCode';
       let res = await fetch(url, {
         headers: {
@@ -186,8 +180,7 @@ class MonitorClient {
 
     const sessionId = await this.getSessionId();
     console.log(`Fetching ${productIds.length} specific products by ID...`);
-    
-    // Build filter for specific IDs - OData $filter with multiple IDs
+
     const idFilter = productIds.map(id => `Id eq '${id}'`).join(' or ');
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
@@ -323,7 +316,7 @@ class MonitorClient {
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
     
     // Build filter - base filter for active parts
-    let filter = `BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`; // Correct filter
+    let filter = `BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
     
     // Add specific part ID filter if provided (for debugging specific parts)
     if (specificPartId) {
