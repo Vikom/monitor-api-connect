@@ -1,3 +1,17 @@
+/**
+ * PredictiveSearch - Enhanced with Swedish Character Normalization
+ * 
+ * This search component automatically handles Swedish characters (å, ä, ö) 
+ * by normalizing them to ASCII equivalents (a, a, o) for better search results.
+ * This allows users to find products regardless of whether they type "Limträ" or "Limtra".
+ * 
+ * Features:
+ * - Automatic normalization of Swedish characters å, ä, ö to a, a, o
+ * - Works with Shopify's predictive search API
+ * - SKU search with character normalization
+ * - Handles multi-word queries properly
+ * - Avoids URL encoding issues with complex search operators
+ */
 class PredictiveSearch extends HTMLElement {
   constructor() {
     super();
@@ -26,6 +40,30 @@ class PredictiveSearch extends HTMLElement {
       LOADING: 'btn--loading',
       SEARCH_OPEN: 'search-open',
     };
+  }
+
+  // Normalize search query to handle Swedish characters
+  normalizeSwedishChars(str) {
+    const charMap = {
+      'å': 'a', 'ä': 'a', 'ö': 'o',
+      'Å': 'A', 'Ä': 'A', 'Ö': 'O'
+    };
+    
+    return str.replace(/[åäöÅÄÖ]/g, match => charMap[match] || match);
+  }
+
+  // Create search terms - use normalized version when Swedish characters detected
+  createSearchTerms(query) {
+    const original = query.trim();
+    const normalized = this.normalizeSwedishChars(original);
+    
+    // If query contains Swedish characters, use normalized version for better results
+    if (original !== normalized) {
+      console.log(`Swedish chars detected: "${original}" -> searching with "${normalized}"`);
+      return normalized;
+    }
+    
+    return original;
   }
 
   get input() {
@@ -96,10 +134,10 @@ class PredictiveSearch extends HTMLElement {
 
   setupURL() {
     const url = new URL(`${FoxTheme.routes.shop_url}${FoxTheme.routes.predictive_search_url}`);
-    let search_term = this.getQuery();
+    let search_term = this.createSearchTerms(this.getQuery());
     
     if (this.searchProductTypes && this.searchProductTypes.value != '') {
-      search_term = `product_type:${this.searchProductTypes.value} AND ${encodeURIComponent(search_term)}`;
+      search_term = `product_type:${this.searchProductTypes.value} AND (${encodeURIComponent(search_term)})`;
     } else {
       search_term = encodeURIComponent(search_term);
     }
@@ -155,55 +193,60 @@ class PredictiveSearch extends HTMLElement {
   async searchProductsBySku(sku) {
     try {
       // Try multiple search strategies to find the product by SKU
+      // Also try with normalized Swedish characters for SKU-like searches
+      const normalizedSku = this.normalizeSwedishChars(sku);
+      const searchQueries = sku !== normalizedSku ? [sku, normalizedSku] : [sku];
       
-      // Strategy 1: Try sku: prefix
-      let searchUrl = new URL('/search', window.location.origin);
-      searchUrl.searchParams.set('q', `sku:${sku}`);
-      searchUrl.searchParams.set('type', 'product');
-      searchUrl.searchParams.set('options[prefix]', 'last');
-      
-      console.log('Fetching SKU from regular search (strategy 1 - sku:):', searchUrl.toString());
-      
-      let response = await fetch(searchUrl.toString());
-      if (response.ok) {
-        let html = await response.text();
-        let products = this.extractProductsFromSearchPage(html, 'sku: prefix');
-        if (products && products.length > 0) {
-          return products;
+      for (const searchSku of searchQueries) {
+        // Strategy 1: Try sku: prefix
+        let searchUrl = new URL('/search', window.location.origin);
+        searchUrl.searchParams.set('q', `sku:${searchSku}`);
+        searchUrl.searchParams.set('type', 'product');
+        searchUrl.searchParams.set('options[prefix]', 'last');
+        
+        console.log('Fetching SKU from regular search (strategy 1 - sku:):', searchUrl.toString());
+        
+        let response = await fetch(searchUrl.toString());
+        if (response.ok) {
+          let html = await response.text();
+          let products = this.extractProductsFromSearchPage(html, 'sku: prefix');
+          if (products && products.length > 0) {
+            return products;
+          }
         }
-      }
-      
-      // Strategy 2: Try without sku: prefix (just the SKU number)
-      searchUrl = new URL('/search', window.location.origin);
-      searchUrl.searchParams.set('q', sku);
-      searchUrl.searchParams.set('type', 'product');
-      searchUrl.searchParams.set('options[prefix]', 'last');
-      
-      console.log('Fetching SKU from regular search (strategy 2 - plain SKU):', searchUrl.toString());
-      
-      response = await fetch(searchUrl.toString());
-      if (response.ok) {
-        let html = await response.text();
-        let products = this.extractProductsFromSearchPage(html, 'plain SKU');
-        if (products && products.length > 0) {
-          return products;
+        
+        // Strategy 2: Try without sku: prefix (just the SKU number)
+        searchUrl = new URL('/search', window.location.origin);
+        searchUrl.searchParams.set('q', searchSku);
+        searchUrl.searchParams.set('type', 'product');
+        searchUrl.searchParams.set('options[prefix]', 'last');
+        
+        console.log('Fetching SKU from regular search (strategy 2 - plain SKU):', searchUrl.toString());
+        
+        response = await fetch(searchUrl.toString());
+        if (response.ok) {
+          let html = await response.text();
+          let products = this.extractProductsFromSearchPage(html, 'plain SKU');
+          if (products && products.length > 0) {
+            return products;
+          }
         }
-      }
-      
-      // Strategy 3: Try with variant_sku: prefix
-      searchUrl = new URL('/search', window.location.origin);
-      searchUrl.searchParams.set('q', `variant_sku:${sku}`);
-      searchUrl.searchParams.set('type', 'product');
-      searchUrl.searchParams.set('options[prefix]', 'last');
-      
-      console.log('Fetching SKU from regular search (strategy 3 - variant_sku:):', searchUrl.toString());
-      
-      response = await fetch(searchUrl.toString());
-      if (response.ok) {
-        let html = await response.text();
-        let products = this.extractProductsFromSearchPage(html, 'variant_sku: prefix');
-        if (products && products.length > 0) {
-          return products;
+        
+        // Strategy 3: Try with variant_sku: prefix
+        searchUrl = new URL('/search', window.location.origin);
+        searchUrl.searchParams.set('q', `variant_sku:${searchSku}`);
+        searchUrl.searchParams.set('type', 'product');
+        searchUrl.searchParams.set('options[prefix]', 'last');
+        
+        console.log('Fetching SKU from regular search (strategy 3 - variant_sku:):', searchUrl.toString());
+        
+        response = await fetch(searchUrl.toString());
+        if (response.ok) {
+          let html = await response.text();
+          let products = this.extractProductsFromSearchPage(html, 'variant_sku: prefix');
+          if (products && products.length > 0) {
+            return products;
+          }
         }
       }
       
@@ -475,7 +518,8 @@ class PredictiveSearch extends HTMLElement {
 
   renderSectionFromCache(url) {
     const responseText = this.cachedMap.get(url);
-    this.renderSearchResults(responseText), this.setAttribute('results', '');
+    this.renderSearchResults(responseText);
+    this.setAttribute('results', '');
   }
 
   renderSectionFromFetch(url) {
