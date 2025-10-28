@@ -246,6 +246,7 @@ class CartItems extends HTMLElement {
   }
 
   updateQuantity(line, quantity, name, target) {
+    console.log('🔧 CartItems.updateQuantity called - line:', line, 'quantity:', quantity, 'name:', name);
     this.showLoader(line);
 
     let sectionsToBundle = [];
@@ -256,6 +257,8 @@ class CartItems extends HTMLElement {
     // Handle decimal quantities - convert to integer for Shopify API
     let apiQuantity = quantity;
     const isDecimalInput = target && target.dataset.decimal === 'true';
+    
+    console.log('🔧 Cart quantity update - original quantity:', quantity, 'target decimal attr:', target?.dataset?.decimal, 'isDecimalInput:', isDecimalInput);
     
     if (isDecimalInput) {
       // Parse Swedish decimal format and convert to integer for Shopify API
