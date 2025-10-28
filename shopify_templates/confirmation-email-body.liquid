@@ -410,7 +410,7 @@
             {% endfor %}
           {% endif %}
 
-            {% if line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"] %}
+            {% if (line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"]) or (line.properties and line.properties.size > 0) %}
               {% for property in line.properties %}
   {% assign property_first_char = property.first | slice: 0 %}
   {% if property.last != blank and property_first_char != '_' %}
@@ -1037,7 +1037,7 @@
             {% endfor %}
           {% endif %}
 
-            {% if line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"] %}
+            {% if (line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"]) or (line.properties and line.properties.size > 0) %}
               {% for property in line.properties %}
   {% assign property_first_char = property.first | slice: 0 %}
   {% if property.last != blank and property_first_char != '_' %}
@@ -2253,7 +2253,7 @@
             {% endfor %}
           {% endif %}
 
-            {% if line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"] %}
+            {% if (line.gift_card and line.properties["__shopify_send_gift_card_to_recipient"]) or (line.properties and line.properties.size > 0) %}
               {% for property in line.properties %}
   {% assign property_first_char = property.first | slice: 0 %}
   {% if property.last != blank and property_first_char != '_' %}

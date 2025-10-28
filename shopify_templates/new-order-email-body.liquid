@@ -326,6 +326,15 @@
             <span class="order-list__item-variant">{{ line.selling_plan_allocation.selling_plan.name }}</span><br/>
           {% endif %}
 
+          {% if line.properties and line.properties.size > 0 %}
+            {% for property in line.properties %}
+              {% assign property_first_char = property.first | slice: 0 %}
+              {% if property.last != blank and property_first_char != '_' %}
+                <span class="order-list__item-variant">{{ property.first }}: {{ property.last }}</span><br/>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
           {% if line.refunded_quantity > 0 %}
             <span class="order-list__item-refunded">Återbetalad</span>
           {% endif %}
@@ -931,6 +940,15 @@
 
           {% if line.selling_plan_allocation %}
             <span class="order-list__item-variant">{{ line.selling_plan_allocation.selling_plan.name }}</span><br/>
+          {% endif %}
+
+          {% if line.properties and line.properties.size > 0 %}
+            {% for property in line.properties %}
+              {% assign property_first_char = property.first | slice: 0 %}
+              {% if property.last != blank and property_first_char != '_' %}
+                <span class="order-list__item-variant">{{ property.first }}: {{ property.last }}</span><br/>
+              {% endif %}
+            {% endfor %}
           {% endif %}
 
           {% if line.refunded_quantity > 0 %}
