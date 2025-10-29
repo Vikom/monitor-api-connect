@@ -62,24 +62,24 @@ async function runSyncJob(jobName, syncFunction, ...args) {
 // Set up all cron jobs for worker mode
 function setupCronJobs() {
   // Order polling every 5 minutes
-  // cron.schedule("*/5 * * * *", () => {
-  //   console.log("[ORDER-POLL] Checking for new orders...");
-  //   pollForNewOrders().catch((error) => {
-  //     console.error("[ORDER-POLL] ❌ Order polling failed:", error);
-  //   });
-  // });
+  cron.schedule("*/5 * * * *", () => {
+    console.log("[ORDER-POLL] Checking for new orders...");
+    pollForNewOrders().catch((error) => {
+      console.error("[ORDER-POLL] ❌ Order polling failed:", error);
+    });
+  });
 
   // Inventory sync daily at 23:00 Swedish time (22:00 UTC)
-  // cron.schedule("0 22 * * *", () => {
-  //   console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
-  //   runSyncJob("INVENTORY-SYNC", syncInventory);
-  // });
+  cron.schedule("0 22 * * *", () => {
+    console.log("[INVENTORY-SYNC] Running scheduled inventory sync...");
+    runSyncJob("INVENTORY-SYNC", syncInventory);
+  });
 
   // Product sync every hour (incremental)
-  // cron.schedule("0 * * * *", () => {
-  //   console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
-  //   runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
-  // });
+  cron.schedule("0 * * * *", () => {
+    console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
+    runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
+  });
 
   // Customer sync every 10 minutes
   // cron.schedule("*/10 * * * *", () => { // 10 minutes after product sync to avoid conflicts
