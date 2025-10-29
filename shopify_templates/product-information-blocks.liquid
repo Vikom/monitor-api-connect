@@ -337,6 +337,10 @@
               product_id: product.id
             -%}
           </div>
+          {% else %}
+            <a href="{{ routes.account_url }}" name="login" class="product-form__submit btn btn--primary">
+              <span class="btn__text">Logga in för att handla</span>
+            </a>
           {%- endif -%}
         {%- when 'pickup_availability' -%}
           <div class="{{ block_classes }}" {{ block.shopify_attributes }}>
@@ -683,7 +687,7 @@
             {%- assign fsc = current_variant.metafields.custom.fsc_pefc -%}
             {%- if fsc != blank -%}
               <tr class="spec-row" data-spec="fsc">
-                <td class="spec-label"><strong>ARTF / FSC</strong></td>
+                <td class="spec-label"><strong>Certificering</strong></td>
                 <td class="spec-value" data-value="fsc">{{ fsc }}</td>
               </tr>
             {%- endif -%}
