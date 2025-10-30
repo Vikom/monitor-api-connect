@@ -1109,6 +1109,54 @@
                 updateBeamConfigForVariant(initialVariantInput.value);
               }
               
+              // Listen for cart updates to show message for beam products
+              document.addEventListener('cart:updated', function(event) {
+                console.log('🔧 cart:updated event received for beam products');
+                // Check if this is a beam product section
+                const sectionId = '{{ section_id }}';
+                const calculatorContainer = document.querySelector('.balk-custom-calculator');
+                const inCartMessage = document.querySelector('.balk-in-cart-message');
+                
+                // Get the current variant ID
+                const variantInput = document.querySelector('input[name="id"]');
+                if (!variantInput) {
+                  console.log('❌ No variant input found');
+                  return;
+                }
+                
+                const currentVariantId = parseInt(variantInput.value);
+                console.log('🔧 Checking variant ID:', currentVariantId);
+                
+                // Check if this variant was just added to cart
+                if (event.detail && event.detail.cart && event.detail.cart.items) {
+                  const isVariantInCart = event.detail.cart.items.some(item => item.variant_id === currentVariantId);
+                  console.log('🔧 Variant in cart:', isVariantInCart);
+                  
+                  if (isVariantInCart) {
+                    console.log('✅ Hiding calculator and showing message');
+                    // Hide calculator and show message
+                    if (calculatorContainer) {
+                      calculatorContainer.style.display = 'none';
+                    }
+                    if (inCartMessage) {
+                      inCartMessage.style.display = 'block';
+                    }
+                    
+                    // Disable the submit button and update text
+                    const submitButton = document.getElementById('ProductSubmitButton-{{ section_id }}');
+                    if (submitButton) {
+                      submitButton.disabled = true;
+                      const buttonText = submitButton.querySelector('.btn__text');
+                      if (buttonText) {
+                        buttonText.textContent = 'Redan i varukorg';
+                      }
+                    }
+                  }
+                } else {
+                  console.log('❌ No cart data in event');
+                }
+              });
+              
               // Listen for variant changes using the same approach as product-information-blocks
               document.addEventListener('change', function(event) {
                 if (event.target.name === 'id' || event.target.matches('[data-variant-id]')) {
