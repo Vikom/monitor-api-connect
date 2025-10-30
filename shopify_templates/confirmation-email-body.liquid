@@ -333,7 +333,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+          {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if line.variant.title != 'Default Title' and is_parent == false %}
             <span class="order-list__item-variant">{{ line.variant.title }}</span><br/>
@@ -405,7 +407,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -579,7 +583,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -984,7 +990,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if line.variant.title != 'Default Title' and is_parent == false %}
             <span class="order-list__item-variant">{{ line.variant.title }}</span><br/>
@@ -1056,7 +1064,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -1230,7 +1240,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -1868,7 +1880,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if component.variant.title != 'Default Title' and is_parent == false %}
             <span class="order-list__item-variant">{{ component.variant.title }}</span><br/>
@@ -1940,7 +1954,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -2114,7 +2130,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -2248,7 +2266,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if line.variant.title != 'Default Title' and is_parent == false %}
             <span class="order-list__item-variant">{{ line.variant.title }}</span><br/>
@@ -2320,7 +2340,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
@@ -2494,7 +2516,9 @@
               {% assign beam_config = property.last %}
             {% endif %}
           {% endfor %}
+                    {% if beam_config and beam_config != '' %}
           <div class="order-list__item-variant">Balkspecifikation: {{ beam_config }}</div>
+          {% endif %}
 
           {% if child_line.variant.title != 'Default Title'%}
             <span class="order-list__item-variant">{{ child_line.variant.title }}</span>
