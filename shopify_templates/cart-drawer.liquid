@@ -225,6 +225,26 @@
                                           <a href="{{ property.last }}" class="link" target="_blank" aria-describedby="a11y-new-window-message">
                                             {{- property.last | split: '/' | last -}}
                                           </a>
+                                        {%- elsif property.first == 'Balkspecifikation' -%}
+                                          {%- comment -%} Convert Balkspecifikation from meters to millimeters for display {%- endcomment -%}
+                                          {%- assign beam_specs = property.last | split: ' | ' -%}
+                                          {%- assign converted_specs = '' -%}
+                                          {%- for spec in beam_specs -%}
+                                            {%- assign spec_parts = spec | split: '×' -%}
+                                            {%- if spec_parts.size == 2 -%}
+                                              {%- assign antal = spec_parts[0] -%}
+                                              {%- assign meter_part = spec_parts[1] | remove: 'm' | replace: ',', '.' -%}
+                                              {%- assign meters = meter_part | times: 1.0 -%}
+                                              {%- assign millimeters = meters | times: 1000 | round: 0 -%}
+                                              {%- assign converted_spec = antal | append: '×' | append: millimeters | append: 'mm' -%}
+                                              {%- if converted_specs == '' -%}
+                                                {%- assign converted_specs = converted_spec -%}
+                                              {%- else -%}
+                                                {%- assign converted_specs = converted_specs | append: ' | ' | append: converted_spec -%}
+                                              {%- endif -%}
+                                            {%- endif -%}
+                                          {%- endfor -%}
+                                          {{- converted_specs -}}
                                         {%- else -%}
                                           {{- property.last -}}
                                         {%- endif -%}

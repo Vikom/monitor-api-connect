@@ -1109,7 +1109,7 @@
                 updateBeamConfigForVariant(initialVariantInput.value);
               }
               
-              // Listen for cart updates to show message for beam products
+              // Listen for cart updates to show/hide beam configuration based on cart state
               document.addEventListener('cart:updated', function(event) {
                 console.log('🔧 cart:updated event received for beam products');
                 // Check if this is a beam product section
@@ -1127,13 +1127,13 @@
                 const currentVariantId = parseInt(variantInput.value);
                 console.log('🔧 Checking variant ID:', currentVariantId);
                 
-                // Check if this variant was just added to cart
+                // Check if this variant is currently in cart
                 if (event.detail && event.detail.cart && event.detail.cart.items) {
                   const isVariantInCart = event.detail.cart.items.some(item => item.variant_id === currentVariantId);
                   console.log('🔧 Variant in cart:', isVariantInCart);
                   
                   if (isVariantInCart) {
-                    console.log('✅ Hiding calculator and showing message');
+                    console.log('✅ Variant found in cart - hiding calculator and showing message');
                     // Hide calculator and show message
                     if (calculatorContainer) {
                       calculatorContainer.style.display = 'none';
@@ -1151,6 +1151,40 @@
                         buttonText.textContent = 'Redan i varukorg';
                       }
                     }
+                  } else {
+                    console.log('✅ Variant not in cart - showing calculator and hiding message');
+                    // Show calculator and hide message (product was removed)
+                    if (calculatorContainer) {
+                      calculatorContainer.style.display = 'block';
+                    }
+                    if (inCartMessage) {
+                      inCartMessage.style.display = 'none';
+                    }
+                    
+                    // Enable the submit button and update text
+                    const submitButton = document.getElementById('ProductSubmitButton-{{ section_id }}');
+                    if (submitButton) {
+                      submitButton.disabled = false;
+                      const buttonText = submitButton.querySelector('.btn__text');
+                      if (buttonText) {
+                        buttonText.textContent = '{{ 'products.product.add_to_cart' | t }}';
+                      }
+                    }
+                    
+                    // Clear the beam configuration since the product is no longer in cart
+                    const selectionsContainer = document.getElementById('balk-selections-{{ section_id }}');
+                    if (selectionsContainer) {
+                      selectionsContainer.innerHTML = '';
+                    }
+                    
+                    // Reset input form
+                    const antalInput = document.getElementById('balk-antal-input-{{ section_id }}');
+                    const langdInput = document.getElementById('balk-langd-input-{{ section_id }}');
+                    if (antalInput) antalInput.value = '1';
+                    if (langdInput) langdInput.value = '0';
+                    
+                    // Update hidden rows and quantity
+                    updateHiddenRowsFromSelections('{{ section_id }}');
                   }
                 } else {
                   console.log('❌ No cart data in event');
