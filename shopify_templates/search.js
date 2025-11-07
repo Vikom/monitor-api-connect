@@ -52,18 +52,36 @@ class PredictiveSearch extends HTMLElement {
     return str.replace(/[åäöÅÄÖ]/g, match => charMap[match] || match);
   }
 
-  // Create search terms - use normalized version when Swedish characters detected
+  // Create search terms - handle Swedish characters and spaces for better predictive search
   createSearchTerms(query) {
     const original = query.trim();
-    const normalized = this.normalizeSwedishChars(original);
+    let processedQuery = this.normalizeSwedishChars(original);
     
-    // If query contains Swedish characters, use normalized version for better results
-    if (original !== normalized) {
-      console.log(`Swedish chars detected: "${original}" -> searching with "${normalized}"`);
-      return normalized;
+    // Handle spaces in predictive search
+    if (processedQuery.includes(' ')) {
+      const words = processedQuery.split(/\s+/).filter(word => word.length > 0);
+      
+      if (words.length > 1) {
+        // Check if the last word looks incomplete (short)
+        const lastWord = words[words.length - 1];
+        const isLastWordPartial = lastWord.length < 3;
+        
+        if (isLastWordPartial && words.length === 2) {
+          // For partial searches like "MDF S", use the first word and let Shopify handle prefix matching
+          processedQuery = words[0];
+          console.log(`Partial word detected: "${original}" -> searching with "${processedQuery}" (letting Shopify handle prefix matching)`);
+        } else {
+          // For multi-word queries, use the first word only since predictive search is strict
+          // This ensures we get results that can be refined by the user
+          processedQuery = words[0];
+          console.log(`Multi-word query detected: "${original}" -> searching with first word "${processedQuery}" (predictive search fallback)`);
+        }
+      }
+    } else if (original !== processedQuery) {
+      console.log(`Swedish chars detected: "${original}" -> searching with "${processedQuery}"`);
     }
     
-    return original;
+    return processedQuery;
   }
 
   get input() {
