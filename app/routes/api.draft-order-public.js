@@ -64,6 +64,35 @@ export async function action({ request }) {
     
     console.log(`🟦 Using private app credentials for ${shop}`);
     
+    // Convert custom domain to myshopify domain for API calls
+    let apiDomain = shop;
+    if (shop === 'sonsab.com') {
+      apiDomain = 'mdnjqg-qg.myshopify.com';
+      console.log(`🟦 Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
+    }
+    
+    // Test GraphQL connection first
+    const testQuery = `query { shop { name } }`;
+    const testResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: testQuery })
+    });
+    
+    const testData = await testResponse.json();
+    console.log(`🟦 GraphQL test query result:`, testData);
+    
+    if (!testResponse.ok || testData.errors) {
+      console.error(`🟦 GraphQL connection test failed:`, testData);
+      return json({ 
+        error: "GraphQL API connection failed", 
+        details: testData.errors || `HTTP ${testResponse.status}`
+      }, { status: 500, headers: corsHeaders() });
+    }
+    
     // Build line items with dynamic pricing
     const lineItems = [];
     
@@ -71,6 +100,7 @@ export async function action({ request }) {
       try {
         const { variantId, quantity, properties } = item;
         console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}, properties:`, properties);
+        console.log(`🟦 Variant ID type: ${typeof variantId}, length: ${variantId?.length}`);
         
         // Get variant details using GraphQL including image
         const variantQuery = `
@@ -125,7 +155,10 @@ export async function action({ request }) {
           }
         `;
         
-        const variantResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+        console.log(`🟦 Making GraphQL request for variant: ${variantId}`);
+        console.log(`🟦 GraphQL query variables:`, { id: variantId });
+        
+        const variantResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -137,11 +170,23 @@ export async function action({ request }) {
           })
         });
         
+        console.log(`🟦 GraphQL response status: ${variantResponse.status}`);
+        
+        if (!variantResponse.ok) {
+          const errorText = await variantResponse.text();
+          console.error(`🟦 GraphQL request failed: ${variantResponse.status} - ${errorText}`);
+          continue;
+        }
+        
         const variantData = await variantResponse.json();
+        console.log(`🟦 GraphQL Response for ${variantId}:`, JSON.stringify(variantData, null, 2));
+        
         const variant = variantData.data?.productVariant;
         
         if (!variant) {
           console.log(`🟦 Variant ${variantId} not found, skipping`);
+          console.log(`🟦 GraphQL errors:`, variantData.errors);
+          console.log(`🟦 Full response data:`, variantData.data);
           continue;
         }
         
@@ -202,7 +247,7 @@ export async function action({ request }) {
           }
         `;
         
-        const customerResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+        const customerResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -460,7 +505,7 @@ export async function action({ request }) {
     
     // console.log(`🟦 Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
     
-    const draftOrderResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/draft_orders.json`, {
+    const draftOrderResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/draft_orders.json`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -547,7 +592,7 @@ export async function action({ request }) {
         
         console.log('🟦 GraphQL mutation being sent:', metafieldMutation);
         
-        const metafieldResponse = await fetch(`https://${shop}/admin/api/${apiVersion}/graphql.json`, {
+        const metafieldResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
