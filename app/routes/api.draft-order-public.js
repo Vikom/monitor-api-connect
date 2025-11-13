@@ -180,17 +180,10 @@ export async function action({ request }) {
         
         // Check if this item has beam data in its properties (for Balk products)
         const itemBeamData = item.properties || {};
-        const beamProperties = {};
         const beamSummary = itemBeamData['Balkspecifikation'];
         
         console.log(`🟦 All properties for variant ${variantId}:`, itemBeamData);
-        
-        // Extract beam-related properties (now simplified to just Balkspecifikation)
-        // No need to extract individual Längd/Antal properties since we only use Balkspecifikation
         console.log(`🟦 Beam specification found: ${beamSummary || 'none'}`);
-        
-        console.log(`🟦 Extracted beam properties for variant ${variantId}:`, beamProperties);
-        console.log(`🟦 Beam summary: ${beamSummary || 'none'}`);
         
         // Get customer Monitor ID and discount category using GraphQL
         const customerQuery = `
@@ -314,9 +307,10 @@ export async function action({ request }) {
           isDecimalUnit: isDecimalUnit,
           imageUrl: imageUrl,
           imageAlt: imageAlt,
-          // Add beam properties to the line item so they can be accessed later
-          beamProperties: beamProperties,
-          beamSummary: beamSummary
+          // Store the beam summary for line item processing
+          beamSummary: beamSummary,
+          // Store original properties for access later
+          originalProperties: itemBeamData
         });
         
         console.log(`🟦 Added line item: variant ${variantId}, API quantity ${apiQuantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
@@ -411,15 +405,15 @@ export async function action({ request }) {
           }
           
           // Add beam properties if they exist (simplified to just Balkspecifikation)
-          console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.properties || {}));
+          console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.originalProperties || {}));
           console.log(`🟦 Checking for beam summary stored in line item object:`, item.beamSummary);
           
-          // Check for Balkspecifikation in item.properties or use the stored beamSummary
+          // Check for Balkspecifikation in originalProperties or use the stored beamSummary
           let balkspecifikation = null;
           
-          if (item.properties && item.properties['Balkspecifikation']) {
-            balkspecifikation = item.properties['Balkspecifikation'];
-            console.log(`🟦 Found Balkspecifikation in item.properties: ${balkspecifikation}`);
+          if (item.originalProperties && item.originalProperties['Balkspecifikation']) {
+            balkspecifikation = item.originalProperties['Balkspecifikation'];
+            console.log(`🟦 Found Balkspecifikation in originalProperties: ${balkspecifikation}`);
           } else if (item.beamSummary) {
             balkspecifikation = item.beamSummary;
             console.log(`🟦 Using stored beamSummary: ${balkspecifikation}`);
@@ -433,7 +427,7 @@ export async function action({ request }) {
             });
             console.log(`🟦 ✅ Added Balkspecifikation to line item: ${balkspecifikation}`);
           } else {
-            console.log(`🟦 No Balkspecifikation found in item.properties or item.beamSummary`);
+            console.log(`🟦 No Balkspecifikation found in originalProperties or beamSummary`);
           }
           
           // Add image information as properties
