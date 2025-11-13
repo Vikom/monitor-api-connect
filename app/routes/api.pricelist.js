@@ -117,19 +117,26 @@ export async function action({ request }) {
     }
     
     console.log(`🟦 Using private app credentials for ${shop}`);
+    
+    // Convert custom domain to myshopify domain for API calls
+    let apiDomain = shop;
+    if (shop === 'sonsab.com') {
+      apiDomain = 'mdnjqg-qg.myshopify.com';
+      console.log(`🟦 Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
+    }
 
     // Fetch products based on selection method
     let productList = [];
     
     switch (selection_method) {
       case 'collections':
-        productList = await fetchProductsByCollections(collections, shop, accessToken);
+        productList = await fetchProductsByCollections(collections, apiDomain, accessToken);
         break;
       case 'products':
-        productList = await fetchProductsByIds(products, shop, accessToken);
+        productList = await fetchProductsByIds(products, apiDomain, accessToken);
         break;
       case 'all':
-        productList = await fetchAllProducts(shop, accessToken);
+        productList = await fetchAllProducts(apiDomain, accessToken);
         break;
       default:
         return json({ error: 'Invalid selection method' }, { 
@@ -200,15 +207,15 @@ export async function action({ request }) {
  * Process pricelist generation and email sending in background
  */
 async function processAndSendPricelist({
-  requestId,
-  productList,
-  customer_id,
-  shop,
-  accessToken,
-  monitor_id,
-  customer_email,
-  customer_company,
-  format
+      requestId,
+      productList,
+      customer_id,
+      shop: apiDomain,
+      accessToken,
+      monitor_id,
+      customer_email,
+      customer_company,
+      format
 }) {
   try {
     console.log(`🔄 [${requestId}] Starting pricing fetch with 2-minute timeout...`);
@@ -216,7 +223,7 @@ async function processAndSendPricelist({
     
     try {
       priceData = await Promise.race([
-        fetchPricingForProducts(productList, customer_id, shop, accessToken, monitor_id),
+        fetchPricingForProducts(productList, customer_id, apiDomain, accessToken, monitor_id),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Pricing fetch timed out after 2 minutes')), 120000)
         )
