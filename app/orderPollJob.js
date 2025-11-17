@@ -469,8 +469,6 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         });
       }
       
-      console.log(`    🔧 Beam summary: ${beamSummary || 'none'}`);
-      
       // If we have beam specification, build SubRowContent from the pipe-separated format
       if (beamSummary) {
         const subRowLines = [];
@@ -494,13 +492,13 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
             const lengthInMm = (lengthInM * 1000).toFixed(2).replace('.', ',');
             subRowLines.push(`Längd ${rowNum}:\t${lengthInMm} mm`);
           } else {
-            console.warn(`    ⚠️ Could not parse beam part: "${part}"`);
+            console.warn(`⚠️ Could not parse beam part: "${part}"`);
           }
         });
         
         if (subRowLines.length > 0) {
           subRowContent = subRowLines.join('\r\n');
-          console.log(`    📏 Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
+          console.log(` Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
         }
       }
       

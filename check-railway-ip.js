@@ -10,13 +10,12 @@ async function checkIP() {
     const data = await response.json();
     
     console.log(`📍 Railway outbound IP: ${data.ip}`);
-    console.log(`\n📋 Add this IP to Monitor's whitelist: ${data.ip}`);
     
     // Also try another service for verification
     const response2 = await fetch('https://httpbin.org/ip');
     const data2 = await response2.json();
     
-    console.log(`📍 Verification IP: ${data2.origin}`);
+    console.log(`Verification IP: ${data2.origin}`);
     
   } catch (error) {
     console.error('❌ Error checking IP:', error.message);

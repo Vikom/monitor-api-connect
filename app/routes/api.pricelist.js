@@ -116,13 +116,11 @@ export async function action({ request }) {
       }, { status: 500, headers: corsHeaders() });
     }
     
-    console.log(`🟦 Using private app credentials for ${shop}`);
-    
     // Convert custom domain to myshopify domain for API calls
     let apiDomain = shop;
     if (shop === 'sonsab.com') {
       apiDomain = 'mdnjqg-qg.myshopify.com';
-      console.log(`🟦 Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
+      console.log(`Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
     }
 
     // Fetch products based on selection method
@@ -149,7 +147,7 @@ export async function action({ request }) {
 
     // Return immediate response and process email in background
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log(`🚀 Starting background processing for request: ${requestId}`);
+    console.log(`Starting background processing for request: ${requestId}`);
     
     // Start background processing (don't await)
     processAndSendPricelist({
@@ -280,7 +278,7 @@ async function processAndSendPricelist({
       const csvBuffer = Buffer.from(csvData, 'utf8');
       console.log(`✅ [${requestId}] CSV generated: ${csvBuffer.length} bytes`);
       
-      console.log(`📧 [${requestId}] Sending email to: ${customer_email}`);
+      console.log(`[${requestId}] Sending email to: ${customer_email}`);
       const emailResult = await sendPricelistEmail(
         customer_email, 
         customer_company, 
@@ -291,7 +289,7 @@ async function processAndSendPricelist({
       console.log(`✅ [${requestId}] Email sent: ${emailResult.messageId}`);
     }
     
-    console.log(`🎉 [${requestId}] Background processing completed successfully`);
+    console.log(`[${requestId}] Background processing completed successfully`);
     
   } catch (error) {
     console.error(`❌ [${requestId}] Background processing failed:`, error.message);
@@ -729,7 +727,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
                 if (customerPrice !== null && customerPrice > 0) {
                   price = customerPrice;
                   priceSource = "customer-specific";
-                  console.log(`💰 Customer price: ${customerPrice} for ${variant.sku}`);
+                  console.log(`Customer price: ${customerPrice} for ${variant.sku}`);
                 } else {
                   console.log(`⚠️ No customer price for ${variant.sku}`);
                 }
@@ -1119,7 +1117,6 @@ async function fetchOutletPrice(partId) {
       console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
       
       // DEBUG: Let's check what price lists exist for this part
-      console.log(`DEBUG: Checking if part ${partId} exists in other price lists...`);
       try {
         const allPricesUrl = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices?$filter=PartId eq '${partId}'&$top=5`;
         const allPricesRes = await fetch(allPricesUrl, {
@@ -1286,7 +1283,6 @@ async function fetchCustomerPriceListId(customerId) {
     }
     
     const customers = await res.json();
-    console.log(`📋 Customer lookup result: ${customers?.length || 0} customers found for ${customerId}`);
     
     if (!Array.isArray(customers)) {
       console.log(`Customer response is not an array`);
@@ -1352,7 +1348,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
     }
     
     const prices = await res.json();
-    console.log(`💰 Price list lookup: ${prices?.length || 0} results for part ${partId.slice(-8)}, list ${priceListId.slice(-8)}`);
+    console.log(`Price list lookup: ${prices?.length || 0} results for part ${partId.slice(-8)}, list ${priceListId.slice(-8)}`);
     
     if (!Array.isArray(prices)) {
       console.log(`Price list response is not an array`);

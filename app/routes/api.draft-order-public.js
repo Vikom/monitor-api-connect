@@ -23,16 +23,16 @@ export async function loader({ request }) {
 // Create draft order with dynamic pricing - PUBLIC endpoint for PRIVATE APP
 export async function action({ request }) {
   try {
-    console.log('🟦 PRIVATE APP DRAFT ORDER - Starting draft order creation');
+    console.log('PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
     const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity, properties }]
     
-    console.log('🟦 Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
+    console.log('Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
     
     // Log properties for each item
     items?.forEach((item, index) => {
-      console.log(`🟦 Item ${index + 1} properties:`, item.properties);
+      console.log(`Item ${index + 1} properties:`, item.properties);
     });
     
     if (!customerId) {
@@ -47,28 +47,28 @@ export async function action({ request }) {
       return json({ error: "Shop domain is required" }, { status: 400, headers: corsHeaders() });
     }
 
-    console.log(`🟦 Creating draft order for customer ${customerId} with ${items.length} items`);
-    console.log(`🟦 Price list ID: ${priceListId || 'not provided'}`);
+    console.log(`Creating draft order for customer ${customerId} with ${items.length} items`);
+    console.log(`Price list ID: ${priceListId || 'not provided'}`);
     
     // For private apps, use direct API credentials from environment
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || process.env.ADVANCED_STORE_ADMIN_TOKEN;
     const apiVersion = '2023-10';
     
     if (!accessToken) {
-      console.error('🟦 No SHOPIFY_ACCESS_TOKEN or ADVANCED_STORE_ADMIN_TOKEN found in environment');
+      console.error('No SHOPIFY_ACCESS_TOKEN or ADVANCED_STORE_ADMIN_TOKEN found in environment');
       return json({ 
         error: "Private app access token not configured", 
         suggestion: "Add SHOPIFY_ACCESS_TOKEN or check ADVANCED_STORE_ADMIN_TOKEN in Railway environment variables"
       }, { status: 500, headers: corsHeaders() });
     }
     
-    console.log(`🟦 Using private app credentials for ${shop}`);
+    console.log(`Using private app credentials for ${shop}`);
     
     // Convert custom domain to myshopify domain for API calls
     let apiDomain = shop;
     if (shop === 'sonsab.com') {
       apiDomain = 'mdnjqg-qg.myshopify.com';
-      console.log(`🟦 Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
+      console.log(`Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
     }
     
     // Test GraphQL connection first
@@ -83,10 +83,10 @@ export async function action({ request }) {
     });
     
     const testData = await testResponse.json();
-    console.log(`🟦 GraphQL test query result:`, testData);
+    console.log(`GraphQL test query result:`, testData);
     
     if (!testResponse.ok || testData.errors) {
-      console.error(`🟦 GraphQL connection test failed:`, testData);
+      console.error(`GraphQL connection test failed:`, testData);
       return json({ 
         error: "GraphQL API connection failed", 
         details: testData.errors || `HTTP ${testResponse.status}`
@@ -99,8 +99,8 @@ export async function action({ request }) {
     for (const item of items) {
       try {
         const { variantId, quantity, properties } = item;
-        console.log(`🟦 Processing item: ${variantId}, quantity: ${quantity}, properties:`, properties);
-        console.log(`🟦 Variant ID type: ${typeof variantId}, length: ${variantId?.length}`);
+        console.log(`Processing item: ${variantId}, quantity: ${quantity}, properties:`, properties);
+        console.log(`Variant ID type: ${typeof variantId}, length: ${variantId?.length}`);
         
         // Get variant details using GraphQL including image
         const variantQuery = `
@@ -155,8 +155,8 @@ export async function action({ request }) {
           }
         `;
         
-        console.log(`🟦 Making GraphQL request for variant: ${variantId}`);
-        console.log(`🟦 GraphQL query variables:`, { id: variantId });
+        console.log(`Making GraphQL request for variant: ${variantId}`);
+        console.log(`GraphQL query variables:`, { id: variantId });
         
         const variantResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
@@ -170,27 +170,27 @@ export async function action({ request }) {
           })
         });
         
-        console.log(`🟦 GraphQL response status: ${variantResponse.status}`);
+        console.log(`GraphQL response status: ${variantResponse.status}`);
         
         if (!variantResponse.ok) {
           const errorText = await variantResponse.text();
-          console.error(`🟦 GraphQL request failed: ${variantResponse.status} - ${errorText}`);
+          console.error(`GraphQL request failed: ${variantResponse.status} - ${errorText}`);
           continue;
         }
         
         const variantData = await variantResponse.json();
-        console.log(`🟦 GraphQL Response for ${variantId}:`, JSON.stringify(variantData, null, 2));
+        console.log(`GraphQL Response for ${variantId}:`, JSON.stringify(variantData, null, 2));
         
         const variant = variantData.data?.productVariant;
         
         if (!variant) {
-          console.log(`🟦 Variant ${variantId} not found, skipping`);
-          console.log(`🟦 GraphQL errors:`, variantData.errors);
-          console.log(`🟦 Full response data:`, variantData.data);
+          console.log(`Variant ${variantId} not found, skipping`);
+          console.log(`GraphQL errors:`, variantData.errors);
+          console.log(`Full response data:`, variantData.data);
           continue;
         }
         
-        console.log(`🟦 Found variant: ${variant.product.title}, price: ${variant.price}`);
+        console.log(`Found variant: ${variant.product.title}, price: ${variant.price}`);
         
         // Extract monitor ID and outlet status
         const monitorIdMetafield = variant.metafields.edges.find(
@@ -213,7 +213,7 @@ export async function action({ request }) {
         const displayQuantity = isDecimalUnit ? quantity : Math.max(1, Math.round(Math.abs(quantity)));
         const apiQuantity = Math.max(1, Math.round(Math.abs(quantity))); // Always integer for API
         
-        console.log(`🟦 Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, OriginalQty: ${quantity}, ApiQty: ${apiQuantity}, DisplayQty: ${displayQuantity}`);
+        console.log(`Variant metafields - Monitor ID: ${monitorId}, Is outlet: ${isOutletProduct}, Unit: ${standardUnit}, IsDecimal: ${isDecimalUnit}, OriginalQty: ${quantity}, ApiQty: ${apiQuantity}, DisplayQty: ${displayQuantity}`);
         
         // Extract image information
         const variantImage = variant.image;
@@ -221,14 +221,14 @@ export async function action({ request }) {
         const imageUrl = variantImage?.url || productImage?.url;
         const imageAlt = variantImage?.altText || productImage?.altText || variant.product.title;
         
-        console.log(`🟦 Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
+        console.log(`Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
         
         // Check if this item has beam data in its properties (for Balk products)
         const itemBeamData = item.properties || {};
         const beamSummary = itemBeamData['Balkspecifikation'];
         
-        console.log(`🟦 All properties for variant ${variantId}:`, itemBeamData);
-        console.log(`🟦 Beam specification found: ${beamSummary || 'none'}`);
+        console.log(`All properties for variant ${variantId}:`, itemBeamData);
+        console.log(`Beam specification found: ${beamSummary || 'none'}`);
         
         // Get customer Monitor ID and discount category using GraphQL
         const customerQuery = `
@@ -275,23 +275,23 @@ export async function action({ request }) {
         // Extract part code from variant
         const partCode = variant.partCodeMetafield?.value;
         
-        console.log(`🟦 Customer Monitor ID: ${customerMonitorId}`);
-        console.log(`🟦 Customer Discount Category: ${customerDiscountCategory || 'not set'}`);
-        console.log(`🟦 Part Code: ${partCode || 'not set'}`);
+        console.log(`Customer Monitor ID: ${customerMonitorId}`);
+        console.log(`Customer Discount Category: ${customerDiscountCategory || 'not set'}`);
+        console.log(`Part Code: ${partCode || 'not set'}`);
         
         // Check if customer has monitor ID - required for pricing
         if (!customerMonitorId) {
-          console.error('🟦 Customer missing monitor ID - cannot proceed with checkout');
+          console.error('Customer missing monitor ID - cannot proceed with checkout');
           return json({ 
             error: "Dina kunduppgifter är inte kompletta för att genomföra köp. Var god kontakta Sonsab",
             errorType: "missing_customer_data"
           }, { status: 400, headers: corsHeaders() });
         }
-        console.log(`🟦 About to call pricing API with priceListId: ${priceListId || 'not provided'}`);
+        console.log(`About to call pricing API with priceListId: ${priceListId || 'not provided'}`);
         
         // Get dynamic price using our pricing API
         const pricingApiUrl = process.env.SHOPIFY_APP_URL || 'https://monitor-api-connect-production.up.railway.app';
-        console.log(`🟦 Making pricing API call to: ${pricingApiUrl}/api/pricing-public`);
+        console.log(`Making pricing API call to: ${pricingApiUrl}/api/pricing-public`);
         const pricingResponse = await fetch(`${pricingApiUrl}/api/pricing-public`, {
           method: 'POST',
           headers: {
@@ -311,32 +311,32 @@ export async function action({ request }) {
         });
         
         let finalPrice = parseFloat(variant.price);
-        console.log(`🟦 Base variant price: ${variant.price} -> parsed: ${finalPrice}`);
+        console.log(`Base variant price: ${variant.price} -> parsed: ${finalPrice}`);
         
         if (pricingResponse.ok) {
           const pricingData = await pricingResponse.json();
-          console.log(`🟦 Pricing API response - price: ${pricingData.price}, source: ${pricingData.metadata?.priceSource}`);
+          console.log(`Pricing API response - price: ${pricingData.price}, source: ${pricingData.metadata?.priceSource}`);
           if (pricingData.price !== null && pricingData.price !== undefined && pricingData.price > 0) {
             finalPrice = pricingData.price;
-            console.log(`🟦 Got dynamic price: ${finalPrice} (was ${variant.price})`);
+            console.log(`Got dynamic price: ${finalPrice} (was ${variant.price})`);
           } else {
-            console.log(`🟦 Using original price: ${finalPrice} (pricing data price was ${pricingData.price})`);
+            console.log(`Using original price: ${finalPrice} (pricing data price was ${pricingData.price})`);
           }
         } else {
           const errorText = await pricingResponse.text();
-          console.log(`🟦 Pricing API error ${pricingResponse.status}: ${errorText}, using original price: ${finalPrice}`);
+          console.log(`Pricing API error ${pricingResponse.status}: ${errorText}, using original price: ${finalPrice}`);
         }
         
         if (finalPrice <= 0) {
-          console.warn(`🟦 Warning: Final price is ${finalPrice} for variant ${variantId}`);
+          console.warn(`Warning: Final price is ${finalPrice} for variant ${variantId}`);
         }
         
-        console.log(`🟦 Final price before adding to lineItems: ${finalPrice} for variant ${variantId}`);
-        console.log(`🟦 Converting to customPrice string: "${finalPrice.toString()}"`);
+        console.log(`Final price before adding to lineItems: ${finalPrice} for variant ${variantId}`);
+        console.log(`Converting to customPrice string: "${finalPrice.toString()}"`);
         
         // Additional logging for pricing data integrity
         if (typeof finalPrice !== 'number') {
-          console.error(`🟦 ERROR: finalPrice is not a number! Type: ${typeof finalPrice}, Value: ${finalPrice}`);
+          console.error(`ERROR: finalPrice is not a number! Type: ${typeof finalPrice}, Value: ${finalPrice}`);
         }
         
         lineItems.push({
@@ -358,10 +358,10 @@ export async function action({ request }) {
           originalProperties: itemBeamData
         });
         
-        console.log(`🟦 Added line item: variant ${variantId}, API quantity ${apiQuantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
+        console.log(`Added line item: variant ${variantId}, API quantity ${apiQuantity}, display quantity ${displayQuantity} ${standardUnit || 'st'}, price ${finalPrice}, image: ${imageUrl ? 'found' : 'none'}`);
         
       } catch (error) {
-        console.error(`🟦 Error processing item ${item.variantId}:`, error);
+        console.error(`Error processing item ${item.variantId}:`, error);
       }
     }
     
@@ -371,14 +371,14 @@ export async function action({ request }) {
       }, { status: 400, headers: corsHeaders() });
     }
     
-    console.log(`🟦 Creating draft order with ${lineItems.length} line items`);
+    console.log(`Creating draft order with ${lineItems.length} line items`);
     
     // Check if all items have zero price - indicates pricing failure
     const totalValue = lineItems.reduce((sum, item) => sum + parseFloat(item.customPrice), 0);
-    console.log(`🟦 Total order value: ${totalValue}`);
+    console.log(`Total order value: ${totalValue}`);
     
     if (totalValue <= 0) {
-      console.error('🟦 Draft order has zero total value - pricing failed');
+      console.error('Draft order has zero total value - pricing failed');
       return json({ 
         error: "Något gick fel när vi hämtade dina priser. Försök igen eller kontakta oss.",
         errorType: "pricing_failed"
@@ -396,7 +396,7 @@ export async function action({ request }) {
           let customPrice = parseFloat(item.customPrice);
           let apiQuantity = item.quantity; // Use integer quantity
 
-          console.log(`🟦 MAPPING ITEM: variant ${item.variantId}, customPrice from item: "${item.customPrice}", parsed: ${customPrice}, isDecimalUnit: ${item.isDecimalUnit}`);
+          console.log(`MAPPING ITEM: variant ${item.variantId}, customPrice from item: "${item.customPrice}", parsed: ${customPrice}, isDecimalUnit: ${item.isDecimalUnit}`);
           // For decimal products, use quantity 1 and calculate total price
           if (item.isDecimalUnit) {
             // Calculate the total price for the decimal quantity
@@ -411,10 +411,10 @@ export async function action({ request }) {
             apiQuantity = 1; // Always use quantity 1 for decimal products
             customPrice = roundedTotalPrice; // Set the total as the line price
             
-            console.log(`🟦 Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${unitPrice} = ${roundedTotalPrice}`);
-            console.log(`🟦 Decimal product final: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
+            console.log(`Decimal product: ${item.displayQuantity} ${item.standardUnit} × ${unitPrice} = ${roundedTotalPrice}`);
+            console.log(`Decimal product final: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
           } else {
-            console.log(`🟦 Regular product: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
+            console.log(`Regular product: customPrice=${customPrice}, apiQuantity=${apiQuantity}`);
           }
           
           // Create custom line item with custom pricing
@@ -450,18 +450,18 @@ export async function action({ request }) {
           }
           
           // Add beam properties if they exist (simplified to just Balkspecifikation)
-          console.log(`🟦 Checking for beam properties to add to line item. Available properties:`, Object.keys(item.originalProperties || {}));
-          console.log(`🟦 Checking for beam summary stored in line item object:`, item.beamSummary);
+          console.log(`Checking for beam properties to add to line item. Available properties:`, Object.keys(item.originalProperties || {}));
+          console.log(`Checking for beam summary stored in line item object:`, item.beamSummary);
           
           // Check for Balkspecifikation in originalProperties or use the stored beamSummary
           let balkspecifikation = null;
           
           if (item.originalProperties && item.originalProperties['Balkspecifikation']) {
             balkspecifikation = item.originalProperties['Balkspecifikation'];
-            console.log(`🟦 Found Balkspecifikation in originalProperties: ${balkspecifikation}`);
+            console.log(`Found Balkspecifikation in originalProperties: ${balkspecifikation}`);
           } else if (item.beamSummary) {
             balkspecifikation = item.beamSummary;
-            console.log(`🟦 Using stored beamSummary: ${balkspecifikation}`);
+            console.log(`Using stored beamSummary: ${balkspecifikation}`);
           }
           
           // Add Balkspecifikation to line item properties if we have it
@@ -470,9 +470,9 @@ export async function action({ request }) {
               name: 'Balkspecifikation',
               value: balkspecifikation
             });
-            console.log(`🟦 ✅ Added Balkspecifikation to line item: ${balkspecifikation}`);
+            console.log(`✅ Added Balkspecifikation to line item: ${balkspecifikation}`);
           } else {
-            console.log(`🟦 No Balkspecifikation found in originalProperties or beamSummary`);
+            console.log(`No Balkspecifikation found in originalProperties or beamSummary`);
           }
           
           // Add image information as properties
@@ -491,19 +491,19 @@ export async function action({ request }) {
           
           if (lineItemProperties.length > 0) {
             lineItem.properties = lineItemProperties;
-            console.log(`🟦 Final line item properties being added:`, lineItemProperties);
+            console.log(`Final line item properties being added:`, lineItemProperties);
           } else {
-            console.log(`🟦 No properties to add to line item`);
+            console.log(`No properties to add to line item`);
           }
           
-          console.log(`🟦 Complete line item being added to draft order:`, JSON.stringify(lineItem, null, 2));
+          console.log(`Complete line item being added to draft order:`, JSON.stringify(lineItem, null, 2));
           
           return lineItem;
         })
       }
     };
     
-    // console.log(`🟦 Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
+    // console.log(`Draft order payload:`, JSON.stringify(draftOrderPayload, null, 2));
     
     const draftOrderResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/draft_orders.json`, {
       method: 'POST',
@@ -516,10 +516,10 @@ export async function action({ request }) {
     
     const draftOrderData = await draftOrderResponse.json();
     
-    // console.log(`🟦 Draft order response:`, JSON.stringify(draftOrderData, null, 2));
+    // console.log(`Draft order response:`, JSON.stringify(draftOrderData, null, 2));
     
     if (draftOrderData.errors) {
-      console.error('🟦 Draft order creation errors:', draftOrderData.errors);
+      console.error('Draft order creation errors:', draftOrderData.errors);
       return json({ 
         error: "Failed to create draft order", 
         details: draftOrderData.errors 
@@ -529,14 +529,14 @@ export async function action({ request }) {
     const draftOrder = draftOrderData.draft_order;
     
     if (!draftOrder) {
-      console.error('🟦 No draft order returned');
+      console.error('No draft order returned');
       return json({ 
         error: "Failed to create draft order - no order returned" 
       }, { status: 400, headers: corsHeaders() });
     }
     
-    console.log(`🟦 ✅ Created draft order ${draftOrder.id} with total ${draftOrder.total_price}`);
-    console.log(`🟦 ✅ Invoice URL: ${draftOrder.invoice_url}`);
+    console.log(`✅ Created draft order ${draftOrder.id} with total ${draftOrder.total_price}`);
+    console.log(`✅ Invoice URL: ${draftOrder.invoice_url}`);
     
     // Add metafields for goods label and order mark if provided (so they can be accessed via GraphQL)
     const metafieldsToAdd = [];
@@ -563,8 +563,8 @@ export async function action({ request }) {
     
     if (metafieldsToAdd.length > 0) {
       try {
-        console.log(`🟦 Adding ${metafieldsToAdd.length} metafields: ${metafieldsToAdd.map(m => m.key).join(', ')}`);
-        console.log('🟦 Metafields being added:', JSON.stringify(metafieldsToAdd, null, 2));
+        console.log(`Adding ${metafieldsToAdd.length} metafields: ${metafieldsToAdd.map(m => m.key).join(', ')}`);
+        console.log('Metafields being added:', JSON.stringify(metafieldsToAdd, null, 2));
         
         const metafieldMutation = `
           mutation {
@@ -590,7 +590,7 @@ export async function action({ request }) {
           }
         `;
         
-        console.log('🟦 GraphQL mutation being sent:', metafieldMutation);
+        console.log('GraphQL mutation being sent:', metafieldMutation);
         
         const metafieldResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
@@ -603,7 +603,7 @@ export async function action({ request }) {
         
         const metafieldResult = await metafieldResponse.json();
         
-        console.log('🟦 Metafield creation response:', JSON.stringify(metafieldResult, null, 2));
+        console.log('Metafield creation response:', JSON.stringify(metafieldResult, null, 2));
         
         if (metafieldResult.data?.metafieldsSet?.userErrors?.length > 0) {
           console.error('❌ Metafield creation errors:', metafieldResult.data.metafieldsSet.userErrors);
@@ -616,7 +616,7 @@ export async function action({ request }) {
           }
         }
       } catch (metafieldError) {
-        console.error('🟦 Failed to add metafields:', metafieldError);
+        console.error('Failed to add metafields:', metafieldError);
         // Don't fail the whole operation if metafield creation fails
       }
     }
@@ -633,7 +633,7 @@ export async function action({ request }) {
     }, { headers: corsHeaders() });
     
   } catch (error) {
-    console.error('🟦 Draft order creation error:', error);
+    console.error('Draft order creation error:', error);
     return json({ 
       error: "Internal server error", 
       details: error.message 

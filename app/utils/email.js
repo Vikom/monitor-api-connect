@@ -42,17 +42,16 @@ function getTransporter() {
  */
 export async function sendPricelistEmail(customerEmail, customerCompany, attachment, format, priceData) {
   try {
-    console.log('📧 Starting email send process...');
-    console.log(`📧 Email config: host=${emailConfig.host}, port=${emailConfig.port}, user=${emailConfig.auth.user}`);
-    console.log(`📧 Email password set: ${!!process.env.EMAIL_PASSWORD}`);
+    console.log('Starting email send process...');
+    console.log(`Email config: host=${emailConfig.host}, port=${emailConfig.port}, user=${emailConfig.auth.user}`);
+    console.log(`Email password set: ${!!process.env.EMAIL_PASSWORD}`);
     
     const transporter = getTransporter();
-    console.log('📧 Transporter created successfully');
     
     // Generate filename
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
     const filename = `prislista-${timestamp}.${format}`;
-    console.log(`📧 Generated filename: ${filename}`);
+    console.log(`Generated filename: ${filename}`);
     
     // Email content
     const subject = `Din prislista från Sonsab`;
@@ -134,9 +133,8 @@ webshop@sonsab.com
       ]
     };
 
-    console.log(`📧 Sending pricelist email to: ${customerEmail}`);
-    console.log(`📧 Attachment: ${filename} (${attachment.length} bytes)`);
-    console.log(`📧 Mail options prepared, sending...`);
+    console.log(`Sending pricelist email to: ${customerEmail}`);
+    console.log(`Attachment: ${filename} (${attachment.length} bytes)`);
     
     // Send email
     const info = await transporter.sendMail(mailOptions);

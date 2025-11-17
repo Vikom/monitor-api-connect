@@ -818,7 +818,7 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
         const completeFailures = newProducts.filter(p => !p.fallbackUsed && !p.criticalFailure);
         
         if (criticalFailures.length > 0) {
-          console.log(`\n🚨🚨🚨 CRITICAL: Products with NO VARIANTS Created (${criticalFailures.length}): 🚨🚨🚨`);
+          console.log(`\n CRITICAL: Products with NO VARIANTS Created (${criticalFailures.length}): `);
           console.log(`   These products exist in Shopify but have ZERO variants with Monitor data!`);
           criticalFailures.forEach((product, index) => {
             console.log(`      ${index + 1}. "${product.productName}" (ID: ${product.productId})`);
@@ -828,7 +828,6 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
             console.log(`         - Status: Product shows "inventory not tracked" - NO Monitor data linked`);
             console.log(`         - Action: URGENT - Check product data and create variants manually\n`);
           });
-          console.log(`🚨🚨🚨 ${criticalFailures.length} PRODUCTS NEED IMMEDIATE ATTENTION! 🚨🚨🚨\n`);
         }
         
         if (fallbackProducts.length > 0) {
@@ -873,10 +872,10 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
       // Count and highlight critical failures at the end
       const criticalFailures = global.productsWithFailedVariants.filter(p => p.criticalFailure);
       if (criticalFailures.length > 0) {
-        console.log(`\n🚨🚨🚨 FINAL ALERT: ${criticalFailures.length} PRODUCTS HAVE ZERO VARIANTS! 🚨🚨🚨`);
+        console.log(`\nFINAL ALERT: ${criticalFailures.length} PRODUCTS HAVE ZERO VARIANTS! `);
         console.log(`These products exist in Shopify but are completely disconnected from Monitor data.`);
         console.log(`Product names: ${criticalFailures.map(p => `"${p.productName}"`).join(', ')}`);
-        console.log(`🚨🚨🚨 IMMEDIATE ACTION REQUIRED FOR ${criticalFailures.length} PRODUCTS! 🚨🚨🚨`);
+        console.log(`IMMEDIATE ACTION REQUIRED FOR ${criticalFailures.length} PRODUCTS!`);
       }
     }
     

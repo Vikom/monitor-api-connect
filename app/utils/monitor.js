@@ -18,10 +18,6 @@ export function reportFailedARTFSCFetches() {
     console.log("✅ All ARTFSC fetches completed successfully");
     return;
   }
-
-  console.log(`\n⚠️  ARTFSC Fetch Failures Report:`);
-  console.log(`   📊 Total failed fetches: ${failedARTFSCFetches.length}`);
-  console.log(`   📋 Failed product IDs:`);
   
   failedARTFSCFetches.forEach((failure, index) => {
     console.log(`      ${index + 1}. Product ID: ${failure.productId}`);
@@ -29,8 +25,6 @@ export function reportFailedARTFSCFetches() {
     console.log(`         Time: ${failure.timestamp}`);
   });
   
-  console.log(`\n💡 These products were synced without ARTFSC metafields.`);
-  console.log(`   You can re-run the sync later to retry fetching ARTFSC data.`);
 }
 
 const monitorUrl = process.env.MONITOR_URL;
