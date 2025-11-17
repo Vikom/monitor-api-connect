@@ -140,6 +140,7 @@ export async function syncCustomers(isIncrementalSync = false) {
   try {
     if (isIncrementalSync) {
       // Get customer IDs that have changed in the last 48 hours
+      // @TODO We need to support References: 9a9b110e-d5b5-410d-afee-c397747eba77
       const customerEntityTypeId = '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc';
       const changedCustomerIds = await fetchEntityChangeLogsFromMonitor(customerEntityTypeId);
       

@@ -185,7 +185,8 @@ class MonitorClient {
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
     url += '?$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
-    url += `&$filter=(${idFilter}) and Status eq 4`;
+    // url += `&$filter=(${idFilter}) and Status eq 4`;
+    url += `&$filter=(${idFilter}) and Status Le 6 and Status Ge 4`;
     url += '&$expand=ExtraFields,ProductGroup,PartCode';
     
     let res = await fetch(url, {
@@ -236,6 +237,94 @@ class MonitorClient {
       if (productName) console.log(`Product ${product.PartNumber}: ${productName.StringValue}, Variant: ${productVariation ? productVariation.StringValue : "N/A"}`);
       return active && active.SelectedOptionId === "1062902127922128278";
     });
+  }
+
+  /**
+   * Fetch a single product by PartNumber with same filtering as fetchProducts()
+   * @param {string} partNumber - The part number to fetch
+   * @returns {Promise<Object|null>} The product data or null if not found
+   */
+  async fetchSingleProductByPartNumber(partNumber) {
+    const sessionId = await this.getSessionId();
+    
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
+    url += `?$filter=PartNumber eq '${partNumber}' and BlockedStatus Neq 2 and Status Le 6 and Status Ge 4`;
+    url += '&$select=Id,PartNumber,Description,ExtraFields,PartCodeId,StandardPrice,PartCode,ProductGroupId,Status,WeightPerUnit,VolumePerUnit,IsFixedWeight,Gs1Code,Status,QuantityPerPackage,StandardUnitId,PurchaseQuantityPerPackage';
+    url += '&$expand=ExtraFields,ProductGroup,PartCode';
+    
+    console.log(`Fetching single product by PartNumber: ${partNumber}`);
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchSingleProductByPartNumber first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await this.login();
+      const newSessionId = await this.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchSingleProductByPartNumber retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        throw new Error("Monitor API fetchSingleProductByPartNumber failed after re-login");
+      }
+    }
+    
+    const products = await res.json();
+    if (!Array.isArray(products)) {
+      throw new Error("Monitor API returned unexpected data format for fetchSingleProductByPartNumber");
+    }
+    
+    if (products.length === 0) {
+      console.log(`No product found with PartNumber: ${partNumber}`);
+      return null;
+    }
+    
+    if (products.length > 1) {
+      console.warn(`Multiple products found with PartNumber: ${partNumber}, using first one`);
+    }
+    
+    const product = products[0];
+    
+    // Apply same filtering as fetchProducts() - check for ARTWEBAKTIV
+    if (!Array.isArray(product.ExtraFields)) {
+      console.log(`Product ${partNumber} has no ExtraFields, skipping`);
+      return null;
+    }
+    
+    const active = product.ExtraFields.find(f => f.Identifier === "ARTWEBAKTIV");
+    const productName = product.ExtraFields.find(f => f.Identifier === "ARTWEBNAME");
+    const productVariation = product.ExtraFields.find(f => f.Identifier === "ARTWEBVAR");
+    
+    if (productName) {
+      console.log(`Product ${product.PartNumber}: ${productName.StringValue}, Variant: ${productVariation ? productVariation.StringValue : "N/A"}`);
+    }
+    
+    // Check if product is active (same logic as fetchProducts)
+    if (!active || active.SelectedOptionId !== "1062902127922128278") {
+      console.log(`Product ${partNumber} is not active (ARTWEBAKTIV != 1062902127922128278), skipping`);
+      return null;
+    }
+    
+    console.log(`Successfully fetched single product: ${product.PartNumber} (ID: ${product.Id})`);
+    
+    return product;
   }
 
   /**
@@ -301,6 +390,7 @@ class MonitorClient {
     
     const part = parts[0];
     console.log(`Successfully fetched part: ${part.PartNumber} (ID: ${part.Id})`);
+    console.log(`Part: ${JSON.stringify(part)}`);
     
     return part;
   }
@@ -829,6 +919,15 @@ export async function fetchCustomersByIdsFromMonitor(customerIds) {
 export async function fetchUsersFromMonitor() {
   // Wrapper for backward compatibility - now calls fetchCustomersFromMonitor
   return await fetchCustomersFromMonitor();
+}
+
+/**
+ * Fetch a single product by PartNumber with same filtering as fetchProducts() from Monitor
+ * @param {string} partNumber - The part number to fetch
+ * @returns {Promise<Object|null>} The product data or null if not found
+ */
+export async function fetchSingleProductByPartNumberFromMonitor(partNumber) {
+  return await monitorClient.fetchSingleProductByPartNumber(partNumber);
 }
 
 /**

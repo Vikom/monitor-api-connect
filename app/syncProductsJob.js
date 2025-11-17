@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, fetchSingleProductByPartNumberFromMonitor, fetchOutletPriceFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";
@@ -36,12 +36,39 @@ const args = process.argv.slice(2);
 const useAdvancedStore = args.includes('--advanced') || args.includes('-a') || global.useAdvancedStore;
 const isManualRun = args.includes('--manual') || args.includes('-m');
 
+// Single product sync mode
+const isSingleProductSync = args.includes('--single') || args.includes('-s');
+let singlePartNumber = null;
+if (isSingleProductSync) {
+  // Single product sync requires both --manual and --advanced flags
+  if (!isManualRun || !useAdvancedStore) {
+    console.error('❌ --single flag requires both --manual and --advanced flags');
+    console.log('Usage: node app/syncProductsJob.js --advanced --manual --single <PartNumber>');
+    console.log('Run "node app/syncProductsJob.js --help" for more information.');
+    process.exit(1);
+  }
+  
+  // Find the PartNumber argument after --single or -s
+  const singleIndex = args.findIndex(arg => arg === '--single' || arg === '-s');
+  if (singleIndex !== -1 && singleIndex + 1 < args.length) {
+    singlePartNumber = args[singleIndex + 1];
+  } else {
+    console.error('❌ --single flag requires a PartNumber argument');
+    console.log('Usage: node app/syncProductsJob.js --advanced --manual --single <PartNumber>');
+    console.log('Run "node app/syncProductsJob.js --help" for more information.');
+    process.exit(1);
+  }
+}
+
 // Store this globally for cron access
 global.useAdvancedStore = useAdvancedStore;
 
 console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
 if (isManualRun) {
   console.log(`🔧 Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
+}
+if (isSingleProductSync) {
+  console.log(`🔍 Single product sync mode: ${singlePartNumber}`);
 }
 
 // Function to log Railway's outbound IP for Monitor API whitelisting
@@ -256,7 +283,118 @@ async function generateMetafieldsForVariation(variation) {
   return metafields;
 }
 
-export async function syncProducts(isIncrementalSync = false) {
+// Helper function to fetch and process a single product by PartNumber from Monitor
+async function fetchSingleProductByPartNumber(partNumber) {
+  try {
+    console.log(`Fetching product by PartNumber: ${partNumber} from Monitor API...`);
+    const part = await fetchSingleProductByPartNumberFromMonitor(partNumber);
+    
+    if (!part) {
+      console.log(`No part found with PartNumber: ${partNumber}`);
+      return [];
+    }
+    
+    // Check if the part has ARTWEBNAME (required for sync)
+    const productName = part.ExtraFields?.find(f => f.Identifier === "ARTWEBNAME");
+    if (!productName?.StringValue || productName.StringValue.trim() === "") {
+      console.log(`Part ${partNumber} found but has no ARTWEBNAME set. Skipping sync.`);
+      return [];
+    }
+    
+    console.log(`Found part: ${part.PartNumber} - ${productName.StringValue}`);
+    
+    // Transform the Monitor part data to match the format expected by syncProducts
+    const productVariation = part.ExtraFields?.find(f => f.Identifier === "ARTWEBVAR");
+    const finalProductName = productName.StringValue;
+    const finalProductVariation = (productVariation?.StringValue && productVariation.StringValue.trim() !== "")
+      ? productVariation.StringValue
+      : part.PartNumber;
+
+    // Convert ExtraFields array to an object for easier access in sync job
+    const extraFieldsObj = {};
+    if (Array.isArray(part.ExtraFields)) {
+      part.ExtraFields.forEach(field => {
+        if (field.Identifier) {
+          // Use the appropriate value based on the field type
+          let value = null;
+          if (field.DecimalValue !== null && field.DecimalValue !== undefined) {
+            value = field.DecimalValue;
+          } else if (field.StringValue !== null && field.StringValue !== undefined) {
+            value = field.StringValue;
+          } else if (field.IntegerValue !== null && field.IntegerValue !== undefined) {
+            value = field.IntegerValue;
+          } else if (field.SelectedOptionId !== null && field.SelectedOptionId !== undefined) {
+            value = field.SelectedOptionId;
+          } else if (field.SelectedOptionIds !== null && field.SelectedOptionIds !== undefined) {
+            value = field.SelectedOptionIds;
+          }
+          
+          if (value !== null) {
+            extraFieldsObj[field.Identifier] = value;
+          }
+        }
+      });
+    }
+
+    // Check if this product is in the outlet product group (1229581166640460381)
+    const isOutletProduct = part.ProductGroupId === "1229581166640460381";
+    let productPrice = null;
+    
+    if (isOutletProduct) {
+      console.log(`Fetching outlet price for product ${part.PartNumber} (ID: ${part.Id})`);
+      const outletPrice = await fetchOutletPriceFromMonitor(part.Id);
+      if (outletPrice) {
+        console.log(`Found outlet price ${outletPrice} for product ${part.PartNumber}`);
+        productPrice = outletPrice;
+      }
+      // If no outlet price found, productPrice remains null even for outlet products
+    }
+    // For non-outlet products, productPrice remains null to force dynamic pricing
+    
+    const processedProduct = {
+      id: part.Id,
+      name: part.PartNumber,
+      sku: part.PartNumber,
+      description: part.Description || "",
+      // Only set price for outlet products with valid outlet price, otherwise null
+      price: productPrice,
+      weight: part.WeightPerUnit,
+      length: part.Length,
+      width: part.Width,
+      height: part.Height,
+      volume: part.VolumePerUnit,
+      category: part.CategoryString,
+      barcode: part.Gs1Code,
+      status: part.Status,
+      productName: finalProductName,
+      productVariation: finalProductVariation,
+      PurchaseQuantityPerPackage: part.QuantityPerPackage,
+      StandardUnitId: part.StandardUnitId,
+      // Map both ProductGroup and PartCode for Shopify collections
+      productGroupId: part.ProductGroup?.Id || null,
+      productGroupDescription: part.ProductGroup?.Description || null,
+      partCodeId: part.PartCode?.Id || null,
+      partCodeDescription: part.PartCode?.Description || null,
+      // Convert ExtraFields array to object for easier access
+      ExtraFields: extraFieldsObj,
+      // Flag to indicate if this product has ARTFSC (for async fetching)
+      hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
+      // Pricing metadata
+      isOutletProduct: isOutletProduct,
+      hasOutletPrice: productPrice !== null,
+      originalStandardPrice: part.StandardPrice,
+    };
+    
+    console.log(`✅ Successfully processed single product: ${finalProductName} (${part.PartNumber})`);
+    return [processedProduct];
+    
+  } catch (error) {
+    console.error(`Error fetching single product by PartNumber ${partNumber}:`, error);
+    throw error;
+  }
+}
+
+export async function syncProducts(isIncrementalSync = false, singlePartNumberParam = null) {
   let shop, accessToken;
   
   // Use global variable if set (from cron), otherwise use the original variable
@@ -315,7 +453,13 @@ export async function syncProducts(isIncrementalSync = false) {
   // Initialize tracking for products with failed variant creation
   global.productsWithFailedVariants = [];
   
-  if (isIncrementalSync) {
+  // Determine if we're doing single product sync based on parameter or global flag
+  const isSingleSync = singlePartNumberParam || (typeof isSingleProductSync !== 'undefined' && isSingleProductSync);
+  const partNumberToSync = singlePartNumberParam || (typeof singlePartNumber !== 'undefined' ? singlePartNumber : null);
+  
+  if (isSingleSync && partNumberToSync) {
+    console.log(`🔍 Running single product sync for PartNumber: ${partNumberToSync}`);
+  } else if (isIncrementalSync) {
     console.log("🔄 Running incremental sync (changes only)...");
   } else {
     console.log("🔄 Running full sync (all products)...");
@@ -325,7 +469,18 @@ export async function syncProducts(isIncrementalSync = false) {
   try {
     let products;
     try {
-      if (isIncrementalSync) {
+      if (isSingleSync && partNumberToSync) {
+        // Fetch single product by PartNumber
+        console.log(`Fetching single product by PartNumber: ${partNumberToSync}`);
+        products = await fetchSingleProductByPartNumber(partNumberToSync);
+        
+        if (!products || products.length === 0) {
+          console.log(`❌ No product found with PartNumber: ${partNumberToSync}`);
+          return;
+        }
+        
+        console.log(`✅ Found product: ${products[0].productName} (${products[0].name})`);
+      } else if (isIncrementalSync) {
         // Fetch only changed products
         console.log("Fetching entity change logs from Monitor...");
         const changedProductIds = await fetchEntityChangeLogsFromMonitor();
@@ -2170,6 +2325,12 @@ To sync ALL products to Advanced store:
   node app/syncProductsJob.js --advanced --manual
   node app/syncProductsJob.js -a -m
 
+To sync a SINGLE product by PartNumber (requires --advanced --manual):
+  node app/syncProductsJob.js --advanced --manual --single <PartNumber>
+
+Examples:
+  node app/syncProductsJob.js --advanced --manual --single "ABC123"
+
 For scheduled syncs, use the worker:
   node app/worker.js
 
@@ -2195,11 +2356,17 @@ if (!isManualRun && useAdvancedStore) {
   console.log("� Running incremental sync anyway...");
 }
 
-// Determine sync type based on flags
-const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
-const syncType = isFullSync ? "full sync" : "incremental sync";
-console.log(`🚀 Running ${syncType}...`);
-
 // Run the sync
-syncProducts(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
+if (isSingleProductSync) {
+  console.log(`🔍 Running single product sync for: ${singlePartNumber}`);
+  console.log(`🎯 Target: Advanced store (manual mode)`);
+  syncProducts(false, singlePartNumber); // Single product sync, never incremental
+} else {
+  // Determine sync type based on flags
+  const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
+  const syncType = isFullSync ? "full sync" : "incremental sync";
+  console.log(`🚀 Running ${syncType}...`);
+  
+  syncProducts(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
+}
 }
