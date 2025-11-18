@@ -122,10 +122,9 @@ export async function syncCustomers(isIncrementalSync = false) {
       console.log("3. Once authenticated, you can run the sync job again");
       return;
     }
-
     shop = session.shop;
     accessToken = session.accessToken;
-    console.log(`🔗 Using development store: ${shop}`);
+    console.log(`Using development store: ${shop}`);
   }
 
   console.log("✅ Store session is valid. Starting customers sync...");
@@ -140,34 +139,42 @@ export async function syncCustomers(isIncrementalSync = false) {
   try {
     if (isIncrementalSync) {
       // Get customer IDs that have changed in the last 48 hours
-      // @TODO We need to support References: 9a9b110e-d5b5-410d-afee-c397747eba77
+      // Look for both customer entity types: direct customers and references
       const customerEntityTypeId = '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc';
-      const changedCustomerIds = await fetchEntityChangeLogsFromMonitor(customerEntityTypeId);
+      const referenceEntityTypeId = '9a9b110e-d5b5-410d-afee-c397747eba77';
       
-      if (changedCustomerIds.length === 0) {
+      const [changedCustomerIds, changedReferenceIds] = await Promise.all([
+        fetchEntityChangeLogsFromMonitor(customerEntityTypeId),
+        fetchEntityChangeLogsFromMonitor(referenceEntityTypeId)
+      ]);
+
+      // Combine and deduplicate the customer IDs
+      const allChangedCustomerIds = [...new Set([...changedCustomerIds, ...changedReferenceIds])];
+
+      if (allChangedCustomerIds.length === 0) {
         console.log("No customer changes detected in the last 48 hours.");
         return;
       }
-      
-      console.log(`Found ${changedCustomerIds.length} customers with changes, fetching their data...`);
-      customers = await fetchCustomersByIdsFromMonitor(changedCustomerIds);
+
+      console.log(`Found ${allChangedCustomerIds.length} customers with changes (${changedCustomerIds.length} direct customers, ${changedReferenceIds.length} references), fetching their data...`);
+      customers = await fetchCustomersByIdsFromMonitor(allChangedCustomerIds);
     } else {
       // Full sync - get all customers
       customers = await fetchCustomersFromMonitor();
     }
-    
+
     console.log(`Fetched ${customers.length} customers with WEB-ACCOUNT references`);
     if (!Array.isArray(customers) || customers.length === 0) {
       console.log("No WEB-ACCOUNT customers found to sync.");
       return;
     }
-    
+
     console.log("Sample customer data:", JSON.stringify(customers[0], null, 2));
   } catch (err) {
     console.error("Error fetching customers", err);
     return;
   }
-  
+
   const fetch = (await import('node-fetch')).default;
 
   // Process only customers from references with "WEB-ACCOUNT" category

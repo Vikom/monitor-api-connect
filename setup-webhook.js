@@ -51,7 +51,6 @@ async function setupOrdersWebhook() {
       update: true,
     });
 
-    console.log("✅ Orders webhook created successfully!");
     console.log(`Webhook ID: ${webhook.id}`);
     console.log(`Address: ${webhook.address}`);
     console.log(`Topic: ${webhook.topic}`);
@@ -60,8 +59,6 @@ async function setupOrdersWebhook() {
     console.error("❌ Error setting up webhook:", error);
     
     if (error.message?.includes("protected customer data")) {
-      console.log("\n💡 This confirms that even custom apps need approval for orders webhooks.");
-      console.log("For now, the polling solution in orderPollJob.js will handle order sync.");
       console.log("You can apply for protected customer data access if needed for real-time webhooks.");
     }
   } finally {

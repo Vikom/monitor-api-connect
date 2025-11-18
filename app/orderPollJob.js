@@ -12,11 +12,11 @@ async function pollForNewOrders() {
   accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
 
   if (!shop || !accessToken) {
-    console.log("❌ Advanced store configuration missing for order polling!");
+    console.log("Advanced store configuration missing for order polling!");
     return;
   }
 
-  console.log(`🔍 Polling for new orders from: ${shop}`);
+  console.log(`Polling for new orders from: ${shop}`);
 
   try {
     const fetch = (await import('node-fetch')).default;
@@ -162,7 +162,7 @@ async function pollForNewOrders() {
       return !sentToMonitorMetafield || sentToMonitorMetafield.node.value === "false";
     });
 
-    console.log(`📦 Found ${draftOrders.length} completed draft orders, ${unsentOrders.length} not yet sent to Monitor`);
+    console.log(`Found ${draftOrders.length} completed draft orders, ${unsentOrders.length} not yet sent to Monitor`);
 
     if (unsentOrders.length === 0) {
       console.log("✅ All completed draft orders have already been sent to Monitor");
@@ -179,7 +179,7 @@ async function pollForNewOrders() {
         // Check if customer exists and has monitor_id
         const customer = order.customer;
         if (!customer) {
-          console.log(`  ⚠️  Draft order ${order.name} has no customer, skipping Monitor sync`);
+          console.log(`⚠️ Draft order ${order.name} has no customer, skipping Monitor sync`);
           continue;
         }
 
@@ -187,19 +187,19 @@ async function pollForNewOrders() {
         const monitorCustomerId = await getCustomerMonitorId(shop, accessToken, customer.id.split('/').pop());
         
         if (!monitorCustomerId) {
-          console.log(`  ⚠️  Customer ${customer.id} for draft order ${order.name} has no monitor_id metafield, skipping Monitor sync`);
+          console.log(`⚠️ Customer ${customer.id} for draft order ${order.name} has no monitor_id metafield, skipping Monitor sync`);
           continue;
         }
 
-        console.log(`  📋 Found monitor customer ID: ${monitorCustomerId} for Shopify customer ${customer.id}`);
+        console.log(`Found monitor customer ID: ${monitorCustomerId} for Shopify customer ${customer.id}`);
 
         // Build Monitor order rows from line items
         const lineItems = order.lineItems?.edges?.map(edge => edge.node) || [];
-        console.log(`  📋 Processing ${lineItems.length} line items for draft order ${order.name}`);
+        console.log(`Processing ${lineItems.length} line items for draft order ${order.name}`);
         
         // Debug: Log first line item structure
         if (lineItems.length > 0) {
-          console.log(`  🔍 First draft order line item structure:`, JSON.stringify(lineItems[0], null, 2));
+          console.log(`First draft order line item structure:`, JSON.stringify(lineItems[0], null, 2));
         }
         
         // Extract goods label, order mark, and beam data from draft order metafields
@@ -213,7 +213,7 @@ async function pollForNewOrders() {
         const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
         
         if (orderRows.length === 0) {
-          console.log(`  ⚠️  Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
+          console.log(`⚠️ Draft order ${order.name} has no valid line items for Monitor, skipping sync`);
           continue;
         }
 
@@ -232,12 +232,12 @@ async function pollForNewOrders() {
         
         if (monitorOrderResult) {
           const { orderId: monitorOrderId, response: monitorResponse } = monitorOrderResult;
-          console.log(`  ✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
+          console.log(`✅ Successfully created order in Monitor with ID: ${monitorOrderId} for Shopify draft order ${order.name}`);
 
           // Extract OrderNumber from Monitor response and update Shopify draft order name
           const monitorOrderNumber = monitorResponse.OrderNumber;
           if (monitorOrderNumber) {
-            console.log(`  📦 Updating draft order name to Monitor order number: ${monitorOrderNumber}`);
+            console.log(`Updating draft order name to Monitor order number: ${monitorOrderNumber}`);
             await updateDraftOrderName(shop, accessToken, order.id.split('/').pop(), monitorOrderNumber);
           }
 
@@ -251,9 +251,9 @@ async function pollForNewOrders() {
           const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
           
           if (propertiesSet) {
-            console.log(`  ✅ Successfully set order properties for Monitor order ${monitorOrderId}`);
+            console.log(`✅ Successfully set order properties for Monitor order ${monitorOrderId}`);
           } else {
-            console.error(`  ⚠️  Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
+            console.error(`⚠️ Failed to set order properties for Monitor order ${monitorOrderId}, but order was created`);
           }
 
           // Get address from the order created from this draft order, fallback to draft order addresses
@@ -261,7 +261,7 @@ async function pollForNewOrders() {
           
           if (addressToUse) {
             const addressSource = order.order?.shippingAddress ? 'order_shipping' : 'draft_shipping';
-            console.log(`  📦 Using ${addressSource} address for delivery address`);
+            console.log(`Using ${addressSource} address for delivery address`);
             
             const deliveryAddressData = {
               Addressee: {Value: `${addressToUse.firstName || ''} ${addressToUse.lastName || ''}`.trim() || addressToUse.company || ''},
@@ -275,12 +275,12 @@ async function pollForNewOrders() {
             const addressUpdated = await updateDeliveryAddressInMonitor(monitorOrderId, deliveryAddressData);
             
             if (addressUpdated) {
-              console.log(`  ✅ Successfully updated delivery address for Monitor order ${monitorOrderId}`);
+              console.log(`✅ Successfully updated delivery address for Monitor order ${monitorOrderId}`);
             } else {
-              console.error(`  ⚠️  Failed to update delivery address for Monitor order ${monitorOrderId}, but order was created`);
+              console.error(`⚠️ Failed to update delivery address for Monitor order ${monitorOrderId}, but order was created`);
             }
           } else {
-            console.log(`  ⚠️  No address found for draft order ${order.name}!`);
+            console.log(`⚠️ No address found for draft order ${order.name}!`);
           }
           
           // Mark draft order as sent to Monitor
@@ -449,7 +449,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
           
           if (!isNaN(decimalQuantity) && decimalQuantity > 0) {
             orderedQuantity = decimalQuantity;
-            console.log(`    Using decimal quantity ${decimalQuantity} from "Enhet" attribute "${unitValue}" for line item ${lineItem.id}`);
+            console.log(`Using decimal quantity ${decimalQuantity} from "Enhet" attribute "${unitValue}" for line item ${lineItem.id}`);
           }
         }
       }
@@ -498,7 +498,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
         
         if (subRowLines.length > 0) {
           subRowContent = subRowLines.join('\r\n');
-          console.log(` Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
+          console.log(`Created SubRowContent for line item ${lineItem.id}:`, subRowContent);
         }
       }
       
@@ -516,7 +516,7 @@ async function buildMonitorOrderRows(shop, accessToken, lineItems) {
       
       rows.push(orderRow);
 
-      console.log(`    Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}${subRowContent ? ' with beam data' : ''}`);
+      console.log(`Added draft order line item ${lineItem.id} (Monitor Part ID: ${monitorPartId}) with quantity ${orderedQuantity} and unit price ${unitPrice}${subRowContent ? ' with beam data' : ''}`);
     } catch (error) {
       console.error(`Error processing line item ${lineItem.id}:`, error);
       continue;
@@ -569,7 +569,7 @@ async function updateDraftOrderName(shop, accessToken, draftOrderId, orderNumber
       return false;
     }
 
-    console.log(`  📋 Updated draft order ${draftOrderId} name to: ${orderNumber}`);
+    console.log(`Updated draft order ${draftOrderId} name to: ${orderNumber}`);
     return true;
   } catch (error) {
     console.error("Error updating draft order name:", error);
@@ -626,7 +626,7 @@ async function markDraftOrderAsSentToMonitor(shop, accessToken, draftOrderId) {
       return false;
     }
 
-    console.log(`  📋 Marked draft order ${draftOrderId} as sent to Monitor`);
+    console.log(`✅ Marked draft order ${draftOrderId} as sent to Monitor`);
     return true;
   } catch (error) {
     console.error("Error marking draft order as sent to Monitor:", error);
