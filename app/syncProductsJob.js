@@ -591,14 +591,6 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
         }
       }
       
-      // Check if any variation has status = 6 (outlet), add outlet collection as last collection
-      /*const hasOutletVariant = variations.some(variation => variation.status === 6);
-      if (hasOutletVariant) {
-        const outletCollectionId = "gid://shopify/Collection/651232051534";
-        console.log(`  🏷️  Product has outlet variant (status=6), adding to outlet collection`);
-        collectionIds.push(outletCollectionId);
-      }*/
-      
       // Check if product already exists in Shopify by productName
       let existingProduct;
       try {
