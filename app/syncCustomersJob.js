@@ -14,12 +14,11 @@ const isSingleTest = args.includes('--single-test') || args.includes('-s');
 // Store this globally for cron access
 global.useAdvancedStore = useAdvancedStore;
 
-console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
 if (isManualRun) {
-  console.log(`🔧 Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
+  console.log(`Manual run mode: ${isManualRun ? 'Enabled' : 'Disabled'}`);
 }
 if (isSingleTest) {
-  console.log(`🧪 Single test mode: Only processing first customer`);
+  console.log(`Single test mode: Only processing first customer`);
 }
 
 const shopifyConfig = shopifyApi({
@@ -84,8 +83,6 @@ export async function syncCustomers(isIncrementalSync = false) {
       console.log("Please ensure ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN are set in your .env file");
       return;
     }
-
-    console.log(`🔗 Using Advanced store: ${shop}`);
     
     // Validate the advanced store session
     const isValidSession = await validateSession(shop, accessToken);
@@ -452,7 +449,7 @@ export async function syncCustomers(isIncrementalSync = false) {
         );
         
         if (!hasMatchingAddress) {
-          console.log(`🏠 Adding address for customer: ${customer.email}`);
+          console.log(`Adding address for customer: ${customer.email}`);
           
           // Use customerUpdate to add addresses instead of customerAddressCreate
           const addressMutation = `mutation customerUpdate($input: CustomerInput!) {
@@ -510,18 +507,18 @@ export async function syncCustomers(isIncrementalSync = false) {
           try {
             addressJson = await addressRes.json();
           } catch (parseError) {
-            console.error("   ❌ Failed to parse address JSON response");
+            console.error("❌ Failed to parse address JSON response");
             const responseText = await addressRes.text();
-            console.error("   Raw address response:", responseText);
+            console.error("Raw address response:", responseText);
             continue;
           }
           
           if (addressJson.errors) {
-            console.error("   ❌ Error adding address:", JSON.stringify(addressJson.errors, null, 2));
+            console.error("❌ Error adding address:", JSON.stringify(addressJson.errors, null, 2));
           } else if (addressJson.data?.customerUpdate?.customer?.addresses) {
-            console.log("   ✅ Address added successfully");
+            console.log("✅ Address added successfully");
           } else if (addressJson.data?.customerUpdate?.userErrors?.length > 0) {
-            console.log(`   ❌ Address error: ${addressJson.data.customerUpdate.userErrors.map(e => e.message).join(", ")}`);
+            console.log(`❌ Address error: ${addressJson.data.customerUpdate.userErrors.map(e => e.message).join(", ")}`);
           }
         }
       }
@@ -628,14 +625,13 @@ console.log(`
 if (!isManualRun && useAdvancedStore) {
   console.log("⚠️  For automated scheduling, please use: node app/worker.js");
   console.log("⚠️  Direct execution without --manual flag is not recommended for advanced store");
-  console.log("🚀 Running incremental sync anyway...");
 }
 
 // Determine sync type based on flags
 const isFullSync = isManualRun || !useAdvancedStore; // Manual mode or dev store = full sync
 const syncType = isFullSync ? "full sync" : "incremental sync";
 const testMode = isSingleTest ? " (single test mode)" : "";
-console.log(`🚀 Running ${syncType}${testMode}...`);
+console.log(`Running ${syncType}${testMode}...`);
 
 // Run the sync
 syncCustomers(!isFullSync); // !isFullSync = incremental sync for advanced store without manual flag
