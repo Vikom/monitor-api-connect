@@ -127,7 +127,7 @@ export async function syncCustomers(isIncrementalSync = false) {
   console.log("✅ Store session is valid. Starting customers sync...");
   
   if (isIncrementalSync) {
-    console.log("🔄 Running incremental sync (customers with changes in last 48 hours)");
+    console.log("🔄 Running incremental sync (customers with changes in last 2 hours)");
   } else {
     console.log("🔄 Running full sync (all customers)");
   }
@@ -135,7 +135,7 @@ export async function syncCustomers(isIncrementalSync = false) {
   let customers;
   try {
     if (isIncrementalSync) {
-      // Get customer IDs that have changed in the last 48 hours
+      // Get customer IDs that have changed in the last 2 hours
       // Look for both customer entity types: direct customers and references
       const customerEntityTypeId = '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc';
       const referenceEntityTypeId = '9a9b110e-d5b5-410d-afee-c397747eba77';
@@ -149,7 +149,7 @@ export async function syncCustomers(isIncrementalSync = false) {
       const allChangedCustomerIds = [...new Set([...changedCustomerIds, ...changedReferenceIds])];
 
       if (allChangedCustomerIds.length === 0) {
-        console.log("No customer changes detected in the last 48 hours.");
+        console.log("No customer changes detected in the last 2 hours.");
         return;
       }
 
@@ -585,7 +585,7 @@ Configuration:
   Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
 
 Sync types:
-  Incremental: Only syncs customers that have changed in the last 48 hours
+  Incremental: Only syncs customers that have changed in the last 2 hours
   Full (manual): Syncs all customers regardless of changes
 
 Flags:

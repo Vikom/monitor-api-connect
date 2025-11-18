@@ -1107,7 +1107,7 @@ export async function fetchOutletPriceFromMonitor(partId) {
 }
 
 /**
- * Fetch entity change logs from Monitor for the last 6 hours
+ * Fetch entity change logs from Monitor for the last 2 hours
  * @param {string} entityTypeId - The entity type ID ('322cf0ac-10de-45ee-a792-f0944329d198' for products, '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc' for customers)
  * @returns {Promise<Array>} Array of change log entries for the specified entity type
  */
@@ -1116,7 +1116,7 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
     const sessionId = await monitorClient.getSessionId();
     
     // Calculate date 6 hours ago in ISO format
-    const fortyEightHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const fortyEightHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
