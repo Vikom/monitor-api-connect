@@ -1116,7 +1116,7 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
     const sessionId = await monitorClient.getSessionId();
     
     // Calculate date 48 hours ago in ISO format
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const fortyEightHoursAgo = new Date(Date.now() - 240 * 60 * 60 * 1000);
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
