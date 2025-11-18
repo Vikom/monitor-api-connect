@@ -178,11 +178,11 @@ async function updateVariantMetafields(shop, accessToken, variantId, stockData, 
   if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;
-      console.log(`    ⏳ Metafields update throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+      console.log(`Metafields update throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return updateVariantMetafields(shop, accessToken, variantId, stockData, stockControlJson, stockStatus, retryCount + 1);
     } else {
-      console.error("    ❌ Max retries exceeded for metafields update throttling");
+      console.error("❌ Max retries exceeded for metafields update throttling");
       return false;
     }
   }
@@ -302,7 +302,7 @@ async function getShopifyLocations(shop, accessToken, retryCount = 0) {
   if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;
-      console.log(`⏳ Locations fetch throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+      console.log(`Locations fetch throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return getShopifyLocations(shop, accessToken, retryCount + 1);
     } else {
@@ -383,7 +383,7 @@ async function getShopifyProductsWithMonitorIds(shop, accessToken) {
     if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
       if (retryCount < maxRetries) {
         const waitTime = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s, 16s
-        console.log(`⏳ Shopify API throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+        console.log(`Shopify API throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         retryCount++;
         continue; // Retry the same request
@@ -412,14 +412,6 @@ async function getShopifyProductsWithMonitorIds(shop, accessToken) {
               const monitorIdValue = monitorIdMetafield.node.value;
               variantsInThisBatch++;
               
-              // Debug logging for specific part
-              if (monitorIdValue === '1301874464146274589') {
-                console.log(`🐛 Debug: Found target product in Shopify!`);
-                console.log(`🐛 Debug: Product: ${productEdge.node.title}`);
-                console.log(`🐛 Debug: Variant SKU: ${variantEdge.node.sku}`);
-                console.log(`🐛 Debug: Monitor ID: ${monitorIdValue} (type: ${typeof monitorIdValue})`);
-              }
-              
               allProducts.push({
                 productId: productEdge.node.id,
                 productTitle: productEdge.node.title,
@@ -432,7 +424,7 @@ async function getShopifyProductsWithMonitorIds(shop, accessToken) {
         }
         
         // Progress indicator
-        console.log(`📦 Fetched batch: +${variantsInThisBatch} variants (total: ${allProducts.length} so far)`);
+        console.log(`Fetched batch: +${variantsInThisBatch} variants (total: ${allProducts.length} so far)`);
     }
     
     hasNextPage = result.data?.products?.pageInfo?.hasNextPage || false;
@@ -492,11 +484,11 @@ async function updateShopifyInventoryLevel(shop, accessToken, inventoryItemId, l
   if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;
-      console.log(`      ⏳ Inventory update throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+      console.log(`Inventory update throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return updateShopifyInventoryLevel(shop, accessToken, inventoryItemId, locationId, availableQuantity, retryCount + 1);
     } else {
-      console.error("      ❌ Max retries exceeded for inventory update throttling");
+      console.error("❌ Max retries exceeded for inventory update throttling");
       return false;
     }
   }
@@ -542,7 +534,7 @@ async function getInventoryItemId(shop, accessToken, variantId, retryCount = 0) 
   if (result.errors && result.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;
-      console.log(`      ⏳ Inventory item fetch throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+      console.log(`Inventory item fetch throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return getInventoryItemId(shop, accessToken, variantId, retryCount + 1);
     } else {
@@ -598,11 +590,11 @@ async function ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId,
   if (checkResult.errors && checkResult.errors.some(error => error.extensions?.code === 'THROTTLED')) {
     if (retryCount < maxRetries) {
       const waitTime = Math.pow(2, retryCount) * 1000;
-      console.log(`      ⏳ Inventory level check throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
+      console.log(`Inventory level check throttled. Waiting ${waitTime/1000}s before retry ${retryCount + 1}/${maxRetries}...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
       return ensureInventoryItemAtLocation(shop, accessToken, inventoryItemId, locationId, retryCount + 1);
     } else {
-      console.error("      ❌ Max retries exceeded for inventory level check throttling");
+      console.error("❌ Max retries exceeded for inventory level check throttling");
       return false;
     }
   }
@@ -696,16 +688,16 @@ export async function syncInventory() {
   const debugPartIndex = args.indexOf('--debug-part');
   const debugPartId = debugPartIndex !== -1 && args[debugPartIndex + 1] ? args[debugPartIndex + 1] : null;
 
-  console.log(`🎯 Runtime store detection: ${currentUseAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
-  console.log(`🔍 Global flag: ${global.useAdvancedStore}, Args: ${args.includes('--advanced') || args.includes('-a')}`);
+  console.log(`Runtime store detection: ${currentUseAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+  console.log(`Global flag: ${global.useAdvancedStore}, Args: ${args.includes('--advanced') || args.includes('-a')}`);
   
   if (debugPartId) {
-    console.log(`🐛 DEBUG MODE: Testing specific part ID ${debugPartId}`);
+    console.log(`DEBUG MODE: Testing specific part ID ${debugPartId}`);
   }
 
   // Handle single test mode
   if (isSingleTest) {
-    console.log('🧪 Single test mode - testing with one actual Shopify update');
+    console.log('Single test mode - testing with one actual Shopify update');
     
     // Set up Shopify connection (same logic as main sync)
     let shop, accessToken;
@@ -755,9 +747,9 @@ export async function syncInventory() {
     
     // Get parts from Monitor for testing (get a few to find one with stock, or specific part for debugging)
     if (debugPartId) {
-      console.log(`🐛 Fetching specific part ${debugPartId} from Monitor for single test debugging...`);
+      console.log(`Fetching specific part ${debugPartId} from Monitor for single test debugging...`);
     } else {
-      console.log("🔍 Fetching parts from Monitor for stock sync test...");
+      console.log("Fetching parts from Monitor for stock sync test...");
     }
     
     const parts = await fetchPartsForStock(debugPartId ? 1 : 10, debugPartId); // Get specific part or sample of 10
@@ -772,8 +764,8 @@ export async function syncInventory() {
     }
     
     if (debugPartId) {
-      console.log(`🐛 Found debug part for single test: ${parts[0].PartNumber} (ID: ${parts[0].Id})`);
-      console.log(`🐛 Part details:`, JSON.stringify(parts[0], null, 2));
+      console.log(`Found debug part for single test: ${parts[0].PartNumber} (ID: ${parts[0].Id})`);
+      console.log(`Part details:`, JSON.stringify(parts[0], null, 2));
     }
     
     // Get Shopify products for mapping
@@ -795,19 +787,16 @@ export async function syncInventory() {
     });
 
     if (debugPartId) {
-      console.log(`🐛 Debug: Looking for Shopify product with monitor_id: ${debugPartId}`);
-      console.log(`🐛 Debug: Total Shopify products found: ${shopifyProducts.length}`);
-      
       // Show all monitor IDs we found in Shopify for debugging
       const foundMonitorIds = Array.from(monitorIdToShopifyMap.keys());
-      console.log(`🐛 Debug: All monitor_ids found in Shopify:`, foundMonitorIds.slice(0, 10), foundMonitorIds.length > 10 ? `... and ${foundMonitorIds.length - 10} more` : '');
+      console.log(`Debug: All monitor_ids found in Shopify:`, foundMonitorIds.slice(0, 10), foundMonitorIds.length > 10 ? `... and ${foundMonitorIds.length - 10} more` : '');
       
       // Check if our specific ID exists
       const shopifyProductForDebug = monitorIdToShopifyMap.get(debugPartId);
       if (shopifyProductForDebug) {
-        console.log(`🐛 Debug: ✅ Found Shopify product for debug part:`, shopifyProductForDebug);
+        console.log(`Debug: ✅ Found Shopify product for debug part:`, shopifyProductForDebug);
       } else {
-        console.log(`🐛 Debug: ❌ No Shopify product found with monitor_id: ${debugPartId}`);
+        console.log(`Debug: ❌ No Shopify product found with monitor_id: ${debugPartId}`);
         
         // Try to find similar IDs (in case of string vs number mismatch)
         const similarIds = foundMonitorIds.filter(id => 
@@ -815,7 +804,7 @@ export async function syncInventory() {
           debugPartId.toString().includes(id.toString().slice(-8))
         );
         if (similarIds.length > 0) {
-          console.log(`🐛 Debug: Found potentially similar monitor_ids:`, similarIds);
+          console.log(`Debug: Found potentially similar monitor_ids:`, similarIds);
         }
       }
     }
@@ -929,15 +918,12 @@ export async function syncInventory() {
           const warehouseName = WAREHOUSE_JSON_MAPPING[warehouseId];
           console.log(`   ${metafieldKey}: ${stock} (${warehouseName})`);
         }
-        
-        console.log(`   custom.stock_control: ${JSON.stringify(stockControlJson)}`);
-        console.log(`   custom.stock_status: "${stockStatus}"`);
       } else {
         console.log('❌ Failed to update metafields');
       }
       
       // 2. Update inventory levels
-      console.log('\n📦 Updating inventory levels...');
+      console.log('\nUpdating inventory levels...');
       let inventoryUpdated = false;
       
       // Process all warehouses in our mapping, not just those with stock data
@@ -948,14 +934,14 @@ export async function syncInventory() {
         
         const shopifyLocation = locationMap.get(warehouseId);
         if (!shopifyLocation) {
-          console.log(`   ⚠️  No Shopify location mapped for ${warehouseName} warehouse`);
+          console.log(`⚠️ No Shopify location mapped for ${warehouseName} warehouse`);
           continue;
         }
 
         // Get inventory item ID for this variant
         const inventoryItemId = await getInventoryItemId(shop, accessToken, testProduct.variantId);
         if (!inventoryItemId) {
-          console.log(`   ❌ Could not get inventory item ID for variant`);
+          console.log(`❌ Could not get inventory item ID for variant`);
           continue;
         }
 
@@ -1009,7 +995,7 @@ export async function syncInventory() {
       }
       
       if (metafieldSuccess || inventoryUpdated) {
-        console.log('\n🎉 Single test PASSED! The sync logic is working correctly.');
+        console.log('\n Single test PASSED! The sync logic is working correctly.');
         console.log('   You can now run the full inventory sync with confidence.');
       } else {
         console.log('\n❌ Single test FAILED! Please check the configuration and try again.');
@@ -1017,10 +1003,10 @@ export async function syncInventory() {
       
     } catch (error) {
       console.error('❌ Error in single test:', error);
-      console.log('\n💡 Single test failed - please check the error above and try again.');
+      console.log('\nSingle test failed - please check the error above and try again.');
     }
     
-    console.log('\n🧪 Single test completed');
+    console.log('\nSingle test completed');
     return;
   }
 
@@ -1032,8 +1018,8 @@ export async function syncInventory() {
     shop = process.env.ADVANCED_STORE_DOMAIN;
     accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
 
-    console.log(`🏪 Shop: ${shop ? 'Set' : 'Missing'}`);
-    console.log(`🔑 Access Token: ${accessToken ? 'Set' : 'Missing'}`);
+    console.log(`Shop: ${shop ? 'Set' : 'Missing'}`);
+    console.log(`Access Token: ${accessToken ? 'Set' : 'Missing'}`);
 
     if (!shop || !accessToken) {
       console.log("❌ Advanced store configuration missing!");
@@ -1041,7 +1027,7 @@ export async function syncInventory() {
     }
     
     // Validate the advanced store session
-    console.log("🔍 Validating advanced store session...");
+    console.log("Validating advanced store session...");
     const isValidSession = await validateSession(shop, accessToken);
     console.log(`✅ Session validation result: ${isValidSession}`);
     if (!isValidSession) {
@@ -1073,7 +1059,7 @@ export async function syncInventory() {
 
     shop = session.shop;
     accessToken = session.accessToken;
-    console.log(`🔗 Using development store: ${shop}`);
+    console.log(`Using development store: ${shop}`);
   }
 
   console.log("✅ Store session is valid. Starting inventory sync...");
@@ -1087,8 +1073,6 @@ export async function syncInventory() {
       locations = await getShopifyLocations(shop, accessToken);
     } catch (error) {
       console.error("❌ Failed to fetch Shopify locations:", error.message);
-      console.log("   This could be due to API throttling or network issues");
-      console.log("   Please wait a moment and try again");
       return;
     }
     
@@ -1108,7 +1092,7 @@ export async function syncInventory() {
 
     // Get all parts from Monitor with stock data (or specific part for debugging)
     if (debugPartId) {
-      console.log(`🐛 Fetching specific part ${debugPartId} from Monitor for debugging...`);
+      console.log(`Fetching specific part ${debugPartId} from Monitor for debugging...`);
     } else {
       console.log("Fetching parts from Monitor for stock sync...");
     }
@@ -1125,8 +1109,8 @@ export async function syncInventory() {
     }
 
     if (debugPartId) {
-      console.log(`🐛 Found debug part: ${parts[0].PartNumber} (ID: ${parts[0].Id})`);
-      console.log(`🐛 Part details:`, JSON.stringify(parts[0], null, 2));
+      console.log(`Found debug part: ${parts[0].PartNumber} (ID: ${parts[0].Id})`);
+      console.log(`Part details:`, JSON.stringify(parts[0], null, 2));
     } else {
       console.log(`Found ${parts.length} parts from Monitor to process`);
     }
@@ -1139,8 +1123,6 @@ export async function syncInventory() {
       shopifyProducts = await getShopifyProductsWithMonitorIds(shop, accessToken);
     } catch (error) {
       console.error("❌ Failed to fetch Shopify products:", error.message);
-      console.log("   This could be due to API throttling or network issues");
-      console.log("   Please wait a moment and try again");
       return;
     }
     
@@ -1153,15 +1135,15 @@ export async function syncInventory() {
     console.log(`Found ${shopifyProducts.length} Shopify products with Monitor IDs for mapping`);
 
     if (debugPartId) {
-      console.log(`🐛 Debug: Main sync - Looking for Shopify product with monitor_id: ${debugPartId}`);
+      console.log(`Debug: Main sync - Looking for Shopify product with monitor_id: ${debugPartId}`);
       const debugShopifyProduct = monitorIdToShopifyMap.get(debugPartId);
       if (debugShopifyProduct) {
-        console.log(`🐛 Debug: Main sync - ✅ Found Shopify product:`, debugShopifyProduct);
+        console.log(`Debug: Main sync - ✅ Found Shopify product:`, debugShopifyProduct);
       } else {
-        console.log(`🐛 Debug: Main sync - ❌ No Shopify product found`);
+        console.log(`Debug: Main sync - ❌ No Shopify product found`);
         // Show first few monitor IDs for comparison
         const allIds = Array.from(monitorIdToShopifyMap.keys());
-        console.log(`🐛 Debug: First 10 monitor_ids in map:`, allIds.slice(0, 10));
+        console.log(`Debug: First 10 monitor_ids in map:`, allIds.slice(0, 10));
       }
     }
 
@@ -1174,9 +1156,9 @@ export async function syncInventory() {
       console.log(`Processing part ${displayName} (Monitor ID: ${part.Id})...`);
       
       if (debugPartId) {
-        console.log(`🐛 Debug: Processing part - Monitor ID type: ${typeof part.Id}, value: ${part.Id}`);
+        console.log(`Debug: Processing part - Monitor ID type: ${typeof part.Id}, value: ${part.Id}`);
         const debugProduct = monitorIdToShopifyMap.get(part.Id);
-        console.log(`🐛 Debug: Shopify mapping result:`, debugProduct ? 'FOUND' : 'NOT FOUND');
+        console.log(`Debug: Shopify mapping result:`, debugProduct ? 'FOUND' : 'NOT FOUND');
       }
       
       try {
@@ -1184,9 +1166,9 @@ export async function syncInventory() {
         const shopifyProduct = monitorIdToShopifyMap.get(part.Id);
         if (!shopifyProduct) {
           if (debugPartId) {
-            console.log(`🐛 Debug: No Shopify product found - this is the issue we need to solve`);
+            console.log(`Debug: No Shopify product found - this is the issue we need to solve`);
           }
-          console.log(`  No Shopify product found for Monitor ID ${part.Id}`);
+          console.log(`No Shopify product found for Monitor ID ${part.Id}`);
           continue;
         }
 

@@ -11,9 +11,9 @@ const useAdvancedStore = args.includes('--advanced') || args.includes('-a');
 const forceAssignImages = args.includes('--force-assign') || args.includes('-f');
 const singleTestMode = args.includes('--single-test');
 
-console.log(`🎯 Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
-console.log(`🔧 Force assign images: ${forceAssignImages ? 'Yes' : 'No'}`);
-console.log(`🧪 Single test mode: ${singleTestMode ? 'Yes (only first product)' : 'No'}`);
+console.log(`Target store: ${useAdvancedStore ? 'Advanced Store' : 'Development Store'}`);
+console.log(`Force assign images: ${forceAssignImages ? 'Yes' : 'No'}`);
+console.log(`Single test mode: ${singleTestMode ? 'Yes (only first product)' : 'No'}`);
 
 const shopifyConfig = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -317,7 +317,7 @@ async function assignImagesToVariantsForProduct(shop, accessToken, product, imag
   const fetch = (await import('node-fetch')).default;
   
   try {
-    console.log(`\n🔗 Assigning images to variants for: ${product.title}`);
+    console.log(`\nAssigning images to variants for: ${product.title}`);
     
     // Get current images for this product via REST API
     const numericProductId = product.id.split('/').pop();
@@ -338,11 +338,11 @@ async function assignImagesToVariantsForProduct(shop, accessToken, product, imag
     const productImages = result.images || [];
     
     if (productImages.length === 0) {
-      console.log(`  ℹ️  No images found for product`);
+      console.log(`No images found for product`);
       return false;
     }
 
-    console.log(`  📸 Found ${productImages.length} images on product`);
+    console.log(`Found ${productImages.length} images on product`);
 
     // Group variants by SKU and find the first image for each SKU
     const skuToVariantIds = new Map();
@@ -358,7 +358,7 @@ async function assignImagesToVariantsForProduct(shop, accessToken, product, imag
     }
 
     if (skuToVariantIds.size === 0) {
-      console.log(`  ℹ️  No variants with matching SKUs found`);
+      console.log(`No variants with matching SKUs found`);
       return false;
     }
 
@@ -375,16 +375,16 @@ async function assignImagesToVariantsForProduct(shop, accessToken, product, imag
         );
         
         if (matchingImage) {
-          console.log(`  🎯 Assigning ${firstImageName}.webp to ${variantIds.length} variants for SKU ${sku}`);
+          console.log(`Assigning ${firstImageName}.webp to ${variantIds.length} variants for SKU ${sku}`);
           await assignImageToVariants(shop, accessToken, product.id, variantIds, matchingImage.id);
           assignedCount++;
         } else {
-          console.log(`  ⚠️  Could not find matching image for SKU ${sku} (looking for: ${firstImageName})`);
+          console.log(`Could not find matching image for SKU ${sku} (looking for: ${firstImageName})`);
         }
       }
     }
 
-    console.log(`  ✅ Assigned images to variants for ${assignedCount} SKUs`);
+    console.log(`Assigned images to variants for ${assignedCount} SKUs`);
     return assignedCount > 0;
 
   } catch (error) {
@@ -542,7 +542,7 @@ async function syncImages() {
       return;
     }
 
-    console.log(`🔗 Using Advanced store: ${shop}`);
+    console.log(`Using Advanced store: ${shop}`);
     
     // Validate the advanced store session
     const isValidSession = await validateSession(shop, accessToken);
@@ -581,7 +581,7 @@ async function syncImages() {
 
     shop = session.shop;
     accessToken = session.accessToken;
-    console.log(`🔗 Using development store: ${shop}`);
+    console.log(`Using development store: ${shop}`);
   }
 
   console.log("✅ Store session is valid. Starting image sync...");
@@ -606,22 +606,22 @@ async function syncImages() {
     const productsToProcess = singleTestMode ? products.slice(0, 1) : products;
     
     if (singleTestMode && productsToProcess.length > 0) {
-      console.log(`🧪 Single test mode: Processing only "${productsToProcess[0].title}"`);
+      console.log(`Single test mode: Processing only "${productsToProcess[0].title}"`);
     }
 
-    console.log(`\n🚀 Starting Phase 1: Uploading images to products...`);
+    console.log(`Starting Phase 1: Uploading images to products...`);
     
     // PHASE 1: Upload all images to their products
     for (const product of productsToProcess) {
-      console.log(`\n📸 Uploading images for: ${product.title}`);
+      console.log(`Uploading images for: ${product.title}`);
       
       // Check if product already has images
       const existingImages = product.images.edges || [];
       if (existingImages.length > 0 && !forceAssignImages) {
-        console.log(`  ℹ️  Product already has ${existingImages.length} images, skipping upload...`);
+        console.log(`Product already has ${existingImages.length} images, skipping upload...`);
         continue;
       } else if (existingImages.length > 0 && forceAssignImages) {
-        console.log(`  ⚠️  Product has ${existingImages.length} images, but force assign is enabled, skipping upload...`);
+        console.log(`Product has ${existingImages.length} images, but force assign is enabled, skipping upload...`);
         continue;
       }
 
@@ -646,7 +646,7 @@ async function syncImages() {
                   sku: variant.sku,
                   fileName: imageFileName
                 });
-                console.log(`  📋 Found image for SKU ${variant.sku}: ${imageFileName}`);
+                console.log(`Found image for SKU ${variant.sku}: ${imageFileName}`);
               }
             }
           }
@@ -655,7 +655,7 @@ async function syncImages() {
 
       // Upload all images for this product
       if (imagesToUpload.length > 0) {
-        console.log(`  ⬆️  Uploading ${imagesToUpload.length} images...`);
+        console.log(`Uploading ${imagesToUpload.length} images...`);
         
         for (let i = 0; i < imagesToUpload.length; i++) {
           const imageInfo = imagesToUpload[i];
@@ -677,22 +677,22 @@ async function syncImages() {
           }
         }
       } else {
-        console.log(`  ℹ️  No new images to upload for this product`);
+        console.log(`No new images to upload for this product`);
       }
 
       processedProducts++;
       
       // Progress tracking
       if (processedProducts % 10 === 0) {
-        console.log(`📊 Phase 1 Progress: ${processedProducts}/${productsToProcess.length} products processed`);
+        console.log(`Phase 1 Progress: ${processedProducts}/${productsToProcess.length} products processed`);
       }
       
       // Short delay between products
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`\n✅ Phase 1 Complete! Uploaded images to ${productsWithImages} products`);
-    console.log(`\n🔗 Starting Phase 2: Assigning images to variants...`);
+    console.log(`\nPhase 1 Complete! Uploaded images to ${productsWithImages} products`);
+    console.log(`\nStarting Phase 2: Assigning images to variants...`);
 
     // PHASE 2: Assign images to variants
     let variantAssignmentCount = 0;
@@ -706,17 +706,17 @@ async function syncImages() {
       // Progress tracking for phase 2
       const currentIndex = productsToProcess.indexOf(product) + 1;
       if (currentIndex % 10 === 0) {
-        console.log(`📊 Phase 2 Progress: ${currentIndex}/${productsToProcess.length} products processed`);
+        console.log(`Phase 2 Progress: ${currentIndex}/${productsToProcess.length} products processed`);
       }
       
       // Rate limiting delay
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    console.log(`\n✅ Phase 2 Complete! Assigned images to variants for ${variantAssignmentCount} products`);
+    console.log(`\nPhase 2 Complete! Assigned images to variants for ${variantAssignmentCount} products`);
 
-    console.log(`\n🎉 Image sync completed successfully!`);
-    console.log(`📊 Summary:`);
+    console.log(`\nImage sync completed successfully!`);
+    console.log(`Summary:`);
     console.log(`   • Processed ${processedProducts} products${singleTestMode ? ' (single test mode)' : ''}`);
     console.log(`   • Added images to ${productsWithImages} products`);
     console.log(`   • Assigned variants for ${variantAssignmentCount} products`);
@@ -729,7 +729,7 @@ async function syncImages() {
 // Display usage instructions
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-📋 Images Sync Job Usage:
+Images Sync Job Usage:
 
 To sync to development store (OAuth):
   node app/syncImagesJob.js

@@ -555,7 +555,7 @@ export async function syncCustomers(isIncrementalSync = false) {
     
     // In single test mode, only process the first customer
     if (isSingleTest) {
-      console.log("🧪 Single test mode: Stopping after first customer");
+      console.log("Single test mode: Stopping after first customer");
       break;
     }
   }
