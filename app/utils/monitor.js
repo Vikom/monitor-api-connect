@@ -1115,8 +1115,8 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
   try {
     const sessionId = await monitorClient.getSessionId();
     
-    // Calculate date 48 hours ago in ISO format
-    const fortyEightHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    // Calculate date 6 hours ago in ISO format
+    const fortyEightHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
@@ -1164,7 +1164,7 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
       throw new Error("Monitor API returned unexpected data format for entity change logs");
     }
     
-    console.log(`Found ${changeLogs.length} entity changes in the last 48 hours for ${entityType}`);
+    console.log(`Found ${changeLogs.length} entity changes in the last 6 hours for ${entityType}`);
     
     // Extract unique entity IDs from the change logs
     const uniqueEntityIds = [...new Set(changeLogs.map(log => log.EntityId))];
