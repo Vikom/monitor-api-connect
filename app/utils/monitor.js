@@ -1116,8 +1116,8 @@ export async function fetchEntityChangeLogsFromMonitor(type = 'products') {
     const sessionId = await monitorClient.getSessionId();
     
     // Calculate date 2 hours ago in ISO format
-    const fortyEightHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-    const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const dateFilter = twoHoursAgo.toISOString(); // Full ISO format with time
     
     // Define entity type IDs based on type parameter
     let entityTypeIdArray;
