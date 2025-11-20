@@ -248,7 +248,7 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
           // console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
         }
         
-        console.log(`fetchCustomerPartPrice returning price: ${priceListPrice}`);
+        // console.log(`fetchCustomerPartPrice returning price: ${priceListPrice}`);
         return priceListPrice;
       } else {
         // console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);

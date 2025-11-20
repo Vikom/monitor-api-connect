@@ -75,14 +75,14 @@ function setupCronJobs() {
     runSyncJob("INVENTORY-SYNC", syncInventory);
   });
 
-  // Product sync every hour (incremental)
-  cron.schedule("0 * * * *", () => {
+  // Product sync every 15 minutes (at minutes 0, 15, 30, 45)
+  cron.schedule("0,15,30,45 * * * *", () => {
     console.log("[PRODUCT-SYNC] Running scheduled incremental product sync...");
     runSyncJob("PRODUCT-SYNC", syncProducts, true); // true = incremental sync
   });
 
-  // Customer sync every 10 minutes
-  cron.schedule("*/10 * * * *", () => { // 10 minutes after product sync to avoid conflicts
+  // Customer sync every 10 minutes (at minutes 2, 12, 22, 32, 42, 52) - offset to avoid conflicts
+  cron.schedule("2,12,22,32,42,52 * * * *", () => {
     console.log("[CUSTOMER-SYNC] Running scheduled incremental customer sync...");
     runSyncJob("CUSTOMER-SYNC", syncCustomers, true); // true = incremental sync
   });
@@ -90,8 +90,8 @@ function setupCronJobs() {
   console.log("📅 Worker cron jobs scheduled:");
   console.log("  - Order polling: every 5 minutes");
   console.log("  - Inventory sync: daily at 23:00 Swedish time (22:00 UTC)");
-  console.log("  - Product sync: every hour (at :00)");
-  console.log("  - Customer sync: every hour (at :05)");
+  console.log("  - Product sync: every 15 minutes (at :00, :15, :30, :45)");
+  console.log("  - Customer sync: every 10 minutes (at :02, :12, :22, :32, :42, :52)");
 }
 
 // Display usage instructions
@@ -114,8 +114,8 @@ Individual manual syncs:
 🕐 Worker Schedule (Production only):
   - Order polling: every 5 minutes
   - Inventory sync: daily at 23:00 Swedish time (22:00 UTC)
-  - Product sync: every hour (at :00, incremental)
-  - Customer sync: every hour (at :05, incremental)
+  - Product sync: every 15 minutes (at :00, :15, :30, :45, incremental)
+  - Customer sync: every 10 minutes (at :02, :12, :22, :32, :42, :52, incremental)
 
 🚨 Safety: Worker only runs in production environment automatically
    Set NODE_ENV=production or run on Railway to enable

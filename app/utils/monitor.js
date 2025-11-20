@@ -1116,7 +1116,7 @@ export async function fetchEntityChangeLogsFromMonitor(type = 'products') {
     const sessionId = await monitorClient.getSessionId();
     
     // Calculate date 2 hours ago in ISO format
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const twoHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const dateFilter = twoHoursAgo.toISOString(); // Full ISO format with time
     
     // Define entity type IDs based on type parameter
@@ -1128,8 +1128,8 @@ export async function fetchEntityChangeLogsFromMonitor(type = 'products') {
       ];
     } else if (type === 'products') {
       entityTypeIdArray = [
-        '322cf0ac-10de-45ee-a792-f0944329d198', // Default products
-        '6b6b98da-21a0-4ca4-9b88-21631c6ea572'  // Additional products
+        '322cf0ac-10de-45ee-a792-f0944329d198', // Default product changes
+        '6b6b98da-21a0-4ca4-9b88-21631c6ea572'  // Additional product changes
       ];
     } else {
       throw new Error(`Unknown entity type: ${type}. Supported types: 'products', 'customers'`);
