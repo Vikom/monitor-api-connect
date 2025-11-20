@@ -1111,7 +1111,7 @@ export async function fetchOutletPriceFromMonitor(partId) {
  * @param {string} entityTypeId - The entity type ID ('322cf0ac-10de-45ee-a792-f0944329d198' for products, '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc' for customers)
  * @returns {Promise<Array>} Array of change log entries for the specified entity type
  */
-export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-10de-45ee-a792-f0944329d198') {
+export async function fetchEntityChangeLogsFromMonitor(type = 'products') {
   try {
     const sessionId = await monitorClient.getSessionId();
     
@@ -1119,12 +1119,30 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
     const fortyEightHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
+    // Define entity type IDs based on type parameter
+    let entityTypeIdArray;
+    if (type === 'customers') {
+      entityTypeIdArray = [
+        '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc', // Direct customers
+        '9a9b110e-d5b5-410d-afee-c397747eba77'  // References
+      ];
+    } else if (type === 'products') {
+      entityTypeIdArray = [
+        '322cf0ac-10de-45ee-a792-f0944329d198', // Default products
+        '6b6b98da-21a0-4ca4-9b88-21631c6ea572'  // Additional products
+      ];
+    } else {
+      throw new Error(`Unknown entity type: ${type}. Supported types: 'products', 'customers'`);
+    }
+    
+    // Build OR filter for multiple entity type IDs
+    const entityTypeFilter = entityTypeIdArray.map(id => `EntityTypeId eq '${id}'`).join(' or ');
+    
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
-    url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and EntityTypeId eq '${entityTypeId}'`;
+    url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and (${entityTypeFilter})`;
     // Remove $orderby since it's causing SQL errors
     
-    const entityType = (entityTypeId === '322cf0ac-10de-45ee-a792-f0944329d198' || entityTypeId === '6b6b98da-21a0-4ca4-9b88-21631c6ea572') ? 'products' : 'customers';
-    console.log(`Fetching entity change logs for ${entityType} since: ${dateFilter}`);
+    console.log(`Fetching entity change logs for ${type} (${entityTypeIdArray.length} entity types) since: ${dateFilter}`);
     console.log(`Change logs URL: ${url}`);
     
     let res = await fetch(url, {
@@ -1164,11 +1182,11 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
       throw new Error("Monitor API returned unexpected data format for entity change logs");
     }
     
-    console.log(`Found ${changeLogs.length} entity changes in the last 6 hours for ${entityType}`);
+    console.log(`Found ${changeLogs.length} entity changes in the last 6 hours for ${type}`);
     
     // Extract unique entity IDs from the change logs
     const uniqueEntityIds = [...new Set(changeLogs.map(log => log.EntityId))];
-    console.log(`Unique ${entityType} with changes: ${uniqueEntityIds.length}`);
+    console.log(`Unique ${type} with changes: ${uniqueEntityIds.length}`);
     
     return uniqueEntityIds;
   } catch (error) {

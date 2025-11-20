@@ -483,24 +483,15 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
       } else if (isIncrementalSync) {
         // Fetch only changed products
         console.log("Fetching entity change logs from Monitor...");
-        const productEntityTypeId = '322cf0ac-10de-45ee-a792-f0944329d198'; // Default from function
-        const additionalEntityTypeId = '6b6b98da-21a0-4ca4-9b88-21631c6ea572';
+        const changedProductIds = await fetchEntityChangeLogsFromMonitor('products');
         
-        const [changedProductIds, changedAdditionalIds] = await Promise.all([
-          fetchEntityChangeLogsFromMonitor(productEntityTypeId),
-          fetchEntityChangeLogsFromMonitor(additionalEntityTypeId)
-        ]);
-
-        // Combine and deduplicate the product IDs
-        const allChangedProductIds = [...new Set([...changedProductIds, ...changedAdditionalIds])];
-        
-        if (allChangedProductIds.length === 0) {
+        if (changedProductIds.length === 0) {
           console.log("✅ No product changes found in the last 24 hours. Sync complete.");
           return;
         }
         
-        console.log(`Found ${allChangedProductIds.length} products with changes (${changedProductIds.length} direct products, ${changedAdditionalIds.length} additional), fetching product details...`);
-        products = await fetchProductsByIdsFromMonitor(allChangedProductIds);
+        console.log(`Found ${changedProductIds.length} products with changes, fetching product details...`);
+        products = await fetchProductsByIdsFromMonitor(changedProductIds);
         console.log(`Fetched ${products.length} changed products from Monitor API`);
       } else {
         // Fetch all products (existing behavior)

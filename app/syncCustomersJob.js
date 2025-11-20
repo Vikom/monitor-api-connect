@@ -137,24 +137,15 @@ export async function syncCustomers(isIncrementalSync = false) {
     if (isIncrementalSync) {
       // Get customer IDs that have changed in the last 2 hours
       // Look for both customer entity types: direct customers and references
-      const customerEntityTypeId = '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc';
-      const referenceEntityTypeId = '9a9b110e-d5b5-410d-afee-c397747eba77';
-      
-      const [changedCustomerIds, changedReferenceIds] = await Promise.all([
-        fetchEntityChangeLogsFromMonitor(customerEntityTypeId),
-        fetchEntityChangeLogsFromMonitor(referenceEntityTypeId)
-      ]);
+      const changedCustomerIds = await fetchEntityChangeLogsFromMonitor('customers');
 
-      // Combine and deduplicate the customer IDs
-      const allChangedCustomerIds = [...new Set([...changedCustomerIds, ...changedReferenceIds])];
-
-      if (allChangedCustomerIds.length === 0) {
+      if (changedCustomerIds.length === 0) {
         console.log("No customer changes detected in the last 2 hours.");
         return;
       }
 
-      console.log(`Found ${allChangedCustomerIds.length} customers with changes (${changedCustomerIds.length} direct customers, ${changedReferenceIds.length} references), fetching their data...`);
-      customers = await fetchCustomersByIdsFromMonitor(allChangedCustomerIds);
+      console.log(`Found ${changedCustomerIds.length} customers with changes, fetching their data...`);
+      customers = await fetchCustomersByIdsFromMonitor(changedCustomerIds);
     } else {
       // Full sync - get all customers
       customers = await fetchCustomersFromMonitor();

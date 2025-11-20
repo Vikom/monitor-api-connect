@@ -169,7 +169,7 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
     url += `?$filter=CustomerId eq '${customerId}' and PartId eq '${partId}'`;
     
-    console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
+    // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
     
     let res = await fetch(url, {
       headers: {
@@ -210,18 +210,18 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
     if (Array.isArray(customerPartLinks) && customerPartLinks.length > 0) {
       // Found specific customer-part price
       const specificPrice = customerPartLinks[0].Price;
-      console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
+      // console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
       return specificPrice;
     } else {
-      console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
+      //console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
       
       // Step 2: Use customer details from Shopify metafields (avoiding API call to fetchCustomerFromMonitor)
-      console.log(`Step 2: Using customer details from Shopify metafields for ${customerId}`);
-      console.log(`Step 2: Customer's price list ID from Shopify: ${customerPriceListId || 'not provided'}`);
-      console.log(`Step 2: Customer's discount category ID from Shopify: ${customerDiscountCategory || 'not provided'}`);
+      // console.log(`Step 2: Using customer details from Shopify metafields for ${customerId}`);
+      // console.log(`Step 2: Customer's price list ID from Shopify: ${customerPriceListId || 'not provided'}`);
+      // console.log(`Step 2: Customer's discount category ID from Shopify: ${customerDiscountCategory || 'not provided'}`);
       
       if (!customerPriceListId) {
-        console.log(`Step 2 FAILED: No customer price list ID provided from Shopify metafields`);
+        // console.log(`Step 2 FAILED: No customer price list ID provided from Shopify metafields`);
         return null;
       }
       
@@ -229,29 +229,29 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
       const priceListPrice = await fetchPriceFromPriceList(partId, customerPriceListId);
       
       if (priceListPrice !== null && priceListPrice > 0) {
-        console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
+        // console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
         
         // Step 3a: Check for discount category discounts
         if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
-          console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
+          // console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
           const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
           
           if (discountRow && discountRow.Discount1 > 0) {
             const discountPercentage = discountRow.Discount1;
             const discountedPrice = priceListPrice * (discountPercentage / 100);
-            console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
+            // console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
             return discountedPrice;
           } else {
-            console.log(`No discount found for discount category ${customerDiscountCategory} and part code ${partCodeId}`);
+            // console.log(`No discount found for discount category ${customerDiscountCategory} and part code ${partCodeId}`);
           }
         } else if (customerDiscountCategory && !partCodeId) {
-          console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
+          // console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
         }
         
         console.log(`fetchCustomerPartPrice returning price: ${priceListPrice}`);
         return priceListPrice;
       } else {
-        console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);
+        // console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);
         console.log(`fetchCustomerPartPrice returning null`);
         return null;
       }
@@ -269,9 +269,9 @@ async function fetchOutletPrice(partId) {
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
     url += `?$filter=PartId eq '${partId}' and PriceListId eq '${OUTLET_PRICE_LIST_ID}'`;
     
-    console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
-    console.log(`API URL: ${url}`);
-    console.log(`Using session: ${session?.substring(0, 8)}...`);
+    // console.log(`Fetching outlet price for part ${partId} from price list ${OUTLET_PRICE_LIST_ID}`);
+    // console.log(`API URL: ${url}`);
+    // console.log(`Using session: ${session?.substring(0, 8)}...`);
     
     let res = await fetch(url, {
       headers: {
@@ -283,10 +283,9 @@ async function fetchOutletPrice(partId) {
       agent,
     });
     
-    console.log(`Initial response status: ${res.status}`);
+    // console.log(`Initial response status: ${res.status}`);
     
     if (res.status === 401) {
-      console.log(`Session expired, but let's see the error first...`);
       const errorText = await res.text();
       console.log(`401 Error response: ${errorText}`);
       
@@ -322,21 +321,21 @@ async function fetchOutletPrice(partId) {
     }
     
     const prices = await res.json();
-    console.log(`Outlet price API response for ${partId}:`, Array.isArray(prices) ? `Array with ${prices.length} items` : prices);
+    // console.log(`Outlet price API response for ${partId}:`, Array.isArray(prices) ? `Array with ${prices.length} items` : prices);
     
     if (!Array.isArray(prices)) {
-      console.log(`Outlet price response is not an array for ${partId}`);
+      // console.log(`Outlet price response is not an array for ${partId}`);
       return null;
     }
     
     if (prices.length > 0) {
-      console.log(`Found outlet price for ${partId}: ${prices[0].Price}`);
+      // console.log(`Found outlet price for ${partId}: ${prices[0].Price}`);
       return prices[0].Price;
     } else {
-      console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
+      // console.log(`No outlet prices found for ${partId} in price list ${OUTLET_PRICE_LIST_ID}`);
       
       // DEBUG: Let's check what price lists exist for this part
-      console.log(`DEBUG: Checking if part ${partId} exists in other price lists...`);
+      // console.log(`DEBUG: Checking if part ${partId} exists in other price lists...`);
       try {
         const allPricesUrl = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices?$filter=PartId eq '${partId}'&$top=5`;
         const allPricesRes = await fetch(allPricesUrl, {
@@ -387,7 +386,7 @@ export async function loader({ request }) {
 // Fetch metafields from Shopify Admin API
 async function fetchShopifyMetafields(shop, variantId, customerId) {
   try {
-    console.log(`Fetching metafields for variant ${variantId}, customer ${customerId}, shop ${shop}`);
+    // console.log(`Fetching metafields for variant ${variantId}, customer ${customerId}, shop ${shop}`);
     
     // Dynamic import to avoid build issues - only import on server side
     const { sessionStorage } = await import("../shopify.server.js");
@@ -603,8 +602,8 @@ export async function action({ request }) {
     }
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
-    console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}, Customer Monitor ID: ${customerMonitorId}`);
-    console.log(`Monitor env check: URL=${!!monitorUrl}, USER=${!!monitorUsername}, COMPANY=${!!monitorCompany}`);
+    // console.log(`Monitor ID: ${monitorId}, Is outlet product: ${isOutletProduct}, Customer Monitor ID: ${customerMonitorId}`);
+    // console.log(`Monitor env check: URL=${!!monitorUrl}, USER=${!!monitorUsername}, COMPANY=${!!monitorCompany}`);
 
     let price = null; // No default price - only set if found
     let priceSource = "no-price";
@@ -618,19 +617,19 @@ export async function action({ request }) {
       
       // 1. First check if it's an outlet product
       if (isOutletProduct && monitorId) {
-        console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
+        // console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
         const outletPrice = await fetchOutletPrice(monitorId);
         
         if (outletPrice !== null && outletPrice > 0) {
           price = outletPrice;
           priceSource = "outlet";
-          console.log(`Found outlet price: ${outletPrice}`);
+          // console.log(`Found outlet price: ${outletPrice}`);
         } else {
-          console.log(`No outlet price found for Monitor ID: ${monitorId}`);
+          // console.log(`No outlet price found for Monitor ID: ${monitorId}`);
           priceSource = "outlet-no-price";
         }
       } else if (isOutletProduct && !monitorId) {
-        console.log(`Outlet product but no Monitor ID available`);
+        // console.log(`Outlet product but no Monitor ID available`);
         priceSource = "outlet-no-monitor-id";
       } else {
         // 2. Not an outlet product - check for customer-specific pricing
