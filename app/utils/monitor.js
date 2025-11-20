@@ -1107,7 +1107,7 @@ export async function fetchOutletPriceFromMonitor(partId) {
 }
 
 /**
- * Fetch entity change logs from Monitor for the last 2 hours
+ * Fetch entity change logs from Monitor for the last hour
  * @param {string} entityTypeId - The entity type ID ('322cf0ac-10de-45ee-a792-f0944329d198' for products, '6bd51ec8-abd3-4032-ac43-8ddc15ca1fbc' for customers)
  * @returns {Promise<Array>} Array of change log entries for the specified entity type
  */
@@ -1115,9 +1115,9 @@ export async function fetchEntityChangeLogsFromMonitor(type = 'products') {
   try {
     const sessionId = await monitorClient.getSessionId();
     
-    // Calculate date 2 hours ago in ISO format
-    const twoHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const dateFilter = twoHoursAgo.toISOString(); // Full ISO format with time
+    // Calculate date 1 hour ago in ISO format
+    const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
+    const dateFilter = oneHourAgo.toISOString(); // Full ISO format with time
     
     // Define entity type IDs based on type parameter
     let entityTypeIdArray;

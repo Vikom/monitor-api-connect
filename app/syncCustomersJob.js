@@ -127,7 +127,7 @@ export async function syncCustomers(isIncrementalSync = false) {
   console.log("✅ Store session is valid. Starting customers sync...");
   
   if (isIncrementalSync) {
-    console.log("🔄 Running incremental sync (customers with changes in last 2 hours)");
+    console.log("🔄 Running incremental sync (customers with changes in last hour)");
   } else {
     console.log("🔄 Running full sync (all customers)");
   }
@@ -135,12 +135,12 @@ export async function syncCustomers(isIncrementalSync = false) {
   let customers;
   try {
     if (isIncrementalSync) {
-      // Get customer IDs that have changed in the last 2 hours
+      // Get customer IDs that have changed in the last hour
       // Look for both customer entity types: direct customers and references
       const changedCustomerIds = await fetchEntityChangeLogsFromMonitor('customers');
 
       if (changedCustomerIds.length === 0) {
-        console.log("No customer changes detected in the last 2 hours.");
+        console.log("No customer changes detected in the last hour.");
         return;
       }
 
@@ -576,7 +576,7 @@ Configuration:
   Advanced store: Uses ADVANCED_STORE_DOMAIN and ADVANCED_STORE_ADMIN_TOKEN from .env
 
 Sync types:
-  Incremental: Only syncs customers that have changed in the last 2 hours
+  Incremental: Only syncs customers that have changed in the last hour
   Full (manual): Syncs all customers regardless of changes
 
 Flags:
