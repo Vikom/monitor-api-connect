@@ -1115,15 +1115,15 @@ export async function fetchEntityChangeLogsFromMonitor(entityTypeId = '322cf0ac-
   try {
     const sessionId = await monitorClient.getSessionId();
     
-    // Calculate date 6 hours ago in ISO format
-    const fortyEightHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    // Calculate date 2 hours ago in ISO format
+    const fortyEightHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
     const dateFilter = fortyEightHoursAgo.toISOString(); // Full ISO format with time
     
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/EntityChangeLogs`;
     url += `?$filter=ModifiedTimestamp gt '${dateFilter}' and EntityTypeId eq '${entityTypeId}'`;
     // Remove $orderby since it's causing SQL errors
     
-    const entityType = entityTypeId === '322cf0ac-10de-45ee-a792-f0944329d198' ? 'products' : 'customers';
+    const entityType = (entityTypeId === '322cf0ac-10de-45ee-a792-f0944329d198' || entityTypeId === '6b6b98da-21a0-4ca4-9b88-21631c6ea572') ? 'products' : 'customers';
     console.log(`Fetching entity change logs for ${entityType} since: ${dateFilter}`);
     console.log(`Change logs URL: ${url}`);
     
