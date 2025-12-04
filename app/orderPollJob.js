@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { createOrderInMonitor, setOrderPropertiesInMonitor, updateDeliveryAddressInMonitor } from "./utils/monitor.js";
+import { createOrderInMonitor, setOrderPropertiesInMonitor, updateDeliveryAddressInMonitor } from "./utils/monitor.server.js";
 import dotenv from "dotenv";
 dotenv.config();
 

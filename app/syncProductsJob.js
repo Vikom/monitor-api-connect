@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, fetchSingleProductByPartNumberFromMonitor, fetchOutletPriceFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, fetchSingleProductByPartNumberFromMonitor, fetchOutletPriceFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.server.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";

@@ -1,5 +1,5 @@
 import { authenticateWebhook } from "../utils/auth.server.js";
-import { createOrderInMonitor } from "../utils/monitor.js";
+import { createOrderInMonitor } from "../utils/monitor.server.js";
 
 export const action = async ({ request }) => {
   try {

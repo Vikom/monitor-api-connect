@@ -2,7 +2,7 @@ import "@shopify/shopify-api/adapters/node";
 // import cron from "node-cron"; // Uncomment when enabling cron scheduling
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
-import { fetchCustomersFromMonitor, fetchCustomersByIdsFromMonitor, fetchEntityChangeLogsFromMonitor } from "./utils/monitor.js";
+import { fetchCustomersFromMonitor, fetchCustomersByIdsFromMonitor, fetchEntityChangeLogsFromMonitor } from "./utils/monitor.server.js";
 dotenv.config();
 
 // Get command line arguments to determine which store to sync to

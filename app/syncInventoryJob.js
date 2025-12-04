@@ -1,7 +1,7 @@
 import "@shopify/shopify-api/adapters/node";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
-import { fetchPartByPartNumberFromMonitor, fetchPartsForStock } from "./utils/monitor.js";
+import { fetchPartByPartNumberFromMonitor, fetchPartsForStock } from "./utils/monitor.server.js";
 dotenv.config();
 
 // Store selection will be determined at runtime inside the syncInventory function
