@@ -211,6 +211,20 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
       // Found specific customer-part price
       const specificPrice = customerPartLinks[0].Price;
       // console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
+
+      // @TODO Here we should also add discount.
+      /*if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
+        // console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
+        const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
+        
+        if (discountRow && discountRow.Discount1 > 0) {
+          const discountPercentage = discountRow.Discount1;
+          const discountedPrice = specificPrice * (discountPercentage / 100);
+          // console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
+          return discountedPrice;
+        }
+      }*/
+
       return specificPrice;
     } else {
       //console.log(`Step 1: No specific customer-part price found, proceeding to customer's price list...`);
@@ -613,8 +627,62 @@ export async function action({ request }) {
       console.log('Monitor API not configured - no pricing available');
       priceSource = "api-not-configured";
     } else {
-      // Monitor API is configured, try to fetch real prices with hierarchy
+      // Monitor API is configured, try to fetch price
+
+      let session = await getSessionId();
+      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
       
+      // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
+      
+      let res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": session,
+        },
+        body: JSON.stringify({
+          "PartId": monitorId,
+          "CustomerId": customerId,
+          "QuantityInUnit": 1.0
+        }),
+        agent,
+      });
+      
+      if (res.status === 401) {
+        // Session expired, force re-login and retry
+        console.log(`Session expired for customer part links fetch, re-logging in...`);
+        sessionId = null; // Clear the session
+        session = await login();
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Monitor-SessionId": session,
+          },
+          body: JSON.stringify({
+            "PartId": monitorId,
+            "CustomerId": customerId,
+            "QuantityInUnit": 1.0
+          }),
+          agent,
+        });
+      }
+      
+      if (res.status !== 200) {
+        console.error(`Failed to fetch customer part links for customer ${customerId}, part ${monitorId}: ${res.status} ${res.statusText}`);
+        const errorText = await res.text();
+        console.error(`Error response: ${errorText}`);
+        return null;
+      }
+
+      const response = await res.json();
+      price = response.CalculatedTotalPrice;
+
+    /*  
       // 1. First check if it's an outlet product
       if (isOutletProduct && monitorId) {
         // console.log(`Product is in outlet collection, fetching outlet price for Monitor ID: ${monitorId}`);
@@ -651,7 +719,7 @@ export async function action({ request }) {
           console.log(`Missing customer Monitor ID (${customerMonitorId}) or part Monitor ID (${monitorId}) - cannot fetch pricing`);
           priceSource = "missing-monitor-ids";
         }
-      }
+      }*/
     }
     
     return json({ 

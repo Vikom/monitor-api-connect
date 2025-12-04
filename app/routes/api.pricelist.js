@@ -216,7 +216,7 @@ async function processAndSendPricelist({
       format
 }) {
   try {
-    console.log(`🔄 [${requestId}] Starting pricing fetch with 2-minute timeout...`);
+    console.log(`[${requestId}] Starting pricing fetch with 2-minute timeout...`);
     let priceData = [];
     
     try {
@@ -253,16 +253,16 @@ async function processAndSendPricelist({
           }
         }
       }
-      console.log(`⚠️ [${requestId}] Created fallback pricing data for ${priceData.length} items`);
+      console.log(`[${requestId}] Created fallback pricing data for ${priceData.length} items`);
     }
 
     // Generate file and send via email
     if (format === 'pdf') {
-      console.log(`🔄 [${requestId}] Starting PDF generation...`);
+      console.log(`[${requestId}] Starting PDF generation...`);
       const pdfBuffer = await generatePDF(priceData, customer_email, customer_company);
       console.log(`✅ [${requestId}] PDF generated: ${pdfBuffer.length} bytes`);
       
-      console.log(`📧 [${requestId}] Sending email to: ${customer_email}`);
+      console.log(`[${requestId}] Sending email to: ${customer_email}`);
       const emailResult = await sendPricelistEmail(
         customer_email, 
         customer_company, 
@@ -273,7 +273,7 @@ async function processAndSendPricelist({
       console.log(`✅ [${requestId}] Email sent: ${emailResult.messageId}`);
       
     } else if (format === 'csv') {
-      console.log(`🔄 [${requestId}] Starting CSV generation...`);
+      console.log(`[${requestId}] Starting CSV generation...`);
       const csvData = generateCSV(priceData);
       const csvBuffer = Buffer.from(csvData, 'utf8');
       console.log(`✅ [${requestId}] CSV generated: ${csvBuffer.length} bytes`);
@@ -634,8 +634,8 @@ async function fetchAllProducts(shop, accessToken) {
  * Fetch pricing for multiple products using existing pricing logic
  */
 async function fetchPricingForProducts(products, customerId, shop, accessToken, customerMonitorId = null) {
-  console.log(`🔄 Fetching pricing for ${products.length} products`);
-  console.log(`🔑 Using customer Monitor ID: ${customerMonitorId}`);
+  console.log(`Fetching pricing for ${products.length} products`);
+  console.log(`Using customer Monitor ID: ${customerMonitorId}`);
   const priceData = [];
   let processedCount = 0;
   
@@ -650,7 +650,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
   for (const product of products) {
     try {
       const isOutletProduct = product.tags?.includes('outlet') || false;
-      console.log(`🔄 Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
+      console.log(`Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
       
       // Check if product has variants
       if (!product.variants?.edges || product.variants.edges.length === 0) {
@@ -668,11 +668,11 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         const depth = variant.depthMetafield?.value || '';
         const length = variant.lengthMetafield?.value || '';
         
-        console.log(`🔍 Processing variant ${variant.sku}: ${monitorId ? 'Monitor:' + monitorId.slice(-8) : 'NO-MONITOR'}`);
+        console.log(`Processing variant ${variant.sku}: ${monitorId ? 'Monitor:' + monitorId.slice(-8) : 'NO-MONITOR'}`);
         
         // Skip variants without Monitor IDs since they can't be priced
         if (!monitorId) {
-          console.log(`⏭️ Skipping ${variant.sku} - no Monitor ID`);
+          console.log(`Skipping ${variant.sku} - no Monitor ID`);
           // Still add to results but with a note that Monitor ID is missing
           priceData.push({
             productTitle: product.title,
@@ -695,8 +695,62 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
           // Use existing pricing logic with timeout
           let price = null;
           let priceSource = "no-price";
+
+          let session = await getSessionId();
+          let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
           
-          if (monitorId) {
+          // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
+          
+          let res = await fetch(url, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              "Cache-Control": "no-cache",
+              "X-Monitor-SessionId": session,
+            },
+            body: JSON.stringify({
+              "PartId": monitorId,
+              "CustomerId": finalCustomerMonitorId,
+              "QuantityInUnit": 1.0
+            }),
+            agent,
+          });
+          
+          if (res.status === 401) {
+            // Session expired, force re-login and retry
+            console.log(`Session expired for customer part links fetch, re-logging in...`);
+            sessionId = null; // Clear the session
+            session = await login();
+            res = await fetch(url, {
+              method: "POST",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache",
+                "X-Monitor-SessionId": session,
+              },
+              body: JSON.stringify({
+                "PartId": monitorId,
+                "CustomerId": finalCustomerMonitorId,
+                "QuantityInUnit": 1.0
+              }),
+              agent,
+            });
+          }
+          
+          if (res.status !== 200) {
+            console.error(`Failed to fetch customer part links for customer ${finalCustomerMonitorId}, part ${monitorId}: ${res.status} ${res.statusText}`);
+            const errorText = await res.text();
+            console.error(`Error response: ${errorText}`);
+            return null;
+          }
+    
+          const response = await res.json();
+          price = response.CalculatedTotalPrice;
+
+          
+          /*if (monitorId) {
             if (isOutletProduct) {
               try {
                 const outletPrice = await Promise.race([
@@ -708,9 +762,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
                 if (outletPrice !== null && outletPrice > 0) {
                   price = outletPrice;
                   priceSource = "outlet";
-                  console.log(`💰 Outlet price: ${outletPrice} for ${variant.sku}`);
+                  console.log(`Outlet price: ${outletPrice} for ${variant.sku}`);
                 } else {
-                  console.log(`⚠️ No outlet price for ${variant.sku}`);
+                  console.log(`No outlet price for ${variant.sku}`);
                 }
               } catch (outletError) {
                 console.error(`❌ Outlet price error for ${variant.sku}:`, outletError.message);
@@ -740,7 +794,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             }
           } else {
             console.log(`No Monitor ID found for variant ${variant.id}`);
-          }
+          }*/
           
           priceData.push({
             productTitle: product.title,
@@ -808,10 +862,8 @@ async function generatePDF(priceData, customerEmail, customerCompany) {
       try {
         const logoPath = path.join(process.cwd(), 'app', 'assets', 'Sonsab-Logotype.png');
         if (fs.existsSync(logoPath)) {
-          // Original ratio: 3000x543 = 5.525:1
-          // Use width of 120px, calculate height to maintain ratio
           const logoWidth = 120;
-          const logoHeight = logoWidth / 5.525; // ~21.7px
+          const logoHeight = logoWidth / 5.525;
           doc.image(logoPath, 30, 30, { width: logoWidth, height: logoHeight });
         }
       } catch (logoError) {
