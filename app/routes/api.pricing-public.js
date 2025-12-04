@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node";
 import https from "https";
-import { applyDiscountCategoryDiscount } from "./api.pricing-public.server.js";
+import { fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.server.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -94,6 +94,23 @@ async function getSessionId() {
     sessionId = await login();
   }
   return sessionId;
+}
+
+// Apply discount category discount to a price
+async function applyDiscountCategoryDiscount(priceListPrice, customerDiscountCategory, partCodeId) {
+  if (!customerDiscountCategory || !partCodeId) {
+    return priceListPrice;
+  }
+
+  const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
+  
+  if (discountRow && discountRow.Discount1 > 0) {
+    const discountPercentage = discountRow.Discount1;
+    const discountedPrice = priceListPrice * (discountPercentage / 100);
+    return discountedPrice;
+  }
+  
+  return priceListPrice;
 }
 
 // Fetch price from a specific price list
