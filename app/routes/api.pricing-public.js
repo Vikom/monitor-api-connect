@@ -1,6 +1,5 @@
 import { json } from "@remix-run/node";
 import https from "https";
-import { fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -248,6 +247,7 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
         // Step 3a: Check for discount category discounts
         if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
           // console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
+          const { fetchDiscountCategoryRowFromMonitor } = await import("../utils/monitor.js");
           const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
           
           if (discountRow && discountRow.Discount1 > 0) {
