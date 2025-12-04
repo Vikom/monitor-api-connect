@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import https from "https";
+import { applyDiscountCategoryDiscount } from "./api.pricing-public.server.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -245,25 +246,10 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
         // console.log(`Step 3 SUCCESS: Found price in customer's price list: ${priceListPrice}`);
         
         // Step 3a: Check for discount category discounts
-        if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
-          // console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
-          const { fetchDiscountCategoryRowFromMonitor } = await import("../utils/monitor.server.js");
-          const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
-          
-          if (discountRow && discountRow.Discount1 > 0) {
-            const discountPercentage = discountRow.Discount1;
-            const discountedPrice = priceListPrice * (discountPercentage / 100);
-            // console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
-            return discountedPrice;
-          } else {
-            // console.log(`No discount found for discount category ${customerDiscountCategory} and part code ${partCodeId}`);
-          }
-        } else if (customerDiscountCategory && !partCodeId) {
-          // console.log(`Customer has discount category but no partCodeId provided - cannot apply discount`);
-        }
+        const finalPrice = await applyDiscountCategoryDiscount(priceListPrice, customerDiscountCategory, partCodeId);
         
-        // console.log(`fetchCustomerPartPrice returning price: ${priceListPrice}`);
-        return priceListPrice;
+        // console.log(`fetchCustomerPartPrice returning price: ${finalPrice}`);
+        return finalPrice;
       } else {
         // console.log(`Step 3 FAILED: No price found in customer's price list ${customerPriceListId}`);
         console.log(`fetchCustomerPartPrice returning null`);
