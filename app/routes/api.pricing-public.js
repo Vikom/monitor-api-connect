@@ -694,7 +694,7 @@ export async function action({ request }) {
         },
         body: JSON.stringify({
           "PartId": monitorId,
-          "CustomerId": customerId,
+          "CustomerId": customerMonitorId,
           "QuantityInUnit": 1.0
         }),
         agent,
@@ -715,7 +715,7 @@ export async function action({ request }) {
           },
           body: JSON.stringify({
             "PartId": monitorId,
-            "CustomerId": customerId,
+            "CustomerId": customerMonitorId,
             "QuantityInUnit": 1.0
           }),
           agent,
@@ -730,7 +730,7 @@ export async function action({ request }) {
       }
 
       const response = await res.json();
-      console.log(`*** Customer part links API response for customer ${customerId}, part ${monitorId}:`, response);
+      console.log(`*** Customer part links API response for customer ${customerMonitorId}, part ${monitorId}:`, response);
       price = response.CalculatedTotalPrice;
 
     /*  
