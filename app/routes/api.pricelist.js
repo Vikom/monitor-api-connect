@@ -697,7 +697,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
           let priceSource = "no-price";
 
           let session = await getSessionId();
-          let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+          let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices/GetCustomerPrice`;
           
           // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
           
@@ -1096,7 +1096,7 @@ async function getSessionId() {
 /**
  * Fetch outlet price (updated to match working implementation)
  */
-async function fetchOutletPrice(partId) {
+/*async function fetchOutletPrice(partId) {
   try {
     let session = await getSessionId();
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
@@ -1200,12 +1200,12 @@ async function fetchOutletPrice(partId) {
     console.error("Error fetching outlet price:", error);
     return null;
   }
-}
+} */
 
 /**
  * Fetch customer part price (using working logic from pricing-public.js)
  */
-async function fetchCustomerPartPrice(customerId, partId) {
+/* async function fetchCustomerPartPrice(customerId, partId) {
   try {
     // Step 1: Check for specific customer-part price using CustomerPartLinks
     const session = await getSessionId();
@@ -1289,12 +1289,12 @@ async function fetchCustomerPartPrice(customerId, partId) {
     console.error("Error fetching customer part price:", error);
     return null;
   }
-}
+} */
 
 /**
  * Fetch customer price list ID (updated to match working implementation)
  */
-async function fetchCustomerPriceListId(customerId) {
+/* async function fetchCustomerPriceListId(customerId) {
   try {
     let session = await getSessionId();
     const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$filter=Id eq '${customerId}'`;
@@ -1353,12 +1353,12 @@ async function fetchCustomerPriceListId(customerId) {
     console.error("Error fetching customer price list ID:", error);
     return null;
   }
-}
+} */
 
 /**
  * Fetch price from price list (updated to match working implementation)
  */
-async function fetchPriceFromPriceList(partId, priceListId) {
+/* async function fetchPriceFromPriceList(partId, priceListId) {
   try {
     let session = await getSessionId();
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
@@ -1418,7 +1418,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
     console.error(`Error fetching price from price list for part ${partId}, price list ${priceListId}:`, error);
     return null;
   }
-}
+} */
 
 /**
  * Fetch customer Monitor ID from Shopify metafields

@@ -1,6 +1,5 @@
 import { json } from "@remix-run/node";
 import https from "https";
-import { fetchDiscountCategoryRowFromMonitor } from "../utils/monitor.server.js";
 
 // Monitor API configuration
 const monitorUrl = process.env.MONITOR_URL;
@@ -97,24 +96,72 @@ async function getSessionId() {
 }
 
 // Apply discount category discount to a price
-async function applyDiscountCategoryDiscount(priceListPrice, customerDiscountCategory, partCodeId) {
+/* async function applyDiscountCategoryDiscount(priceListPrice, customerDiscountCategory, partCodeId) {
   if (!customerDiscountCategory || !partCodeId) {
     return priceListPrice;
   }
 
-  const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
-  
-  if (discountRow && discountRow.Discount1 > 0) {
-    const discountPercentage = discountRow.Discount1;
-    const discountedPrice = priceListPrice * (discountPercentage / 100);
-    return discountedPrice;
+  try {
+    // Fetch discount category row directly (inlined to avoid server-only module imports)
+    let session = await getSessionId();
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/DiscountCategoryRows`;
+    url += `?$filter=DiscountCategoryId eq '${customerDiscountCategory}' and PartCodeId eq '${partCodeId}'`;
+    
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": session,
+      },
+      agent,
+    });
+    
+    if (res.status !== 200) {
+      const errorBody = await res.text();
+      console.error(`Monitor API fetchDiscountCategoryRow first attempt failed. Status: ${res.status}, Body: ${errorBody}`);
+      // Try to re-login and retry once
+      await login();
+      const newSession = await getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSession,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        const retryErrorBody = await res.text();
+        console.error(`Monitor API fetchDiscountCategoryRow retry failed. Status: ${res.status}, Body: ${retryErrorBody}`);
+        return priceListPrice; // Return original price on error
+      }
+    }
+    
+    const discountRows = await res.json();
+    if (!Array.isArray(discountRows)) {
+      console.error("Monitor API returned unexpected data format for discount category rows");
+      return priceListPrice;
+    }
+    
+    const discountRow = discountRows.length > 0 ? discountRows[0] : null;
+    
+    if (discountRow && discountRow.Discount1 > 0) {
+      const discountPercentage = discountRow.Discount1;
+      const discountedPrice = priceListPrice * (discountPercentage / 100);
+      return discountedPrice;
+    }
+    
+    return priceListPrice;
+  } catch (error) {
+    console.error(`Error fetching discount category row for discount category ${customerDiscountCategory} and part code ${partCodeId}:`, error);
+    return priceListPrice; // Return original price on error
   }
-  
-  return priceListPrice;
-}
+} */
 
 // Fetch price from a specific price list
-async function fetchPriceFromPriceList(partId, priceListId) {
+/* async function fetchPriceFromPriceList(partId, priceListId) {
   try {
     let session = await getSessionId();
     let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices`;
@@ -174,7 +221,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
     console.error(`Error fetching price from price list for part ${partId}, price list ${priceListId}:`, error);
     return null;
   }
-}
+} */
 
 // Fetch customer-specific price with fallback to customer's price list
 // Includes discount category logic similar to pricing.js getDynamicPrice function
