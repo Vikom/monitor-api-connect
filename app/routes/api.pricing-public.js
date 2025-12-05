@@ -680,7 +680,7 @@ export async function action({ request }) {
       // Monitor API is configured, try to fetch price
 
       let session = await getSessionId();
-      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerPartLinks`;
+      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices/GetCustomerPrice`;
       
       // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
       
