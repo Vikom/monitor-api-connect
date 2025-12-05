@@ -730,6 +730,7 @@ export async function action({ request }) {
       }
 
       const response = await res.json();
+      console.log(`*** Customer part links API response for customer ${customerId}, part ${monitorId}:`, response);
       price = response.CalculatedTotalPrice;
 
     /*  
