@@ -178,7 +178,7 @@ async function fetchPriceFromPriceList(partId, priceListId) {
 
 // Fetch customer-specific price with fallback to customer's price list
 // Includes discount category logic similar to pricing.js getDynamicPrice function
-async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, customerPriceListId = null, customerDiscountCategory = null) {
+/*async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, customerPriceListId = null, customerDiscountCategory = null) {
 
   try {
     // Step 1: Check for specific customer-part price using CustomerPartLinks
@@ -230,17 +230,17 @@ async function fetchCustomerPartPrice(customerId, partId, partCodeId = null, cus
       // console.log(`Step 1 SUCCESS: Found specific customer-part price: ${specificPrice}`);
 
       // @TODO Here we should also add discount.
-      /*if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
+      // if (customerDiscountCategory && customerDiscountCategory !== null && partCodeId) {
         // console.log(`Customer has discount category ID: ${customerDiscountCategory}, checking for discounts`);
-        const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
+        // const discountRow = await fetchDiscountCategoryRowFromMonitor(customerDiscountCategory, partCodeId);
         
-        if (discountRow && discountRow.Discount1 > 0) {
-          const discountPercentage = discountRow.Discount1;
-          const discountedPrice = specificPrice * (discountPercentage / 100);
+        // if (discountRow && discountRow.Discount1 > 0) {
+        //  const discountPercentage = discountRow.Discount1;
+        //  const discountedPrice = specificPrice * (discountPercentage / 100);
           // console.log(`Applied discount category discount: ${discountPercentage}% on price list price ${priceListPrice}, final price: ${discountedPrice}`);
-          return discountedPrice;
-        }
-      }*/
+        //  return discountedPrice;
+        // }
+      // }
 
       return specificPrice;
     } else {
@@ -384,7 +384,7 @@ async function fetchOutletPrice(partId) {
     console.error(`Error fetching outlet price for part ${partId}:`, error);
     return null;
   }
-}
+}*/
 
 // Handle OPTIONS request for CORS preflight
 export async function loader({ request }) {
