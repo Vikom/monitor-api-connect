@@ -229,9 +229,14 @@ async function processAndSendPricelist({
       console.log(`✅ [${requestId}] Generated pricing data for ${priceData.length} items`);
     } catch (pricingError) {
       console.error(`⚠️ [${requestId}] Pricing fetch failed, creating fallback price data:`, pricingError.message);
+      console.error(`⚠️ [${requestId}] Error details:`, pricingError.stack);
       
       // Create fallback price data with original prices
       priceData = [];
+      if (!productList || !Array.isArray(productList)) {
+        console.error(`⚠️ [${requestId}] productList is null or not an array:`, productList);
+        throw new Error('Product list is invalid - cannot generate pricelist');
+      }
       for (const product of productList) {
         if (product.variants?.edges) {
           for (const variantEdge of product.variants.edges) {
@@ -653,7 +658,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
       console.log(`Processing product: ${product.title} (ID: ${product.id}), outlet: ${isOutletProduct}`);
       
       // Check if product has variants
-      if (!product.variants?.edges || product.variants.edges.length === 0) {
+      if (!product.variants?.edges || !Array.isArray(product.variants.edges) || product.variants.edges.length === 0) {
         console.log(`Product ${product.id} has no variants, skipping...`);
         continue;
       }
@@ -740,16 +745,32 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
           }
           
           if (res.status !== 200) {
-            console.error(`Failed to fetch customer part links for customer ${finalCustomerMonitorId}, part ${monitorId}: ${res.status} ${res.statusText}`);
+            console.error(`Failed to fetch customer price for customer ${finalCustomerMonitorId}, part ${monitorId}: ${res.status} ${res.statusText}`);
             const errorText = await res.text();
             console.error(`Error response: ${errorText}`);
-            return null;
+            // Don't return null - add this variant with no price and continue
+            priceData.push({
+              productTitle: product.title,
+              variantTitle: variant.title || 'Default',
+              sku: variant.sku || '',
+              originalPrice: parseFloat(variant.price) || 0,
+              customerPrice: null,
+              priceSource: "api-error",
+              monitorId: monitorId || '',
+              standardUnit: standardUnit,
+              width: width,
+              depth: depth,
+              length: length,
+              formattedPrice: 'API-fel - kontakta oss'
+            });
+            continue;
           }
     
           const response = await res.json();
-          console.log(`*** Customer price response for customer ${finalCustomerMonitorId}, part ${monitorId}:`, response);
+          console.log(`*** Customer price response for customer ${finalCustomerMonitorId}, part ${monitorId}:`, JSON.stringify(response, null, 2));
           price = response.CalculatedTotalPrice;
-          priceSource = price ? "monitor-api" : "no-price";
+          console.log(`*** Extracted price: ${price} (type: ${typeof price})`);
+          priceSource = price && price > 0 ? "monitor-api" : "no-price";
           
           priceData.push({
             productTitle: product.title,
