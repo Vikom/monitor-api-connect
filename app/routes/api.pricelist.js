@@ -761,7 +761,7 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
               width: width,
               depth: depth,
               length: length,
-              formattedPrice: 'API-fel - kontakta oss'
+              formattedPrice: 'kontakta oss'
             });
             continue;
           }
