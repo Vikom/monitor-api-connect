@@ -559,9 +559,7 @@ export async function fetchProductsFromMonitor() {
         productGroupDescription: product.ProductGroup?.Description || null,
         partCodeId: product.PartCode?.Id || null,
         partCodeDescription: product.PartCode?.Description || null,
-        // Convert ExtraFields array to object for easier access
         ExtraFields: extraFieldsObj,
-        // Flag to indicate if this product has ARTFSC (for async fetching)
         hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
         // Pricing metadata
         isOutletProduct: isOutletProduct,
