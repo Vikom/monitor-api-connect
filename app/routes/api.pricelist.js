@@ -372,6 +372,9 @@ async function fetchProductsByCollections(collections, shop, accessToken) {
                           lengthMetafield: metafield(namespace: "custom", key: "length") {
                             value
                           }
+                          unitIdMetafield: metafield(namespace: "custom", key: "unitid") {
+                            value
+                          }
                         }
                       }
                     }
@@ -586,6 +589,9 @@ async function fetchAllProducts(shop, accessToken) {
                       lengthMetafield: metafield(namespace: "custom", key: "length") {
                         value
                       }
+                      unitIdMetafield: metafield(namespace: "custom", key: "unitid") {
+                        value
+                      }
                     }
                   }
                 }
@@ -672,8 +678,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         const width = variant.widthMetafield?.value || '';
         const depth = variant.depthMetafield?.value || '';
         const length = variant.lengthMetafield?.value || '';
+        let standardUnitId = variant.unitIdMetafield?.value || null;
         
-        console.log(`Processing variant ${variant.sku}: ${monitorId ? 'Monitor:' + monitorId : 'NO-MONITOR'} customerMonitorId: ${finalCustomerMonitorId || 'N/A'} `);
+        console.log(`Processing variant ${variant.sku}: ${monitorId ? 'Monitor:' + monitorId : 'NO-MONITOR'} customerMonitorId: ${finalCustomerMonitorId || 'N/A'} unitId: ${standardUnitId || 'MISSING'}`);
         
         // Skip variants without Monitor IDs since they can't be priced
         if (!monitorId) {
@@ -697,12 +704,35 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
         }
         
         try {
+          // Fetch StandardUnitId from Monitor API if not in metafield
+          if (!standardUnitId) {
+            console.log(`⚠️ StandardUnitId missing for ${monitorId}, fetching from Monitor API...`);
+            try {
+              const { fetchPartStandardUnitId } = await import("../utils/monitor.server.js");
+              standardUnitId = await fetchPartStandardUnitId(monitorId);
+              if (standardUnitId) {
+                console.log(`✅ Fetched StandardUnitId for ${monitorId}: ${standardUnitId}`);
+                // Update the Shopify metafield for future use
+                try {
+                  await updateVariantStandardUnitId(shop, accessToken, variantId, standardUnitId);
+                  console.log(`✅ Updated unitid metafield for variant ${variantId}`);
+                } catch (updateError) {
+                  console.error(`Error updating unitid metafield for ${variantId}:`, updateError.message);
+                }
+              } else {
+                console.log(`⚠️ No StandardUnitId found for ${monitorId}`);
+              }
+            } catch (unitError) {
+              console.error(`Error fetching StandardUnitId for ${monitorId}:`, unitError);
+            }
+          }
+
           // Use existing pricing logic with timeout
           let price = null;
           let priceSource = "no-price";
 
           let session = await getSessionId();
-          let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices/GetCustomerPrice`;
+          let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/GetPriceInfo`;
           
           // console.log(`Step 1: Checking for specific customer-part price for customer ${customerId}, part ${partId}`);
           
@@ -717,7 +747,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
             body: JSON.stringify({
               "PartId": monitorId,
               "CustomerId": finalCustomerMonitorId,
-              "QuantityInUnit": 1.0
+              "QuantityInUnit": 1.0,
+              "UnitId": standardUnitId,
+              "UseExtendedResult": true
             }),
             agent,
           });
@@ -738,7 +770,9 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
               body: JSON.stringify({
                 "PartId": monitorId,
                 "CustomerId": finalCustomerMonitorId,
-                "QuantityInUnit": 1.0
+                "QuantityInUnit": 1.0,
+                "UnitId": standardUnitId,
+                "UseExtendedResult": true
               }),
               agent,
             });
@@ -768,7 +802,8 @@ async function fetchPricingForProducts(products, customerId, shop, accessToken, 
     
           const response = await res.json();
           console.log(`*** Customer price response for customer ${finalCustomerMonitorId}, part ${monitorId}:`, JSON.stringify(response, null, 2));
-          price = response.CalculatedTotalPrice;
+          // price = response.CalculatedTotalPrice;
+          price = response.TotalPrice;
           console.log(`*** Extracted price: ${price} (type: ${typeof price})`);
           priceSource = price && price > 0 ? "monitor-api" : "no-price";
           
@@ -1067,6 +1102,66 @@ async function getSessionId() {
     sessionId = await login();
   }
   return sessionId;
+}
+
+/**
+ * Update variant's unitid metafield in Shopify
+ */
+async function updateVariantStandardUnitId(shop, accessToken, variantId, standardUnitId) {
+  try {
+    const mutation = `
+      mutation UpdateVariantMetafield($input: ProductVariantInput!) {
+        productVariantUpdate(input: $input) {
+          productVariant {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      input: {
+        id: variantId,
+        metafields: [
+          {
+            namespace: "custom",
+            key: "unitid",
+            value: standardUnitId.toString(),
+            type: "single_line_text_field"
+          }
+        ]
+      }
+    };
+
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({ query: mutation, variables })
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to update unitid metafield: ${response.status}`);
+      return false;
+    }
+
+    const result = await response.json();
+    if (result.data?.productVariantUpdate?.userErrors?.length > 0) {
+      console.error('Shopify API errors:', result.data.productVariantUpdate.userErrors);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating variant unitid metafield:', error);
+    return false;
+  }
 }
 
 /**

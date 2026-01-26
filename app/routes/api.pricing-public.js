@@ -154,6 +154,9 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
           metafield(namespace: "monitor", key: "id") {
             value
           }
+          unitIdMetafield: metafield(namespace: "custom", key: "unitid") {
+            value
+          }
           product {
             id
             collections(first: 10) {
@@ -209,10 +212,16 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
     let monitorId = null;
     let isOutletProduct = false;
     let customerMonitorId = null;
+    let standardUnitId = null;
     
     // Get variant Monitor ID
     if (variant?.metafield?.value) {
       monitorId = variant.metafield.value;
+    }
+    
+    // Get StandardUnitId from unitid metafield
+    if (variant?.unitIdMetafield?.value) {
+      standardUnitId = variant.unitIdMetafield.value;
     }
     
     // Check if product is in outlet collection
@@ -239,13 +248,13 @@ async function fetchShopifyMetafields(shop, variantId, customerId) {
       customerMonitorId = customer.metafield.value;
     }
     
-    console.log(`Extracted metafields:`, { monitorId, isOutletProduct, customerMonitorId });
+    console.log(`Extracted metafields:`, { monitorId, isOutletProduct, customerMonitorId, standardUnitId });
     
-    return { monitorId, isOutletProduct, customerMonitorId };
+    return { monitorId, isOutletProduct, customerMonitorId, standardUnitId };
     
   } catch (error) {
     console.error(`Error fetching Shopify metafields:`, error);
-    return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    return { monitorId: null, isOutletProduct: null, customerMonitorId: null, standardUnitId: null };
   }
 }
 
@@ -263,7 +272,7 @@ async function fetchMetafieldsViaRest(shop, variantId, customerId) {
     // For now, return null values but with logging so we can see this path is taken
     console.log(`REST API fallback not yet implemented - would need admin API credentials`);
     
-    return { monitorId: null, isOutletProduct: null, customerMonitorId: null };
+    return { monitorId: null, isOutletProduct: null, customerMonitorId: null, standardUnitId: null };
     
   } catch (error) {
     console.error(`Error in REST API fallback:`, error);
@@ -281,7 +290,7 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, customerDiscountCategory, customerPriceListId, fetchMetafields, partCodeId } = body;
+    let { variantId, customerId, shop, monitorId, isOutletProduct, customerMonitorId, customerDiscountCategory, customerPriceListId, fetchMetafields, partCodeId, standardUnitId } = body;
 
     // All users must be logged in - customerId is required
     if (!customerId) {
@@ -326,6 +335,22 @@ export async function action({ request }) {
 
     console.log(`Processing pricing request for variant ${variantId}, customer ${customerId}`);
 
+    // Fetch StandardUnitId from Monitor API if not provided
+    if (!standardUnitId && monitorId) {
+      console.log(`⚠️ StandardUnitId missing for ${monitorId}, fetching from Monitor API...`);
+      try {
+        const { fetchPartStandardUnitId } = await import("../utils/monitor.server.js");
+        standardUnitId = await fetchPartStandardUnitId(monitorId);
+        if (standardUnitId) {
+          console.log(`✅ Fetched StandardUnitId for ${monitorId}: ${standardUnitId}`);
+        } else {
+          console.log(`⚠️ No StandardUnitId found for ${monitorId}`);
+        }
+      } catch (unitError) {
+        console.error(`Error fetching StandardUnitId for ${monitorId}:`, unitError);
+      }
+    }
+
     let price = null; // No default price - only set if found
     let priceSource = "no-price";
     
@@ -336,7 +361,7 @@ export async function action({ request }) {
     } else {
 
       let session = await getSessionId();
-      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/SalesPrices/GetCustomerPrice`;
+      let url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/GetPriceInfo`;
       
       let res = await fetch(url, {
         method: "POST",
@@ -349,7 +374,9 @@ export async function action({ request }) {
         body: JSON.stringify({
           "PartId": monitorId,
           "CustomerId": customerMonitorId,
-          "QuantityInUnit": 1.0
+          "QuantityInUnit": 1.0,
+          "UnitId": standardUnitId,
+          "UseExtendedResult": true
         }),
         agent,
       });
@@ -370,7 +397,9 @@ export async function action({ request }) {
           body: JSON.stringify({
             "PartId": monitorId,
             "CustomerId": customerMonitorId,
-            "QuantityInUnit": 1.0
+            "QuantityInUnit": 1.0,
+            "UnitId": standardUnitId,
+            "UseExtendedResult": true
           }),
           agent,
         });
@@ -385,7 +414,8 @@ export async function action({ request }) {
 
       const response = await res.json();
       console.log(`*** Customer part links API response for customer ${customerMonitorId}, part ${monitorId}:`, response);
-      price = response.CalculatedTotalPrice;
+      // price = response.CalculatedTotalPrice;
+      price = response.TotalPrice;
     }
     
     return json({ 

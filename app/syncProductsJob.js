@@ -237,6 +237,14 @@ async function generateMetafieldsForVariation(variation) {
         type: "single_line_text_field"
       });
     }
+    
+    // Also store the raw StandardUnitId for pricing API
+    metafields.push({
+      namespace: "custom",
+      key: "unitid",
+      value: variation.StandardUnitId.toString(),
+      type: "single_line_text_field"
+    });
   }
 
   if (variation.partCodeId) {

@@ -1614,3 +1614,70 @@ export async function updateDeliveryAddressInMonitor(customerOrderId, addressDat
 export async function fetchPartsForStock(limit = null, specificPartId = null) {
   return await monitorClient.fetchPartsForStock(limit, specificPartId);
 }
+
+/**
+ * Fetch StandardUnitId for a specific part from Monitor API
+ * @param {string} partId - The Monitor part ID
+ * @returns {Promise<string|null>} The StandardUnitId or null if not found
+ */
+export async function fetchPartStandardUnitId(partId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+    
+    // Fetch only the StandardUnitId field to minimize payload
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts`;
+    url += `?$filter=Id eq '${partId}'`;
+    url += '&$select=StandardUnitId';
+    
+    let res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+    
+    if (res.status === 401) {
+      // Session expired, retry with new session
+      console.log(`Session expired fetching StandardUnitId, re-logging in...`);
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      
+      res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      
+      if (res.status !== 200) {
+        console.error(`Failed to fetch StandardUnitId for part ${partId}: ${res.status}`);
+        return null;
+      }
+      
+      const data = await res.json();
+      // API returns an array, get first element
+      return (Array.isArray(data) && data.length > 0) ? data[0].StandardUnitId || null : null;
+    }
+    
+    if (res.status !== 200) {
+      console.error(`Failed to fetch StandardUnitId for part ${partId}: ${res.status}`);
+      return null;
+    }
+    
+    const data = await res.json();
+    // API returns an array, get first element
+    return (Array.isArray(data) && data.length > 0) ? data[0].StandardUnitId || null : null;
+    
+  } catch (error) {
+    console.error(`Error fetching StandardUnitId for part ${partId}:`, error);
+    return null;
+  }
+}
