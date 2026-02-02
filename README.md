@@ -38,6 +38,7 @@ api.draft-order-public.js
 api.pricelist.js
 
 Since we have custom pricing and all prices are fetched from Monitor through this project we cannot work with standard orders, but need to build draft orders instead.
+Now we added simpler price logic.
 
 ## Utils
 
