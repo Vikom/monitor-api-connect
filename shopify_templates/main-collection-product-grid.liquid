@@ -167,9 +167,8 @@
           >
             {%- liquid
               assign current_position = 1
-              assign outlet_collection_id = 651232051534
               assign is_outlet_collection = false
-              if collection.id == outlet_collection_id
+              if collection.handle == 'outlet'
                 assign is_outlet_collection = true
               endif
             -%}
