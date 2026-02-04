@@ -50,7 +50,9 @@
               {%- render 'loading-spinner' -%}
               <p id="ProductCount" class="m-0 text-subtext" role="status">
                 {%- liquid
-                  if collection.results_count
+                  if collection.handle == 'outlet'
+                    echo '<span id="OutletVariantCount">...</span> artiklar'
+                  elsif collection.results_count
                     echo 'products.facets.filters_selected' | t: terms: collection.terms, count: collection.results_count
                   elsif collection.products_count == collection.all_products_count
                     echo 'products.facets.product_count_simple' | t: count: collection.products_count
@@ -485,6 +487,115 @@ setInterval(() => {
 
 </script>
 <!-- END: Custom customer detection -->
+
+{%- if collection.handle == 'outlet' -%}
+<!-- START: Outlet variant pricing -->
+<style>
+  /* Fade-in animation for outlet prices */
+  .card-variant__price {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+  }
+  .card-variant__price.f-price--loaded {
+    opacity: 1;
+  }
+  .card-variant__price.f-price--loading {
+    opacity: 0;
+  }
+</style>
+
+<script>
+  // Set pricing API URL for outlet variants
+  window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
+
+  // Set customer information for pricing
+  window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
+  window.customerDiscountCategory = "{{ customer.metafields.custom.discount_category }}";
+  window.customerPriceListId = "{{ customer.metafields.custom.pricelist_id }}";
+  window.isOutletProduct = true;
+
+  // Fetch outlet variant count from API
+  (async function() {
+    const countEl = document.getElementById('OutletVariantCount');
+    if (!countEl) return;
+
+    try {
+      const shop = window.Shopify?.shop || '{{ shop.permanent_domain }}';
+      const response = await fetch(`https://monitor-api-connect-production.up.railway.app/api/outlet-count?shop=${encodeURIComponent(shop)}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        countEl.textContent = data.count;
+      } else {
+        // Fallback: hide the count element on error
+        countEl.textContent = '';
+      }
+    } catch (error) {
+      console.error('Error fetching outlet count:', error);
+      countEl.textContent = '';
+    }
+  })();
+</script>
+
+<!-- Load pricing client script -->
+<script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
+
+<script>
+// Fetch prices for all outlet variants
+window.addEventListener('DOMContentLoaded', async () => {
+  // Wait for pricing-client.js to load
+  while (typeof getCustomerPrice === 'undefined' || typeof formatPrice === 'undefined') {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
+  // Check if customer is logged in
+  if (!window.customer?.id) {
+    console.log('Customer not logged in - hiding outlet prices');
+    document.querySelectorAll('.card-variant__price').forEach(el => {
+      el.classList.remove('f-price--loading');
+      el.style.display = 'none';
+    });
+    return;
+  }
+
+  const customerId = `gid://shopify/Customer/${window.customer.id}`;
+
+  // Get all variant price elements
+  const priceElements = document.querySelectorAll('.card-variant__price');
+
+  // Fetch prices for each variant sequentially
+  for (const priceEl of priceElements) {
+    const variantId = priceEl.dataset.variantId;
+    const monitorId = priceEl.dataset.variantMonitorId;
+    const priceValueEl = priceEl.querySelector('.card-variant__price-value');
+
+    if (!variantId || !priceValueEl) continue;
+
+    try {
+      const priceData = await getCustomerPrice(
+        `gid://shopify/ProductVariant/${variantId}`,
+        customerId,
+        monitorId
+      );
+
+      if (priceData && priceData.price && priceData.price > 0) {
+        priceValueEl.textContent = formatPrice(priceData.price);
+        priceEl.classList.remove('f-price--loading');
+        priceEl.classList.add('f-price--loaded');
+      } else {
+        priceEl.classList.remove('f-price--loading');
+        priceEl.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Error fetching price for variant:', variantId, error);
+      priceEl.classList.remove('f-price--loading');
+      priceEl.style.display = 'none';
+    }
+  }
+});
+</script>
+<!-- END: Outlet variant pricing -->
+{%- endif -%}
 </div>
 
 {% schema %}

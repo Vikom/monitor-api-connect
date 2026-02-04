@@ -411,6 +411,16 @@
           {{ current_variant.title }}
         </div>
       {% endunless %}
+      {%- comment -%} Monitor API Price Display {%- endcomment -%}
+      {%- if customer -%}
+        <div
+          class="card-variant__price f-price f-price--loading"
+          data-variant-id="{{ current_variant.id }}"
+          data-variant-monitor-id="{{ current_variant.metafields.custom.monitor_id }}"
+        >
+          <span class="card-variant__price-value f-price-item--outlet"></span>
+        </div>
+      {%- endif -%}
       {%- comment -%}
       {%- if show_price -%}
         {% render 'price', product: product, alignment: settings.pcard_content_alignment %}
