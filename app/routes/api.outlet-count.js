@@ -45,21 +45,38 @@ export async function loader({ request }) {
     // Dynamic import to avoid build issues
     const { sessionStorage } = await import("../shopify.server.js");
 
-    // Get session for the shop
+    // Get session for the shop - try multiple formats
     let session = null;
-    try {
-      const sessions = await sessionStorage.findSessionsByShop(shop);
-      if (sessions && sessions.length > 0) {
-        session = sessions[0];
+    const shopVariants = [
+      shop,
+      shop.replace('.myshopify.com', ''),
+      `${shop.replace('.myshopify.com', '')}.myshopify.com`
+    ];
+
+    for (const shopVariant of shopVariants) {
+      try {
+        console.log(`Trying to find session for shop variant: ${shopVariant}`);
+        const sessions = await sessionStorage.findSessionsByShop(shopVariant);
+        console.log(`Sessions found for ${shopVariant}:`, sessions?.length || 0);
+        if (sessions && sessions.length > 0) {
+          session = sessions[0];
+          console.log(`Using session from ${shopVariant}:`, {
+            id: session.id,
+            shop: session.shop,
+            hasAccessToken: !!session.accessToken
+          });
+          break;
+        }
+      } catch (sessionError) {
+        console.error(`Error finding session for shop ${shopVariant}:`, sessionError);
       }
-    } catch (sessionError) {
-      console.error(`Error finding session for shop ${shop}:`, sessionError);
     }
 
     if (!session || !session.accessToken) {
-      console.error(`No valid session found for shop ${shop}`);
-      return json({ error: "No valid session for shop" }, {
-        status: 401,
+      console.error(`No valid session found for shop ${shop} (tried variants: ${shopVariants.join(', ')})`);
+      // Return 0 count instead of 401 - allows page to still function
+      return json({ count: 0, error: "No session found", cached: false }, {
+        status: 200,
         headers: corsHeaders()
       });
     }
