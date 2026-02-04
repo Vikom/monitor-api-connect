@@ -27,6 +27,8 @@ export async function loader({ request }) {
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop");
 
+    console.log(`[OUTLET-COUNT] === Request received for shop: ${shop} ===`);
+
     if (!shop) {
       return json({ error: "Shop parameter is required" }, {
         status: 400,
@@ -36,14 +38,18 @@ export async function loader({ request }) {
 
     // Check cache first
     if (cachedCount !== null && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_TTL)) {
-      console.log(`Returning cached outlet count: ${cachedCount}`);
+      console.log(`[OUTLET-COUNT] Returning cached count: ${cachedCount}`);
       return json({ count: cachedCount, cached: true }, {
         headers: corsHeaders()
       });
     }
 
+    console.log(`[OUTLET-COUNT] Cache miss, fetching from Shopify API`);
+
     // Dynamic import to avoid build issues
     const { sessionStorage } = await import("../shopify.server.js");
+
+    console.log(`[OUTLET-COUNT] sessionStorage imported successfully`);
 
     // Get session for the shop - try multiple formats
     let session = null;
@@ -55,12 +61,12 @@ export async function loader({ request }) {
 
     for (const shopVariant of shopVariants) {
       try {
-        console.log(`Trying to find session for shop variant: ${shopVariant}`);
+        console.log(`[OUTLET-COUNT] Trying shop variant: ${shopVariant}`);
         const sessions = await sessionStorage.findSessionsByShop(shopVariant);
-        console.log(`Sessions found for ${shopVariant}:`, sessions?.length || 0);
+        console.log(`[OUTLET-COUNT] Sessions found for ${shopVariant}: ${sessions?.length || 0}`);
         if (sessions && sessions.length > 0) {
           session = sessions[0];
-          console.log(`Using session from ${shopVariant}:`, {
+          console.log(`[OUTLET-COUNT] Using session:`, {
             id: session.id,
             shop: session.shop,
             hasAccessToken: !!session.accessToken
@@ -68,12 +74,12 @@ export async function loader({ request }) {
           break;
         }
       } catch (sessionError) {
-        console.error(`Error finding session for shop ${shopVariant}:`, sessionError);
+        console.error(`[OUTLET-COUNT] Error finding session for ${shopVariant}:`, sessionError);
       }
     }
 
     if (!session || !session.accessToken) {
-      console.error(`No valid session found for shop ${shop} (tried variants: ${shopVariants.join(', ')})`);
+      console.error(`[OUTLET-COUNT] No valid session found for shop ${shop}`);
       // Return 0 count instead of 401 - allows page to still function
       return json({ count: 0, error: "No session found", cached: false }, {
         status: 200,
@@ -122,14 +128,14 @@ export async function loader({ request }) {
       });
 
       if (!response.ok) {
-        console.error(`Shopify API request failed: ${response.status}`);
+        console.error(`[OUTLET-COUNT] Shopify API request failed: ${response.status}`);
         break;
       }
 
       const data = await response.json();
 
       if (data.errors) {
-        console.error(`Shopify API errors:`, data.errors);
+        console.error(`[OUTLET-COUNT] Shopify API errors:`, data.errors);
         break;
       }
 
@@ -150,7 +156,7 @@ export async function loader({ request }) {
 
       // Safety limit to prevent infinite loops
       if (totalCount > 10000) {
-        console.log(`Reached safety limit, stopping pagination`);
+        console.log(`[OUTLET-COUNT] Reached safety limit, stopping pagination`);
         break;
       }
     }
@@ -159,14 +165,14 @@ export async function loader({ request }) {
     cachedCount = totalCount;
     cacheTimestamp = Date.now();
 
-    console.log(`Outlet variant count: ${totalCount}`);
+    console.log(`[OUTLET-COUNT] Final count: ${totalCount}`);
 
     return json({ count: totalCount, cached: false }, {
       headers: corsHeaders()
     });
 
   } catch (error) {
-    console.error("Outlet count API error:", error);
+    console.error("[OUTLET-COUNT] API error:", error);
     return json({ error: "Internal server error", details: error.message }, {
       status: 500,
       headers: corsHeaders()
