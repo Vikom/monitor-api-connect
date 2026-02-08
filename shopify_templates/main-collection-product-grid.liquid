@@ -546,16 +546,16 @@ setInterval(() => {
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
 
 <script>
-// Fetch prices for all outlet variants
+// Fetch prices for all outlet variants using batch API
 window.addEventListener('DOMContentLoaded', async () => {
   // Wait for pricing-client.js to load
-  while (typeof getCustomerPrice === 'undefined' || typeof formatPrice === 'undefined') {
+  while (typeof updateOutletPrices === 'undefined') {
     await new Promise(resolve => setTimeout(resolve, 50));
   }
 
   // Check if customer is logged in
   if (!window.customer?.id) {
-    console.log('Customer not logged in - hiding outlet prices');
+    console.log('[Outlet] Customer not logged in - hiding outlet prices');
     document.querySelectorAll('.card-variant__price').forEach(el => {
       el.classList.remove('f-price--loading');
       el.style.display = 'none';
@@ -565,38 +565,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
 
-  // Get all variant price elements
-  const priceElements = document.querySelectorAll('.card-variant__price');
-
-  // Fetch prices for each variant sequentially
-  for (const priceEl of priceElements) {
-    const variantId = priceEl.dataset.variantId;
-    const monitorId = priceEl.dataset.variantMonitorId;
-    const priceValueEl = priceEl.querySelector('.card-variant__price-value');
-
-    if (!variantId || !priceValueEl) continue;
-
-    try {
-      const priceData = await getCustomerPrice(
-        `gid://shopify/ProductVariant/${variantId}`,
-        customerId,
-        monitorId
-      );
-
-      if (priceData && priceData.price && priceData.price > 0) {
-        priceValueEl.textContent = formatPrice(priceData.price);
-        priceEl.classList.remove('f-price--loading');
-        priceEl.classList.add('f-price--loaded');
-      } else {
-        priceEl.classList.remove('f-price--loading');
-        priceEl.style.display = 'none';
-      }
-    } catch (error) {
-      console.error('Error fetching price for variant:', variantId, error);
-      priceEl.classList.remove('f-price--loading');
-      priceEl.style.display = 'none';
-    }
-  }
+  // Use batch pricing to fetch all prices in one request
+  await updateOutletPrices(customerId);
 });
 </script>
 <!-- END: Outlet variant pricing -->
