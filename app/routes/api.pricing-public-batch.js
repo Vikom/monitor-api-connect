@@ -145,20 +145,39 @@ export async function action({ request }) {
       });
     }
 
+    // Fetch missing StandardUnitIds from Monitor API
+    const { fetchPartStandardUnitId } = await import("../utils/monitor.server.js");
+
+    // Check which items are missing StandardUnitId and fetch them
+    const itemsWithUnitIds = await Promise.all(items.map(async (item) => {
+      if (item.standardUnitId) {
+        return item;
+      }
+
+      // Fetch StandardUnitId from Monitor
+      console.log(`[Batch Pricing] Fetching StandardUnitId for ${item.monitorId}`);
+      const unitId = await fetchPartStandardUnitId(item.monitorId);
+      return {
+        ...item,
+        standardUnitId: unitId
+      };
+    }));
+
     // Build the request array for Monitor API
-    // Each item should have: PartId, CustomerId, QuantityInUnit, UnitId, UseExtendedResult
-    const priceRequests = items.map(item => ({
+    // Each item must have: PartId, CustomerId, QuantityInUnit, UnitId, UseExtendedResult
+    const priceRequests = itemsWithUnitIds.map(item => ({
       PartId: item.monitorId,
       CustomerId: customerMonitorId,
       QuantityInUnit: 1.0,
-      UnitId: item.standardUnitId || null,
+      UnitId: item.standardUnitId,
       UseExtendedResult: true
     }));
 
     let session = await getSessionId();
     const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/CustomerOrders/GetPriceInfo/Many`;
 
-    console.log(`[Batch Pricing] Calling Monitor API with ${priceRequests.length} items`);
+    console.log(`[Batch Pricing] Calling Monitor API: ${url}`);
+    console.log(`[Batch Pricing] Request body (${priceRequests.length} items):`, JSON.stringify(priceRequests, null, 2));
 
     let res = await fetch(url, {
       method: "POST",
@@ -194,8 +213,14 @@ export async function action({ request }) {
       const errorText = await res.text();
       console.error(`[Batch Pricing] Monitor API error: ${res.status} ${res.statusText}`);
       console.error(`[Batch Pricing] Error response: ${errorText}`);
+      console.error(`[Batch Pricing] Request URL: ${url}`);
+      console.error(`[Batch Pricing] Request body sample:`, JSON.stringify(priceRequests[0]));
       return json({
         error: "Monitor API error",
+        monitorStatus: res.status,
+        monitorError: errorText,
+        requestUrl: url,
+        requestSample: priceRequests[0],
         prices: items.map(item => ({
           variantId: item.variantId,
           monitorId: item.monitorId,
@@ -203,7 +228,7 @@ export async function action({ request }) {
           error: "API error"
         }))
       }, {
-        status: 500,
+        status: 200, // Return 200 so client can see the error details
         headers: corsHeaders()
       });
     }

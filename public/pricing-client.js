@@ -315,6 +315,17 @@ async function getBatchPrices(items, customerId) {
     }
 
     const data = await response.json();
+
+    // Check for Monitor API errors in the response
+    if (data.monitorError) {
+      console.error('[Batch Pricing] Monitor API error details:', {
+        status: data.monitorStatus,
+        error: data.monitorError,
+        url: data.requestUrl,
+        sample: data.requestSample
+      });
+    }
+
     console.log(`[Batch Pricing] Received ${data.prices?.length || 0} prices`);
 
     return data.prices || [];
@@ -352,11 +363,13 @@ async function updateOutletPrices(customerId) {
   priceElements.forEach(el => {
     const variantId = el.dataset.variantId;
     const monitorId = el.dataset.variantMonitorId;
+    const unitId = el.dataset.variantUnitId;
 
     if (variantId && monitorId) {
       items.push({
         variantId,
-        monitorId
+        monitorId,
+        standardUnitId: unitId || null
       });
 
       // Store element reference for later update
