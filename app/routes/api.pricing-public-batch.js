@@ -163,9 +163,33 @@ export async function action({ request }) {
       };
     }));
 
+    // Filter out items without a valid UnitId
+    const validItems = itemsWithUnitIds.filter(item => item.standardUnitId);
+    const skippedItems = itemsWithUnitIds.filter(item => !item.standardUnitId);
+
+    if (skippedItems.length > 0) {
+      console.log(`[Batch Pricing] Skipping ${skippedItems.length} items without UnitId:`,
+        skippedItems.map(i => i.monitorId));
+    }
+
+    // If no valid items, return early with null prices for all
+    if (validItems.length === 0) {
+      console.log(`[Batch Pricing] No valid items with UnitId, returning empty prices`);
+      return json({
+        prices: items.map(item => ({
+          variantId: item.variantId,
+          monitorId: item.monitorId,
+          price: null,
+          error: "No UnitId available"
+        }))
+      }, {
+        headers: corsHeaders()
+      });
+    }
+
     // Build the request array for Monitor API
     // Each item must have: PartId, CustomerId, QuantityInUnit, UnitId, UseExtendedResult
-    const priceRequests = itemsWithUnitIds.map(item => ({
+    const priceRequests = validItems.map(item => ({
       PartId: item.monitorId,
       CustomerId: customerMonitorId,
       QuantityInUnit: 1.0,
@@ -236,10 +260,17 @@ export async function action({ request }) {
     const response = await res.json();
     console.log(`[Batch Pricing] Received ${Array.isArray(response) ? response.length : 'non-array'} price responses`);
 
-    // Map the response back to our items
-    // The response should be an array in the same order as the request
-    const prices = items.map((item, index) => {
-      const priceResponse = Array.isArray(response) ? response[index] : null;
+    // Build a map of monitorId -> price response for valid items
+    const priceMap = new Map();
+    if (Array.isArray(response)) {
+      validItems.forEach((item, index) => {
+        priceMap.set(item.monitorId, response[index]);
+      });
+    }
+
+    // Map all original items to prices (including skipped ones with null)
+    const prices = items.map(item => {
+      const priceResponse = priceMap.get(item.monitorId);
       return {
         variantId: item.variantId,
         monitorId: item.monitorId,
