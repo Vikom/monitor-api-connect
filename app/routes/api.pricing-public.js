@@ -319,13 +319,13 @@ async function updateVariantMetafield(shop, variantId, namespace, key, value) {
     const variantGid = variantId; // Already in GID format
     
     const mutation = `
-      mutation UpdateVariantMetafield($input: ProductVariantInput!) {
-        productVariantUpdate(input: $input) {
-          productVariant {
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
             id
-            metafield(namespace: "${namespace}", key: "${key}") {
-              value
-            }
+            namespace
+            key
+            value
           }
           userErrors {
             field
@@ -335,26 +335,23 @@ async function updateVariantMetafield(shop, variantId, namespace, key, value) {
       }
     `;
     
+    const variables = {
+      metafields: [{
+        ownerId: variantGid,
+        namespace: namespace,
+        key: key,
+        value: value,
+        type: "single_line_text_field"
+      }]
+    };
+    
     const response = await fetch(adminUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': accessToken,
       },
-      body: JSON.stringify({
-        query: mutation,
-        variables: {
-          input: {
-            id: variantGid,
-            metafields: [{
-              namespace: namespace,
-              key: key,
-              value: value,
-              type: "single_line_text_field"
-            }]
-          }
-        }
-      })
+      body: JSON.stringify({ query: mutation, variables })
     });
     
     if (!response.ok) {
@@ -369,8 +366,8 @@ async function updateVariantMetafield(shop, variantId, namespace, key, value) {
       return false;
     }
     
-    if (data.data?.productVariantUpdate?.userErrors?.length > 0) {
-      console.error(`Shopify metafield update user errors:`, data.data.productVariantUpdate.userErrors);
+    if (data.data?.metafieldsSet?.userErrors?.length > 0) {
+      console.error(`Shopify metafield update user errors:`, data.data.metafieldsSet.userErrors);
       return false;
     }
     
