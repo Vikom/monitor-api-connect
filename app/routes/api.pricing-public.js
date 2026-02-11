@@ -283,18 +283,35 @@ async function fetchMetafieldsViaRest(shop, variantId, customerId) {
 // Update variant metafield in Shopify
 async function updateVariantMetafield(shop, variantId, namespace, key, value) {
   try {
-    const { sessionStorage } = await import("../shopify.server.js");
+    let accessToken = null;
     
-    // Get session for the shop
-    const sessions = await sessionStorage.findSessionsByShop(shop);
-    if (!sessions || sessions.length === 0) {
-      console.error(`No session found for shop ${shop} - cannot update metafield`);
-      return false;
+    // Strategy 1: Try to find an existing session
+    try {
+      const { sessionStorage } = await import("../shopify.server.js");
+      const sessions = await sessionStorage.findSessionsByShop(shop);
+      if (sessions && sessions.length > 0 && sessions[0].accessToken) {
+        accessToken = sessions[0].accessToken;
+        console.log(`Using session token for shop ${shop}`);
+      }
+    } catch (sessionError) {
+      console.log(`Could not find session for shop ${shop}:`, sessionError.message);
     }
     
-    const session = sessions[0];
-    if (!session || !session.accessToken) {
-      console.error(`No valid session found for shop ${shop} - cannot update metafield`);
+    // Strategy 2: Fall back to environment variable admin tokens
+    if (!accessToken) {
+      // Check if this is the advanced store or use generic token
+      const advancedStoreDomain = process.env.ADVANCED_STORE_DOMAIN;
+      if (shop === advancedStoreDomain && process.env.ADVANCED_STORE_ADMIN_TOKEN) {
+        accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+        console.log(`Using ADVANCED_STORE_ADMIN_TOKEN for shop ${shop}`);
+      } else if (process.env.SHOPIFY_ACCESS_TOKEN) {
+        accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+        console.log(`Using SHOPIFY_ACCESS_TOKEN for shop ${shop}`);
+      }
+    }
+    
+    if (!accessToken) {
+      console.error(`No access token available for shop ${shop} - cannot update metafield`);
       return false;
     }
     
@@ -322,7 +339,7 @@ async function updateVariantMetafield(shop, variantId, namespace, key, value) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': session.accessToken,
+        'X-Shopify-Access-Token': accessToken,
       },
       body: JSON.stringify({
         query: mutation,
