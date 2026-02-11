@@ -280,6 +280,92 @@ async function fetchMetafieldsViaRest(shop, variantId, customerId) {
   }
 }
 
+// Update variant metafield in Shopify
+async function updateVariantMetafield(shop, variantId, namespace, key, value) {
+  try {
+    const { sessionStorage } = await import("../shopify.server.js");
+    
+    // Get session for the shop
+    const sessions = await sessionStorage.findSessionsByShop(shop);
+    if (!sessions || sessions.length === 0) {
+      console.error(`No session found for shop ${shop} - cannot update metafield`);
+      return false;
+    }
+    
+    const session = sessions[0];
+    if (!session || !session.accessToken) {
+      console.error(`No valid session found for shop ${shop} - cannot update metafield`);
+      return false;
+    }
+    
+    const adminUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
+    const variantGid = variantId; // Already in GID format
+    
+    const mutation = `
+      mutation UpdateVariantMetafield($input: ProductVariantInput!) {
+        productVariantUpdate(input: $input) {
+          productVariant {
+            id
+            metafield(namespace: "${namespace}", key: "${key}") {
+              value
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    
+    const response = await fetch(adminUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': session.accessToken,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          input: {
+            id: variantGid,
+            metafields: [{
+              namespace: namespace,
+              key: key,
+              value: value,
+              type: "single_line_text_field"
+            }]
+          }
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`Shopify metafield update failed: ${response.status} ${response.statusText}`);
+      return false;
+    }
+    
+    const data = await response.json();
+    
+    if (data.errors) {
+      console.error(`Shopify metafield update GraphQL errors:`, data.errors);
+      return false;
+    }
+    
+    if (data.data?.productVariantUpdate?.userErrors?.length > 0) {
+      console.error(`Shopify metafield update user errors:`, data.data.productVariantUpdate.userErrors);
+      return false;
+    }
+    
+    console.log(`✅ Successfully updated metafield ${namespace}.${key} for variant ${variantGid}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`Error updating variant metafield:`, error);
+    return false;
+  }
+}
+
 export async function action({ request }) {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, { 
@@ -343,6 +429,17 @@ export async function action({ request }) {
         standardUnitId = await fetchPartStandardUnitId(monitorId);
         if (standardUnitId) {
           console.log(`✅ Fetched StandardUnitId for ${monitorId}: ${standardUnitId}`);
+          
+          // Store the fetched standardUnitId back to Shopify metafield
+          if (shop && variantId) {
+            console.log(`📝 Storing StandardUnitId to Shopify metafield...`);
+            const updated = await updateVariantMetafield(shop, variantId, "custom", "unitid", standardUnitId);
+            if (updated) {
+              console.log(`✅ StandardUnitId stored successfully in Shopify`);
+            } else {
+              console.log(`⚠️ Failed to store StandardUnitId in Shopify - will need to fetch again next time`);
+            }
+          }
         } else {
           console.log(`⚠️ No StandardUnitId found for ${monitorId}`);
         }
