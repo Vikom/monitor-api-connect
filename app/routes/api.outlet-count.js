@@ -31,8 +31,6 @@ export async function loader({ request }) {
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop");
 
-    console.log(`[OUTLET-COUNT] === Request received for shop: ${shop} ===`);
-
     if (!shop) {
       return json({ error: "Shop parameter is required" }, {
         status: 400,
@@ -42,24 +40,18 @@ export async function loader({ request }) {
 
     // Check cache first
     if (cachedCount !== null && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_TTL)) {
-      console.log(`[OUTLET-COUNT] Returning cached count: ${cachedCount}`);
       return json({ count: cachedCount, cached: true }, {
         headers: corsHeaders()
       });
     }
 
-    console.log(`[OUTLET-COUNT] Cache miss, fetching from Shopify API`);
-
     // Use environment credentials for API access
     if (!STORE_DOMAIN || !STORE_ADMIN_TOKEN) {
-      console.error(`[OUTLET-COUNT] Missing store credentials in environment`);
       return json({ count: 0, error: "Missing store credentials", cached: false }, {
         status: 200,
         headers: corsHeaders()
       });
     }
-
-    console.log(`[OUTLET-COUNT] Using store credentials for: ${STORE_DOMAIN}`);
 
     // Query variants with outlet metafield
     const adminUrl = `https://${STORE_DOMAIN}/admin/api/2025-01/graphql.json`;
@@ -103,14 +95,12 @@ export async function loader({ request }) {
       });
 
       if (!response.ok) {
-        console.error(`[OUTLET-COUNT] Shopify API request failed: ${response.status}`);
         break;
       }
 
       const data = await response.json();
 
       if (data.errors) {
-        console.error(`[OUTLET-COUNT] Shopify API errors:`, data.errors);
         break;
       }
 
@@ -131,7 +121,6 @@ export async function loader({ request }) {
 
       // Safety limit to prevent infinite loops
       if (totalCount > 10000) {
-        console.log(`[OUTLET-COUNT] Reached safety limit, stopping pagination`);
         break;
       }
     }
@@ -140,14 +129,11 @@ export async function loader({ request }) {
     cachedCount = totalCount;
     cacheTimestamp = Date.now();
 
-    console.log(`[OUTLET-COUNT] Final count: ${totalCount}`);
-
     return json({ count: totalCount, cached: false }, {
       headers: corsHeaders()
     });
 
   } catch (error) {
-    console.error("[OUTLET-COUNT] API error:", error);
     return json({ error: "Internal server error", details: error.message }, {
       status: 500,
       headers: corsHeaders()

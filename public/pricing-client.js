@@ -271,6 +271,156 @@ function formatPrice(price) {
   }).format(price);
 }
 
+/**
+ * Get prices for multiple variants in a single batch request
+ * @param {Array<{variantId: string, monitorId: string, standardUnitId?: string}>} items - Array of items to get prices for
+ * @param {string} customerId - Shopify customer ID (required)
+ * @returns {Promise<Array<{variantId: string, monitorId: string, price: number|null, metadata?: object}>>}
+ */
+async function getBatchPrices(items, customerId) {
+  if (!customerId) {
+    throw new Error('Customer ID is required - no anonymous pricing allowed');
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  try {
+    const apiUrl = window.pricingApiUrl ?
+      `https://${window.pricingApiUrl}/api/pricing-public-batch` :
+      '/api/pricing-public-batch';
+
+    const requestBody = {
+      items,
+      customerId,
+      customerMonitorId: window.customerMonitorId || null,
+      shop: window.Shopify?.shop || window.location.hostname
+    };
+
+    console.log(`[Batch Pricing] Fetching prices for ${items.length} items`);
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Batch Pricing] Error response:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Check for Monitor API errors in the response
+    if (data.monitorError) {
+      console.error('[Batch Pricing] Monitor API error details:', {
+        status: data.monitorStatus,
+        error: data.monitorError,
+        url: data.requestUrl,
+        sample: data.requestSample
+      });
+    }
+
+    console.log(`[Batch Pricing] Received ${data.prices?.length || 0} prices`);
+
+    return data.prices || [];
+  } catch (error) {
+    console.error('[Batch Pricing] Error fetching batch prices:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update price displays for multiple outlet variant cards
+ * @param {string} customerId - Shopify customer ID (required)
+ */
+async function updateOutletPrices(customerId) {
+  if (!customerId) {
+    console.log('[Outlet Pricing] No customer ID - hiding prices');
+    document.querySelectorAll('.card-variant__price').forEach(el => {
+      el.classList.remove('f-price--loading');
+      el.style.display = 'none';
+    });
+    return;
+  }
+
+  // Collect all variant price elements
+  const priceElements = document.querySelectorAll('.card-variant__price');
+  if (priceElements.length === 0) {
+    console.log('[Outlet Pricing] No price elements found');
+    return;
+  }
+
+  // Build items array from the DOM
+  const items = [];
+  const elementMap = new Map(); // Map variantId to elements
+
+  priceElements.forEach(el => {
+    const variantId = el.dataset.variantId;
+    const monitorId = el.dataset.variantMonitorId;
+    const unitId = el.dataset.variantUnitId;
+
+    if (variantId && monitorId) {
+      items.push({
+        variantId,
+        monitorId,
+        standardUnitId: unitId || null
+      });
+
+      // Store element reference for later update
+      if (!elementMap.has(variantId)) {
+        elementMap.set(variantId, []);
+      }
+      elementMap.get(variantId).push(el);
+    }
+  });
+
+  if (items.length === 0) {
+    console.log('[Outlet Pricing] No valid items to fetch prices for');
+    return;
+  }
+
+  console.log(`[Outlet Pricing] Fetching prices for ${items.length} variants`);
+
+  try {
+    const prices = await getBatchPrices(items, customerId);
+
+    // Update the DOM with received prices
+    prices.forEach(priceData => {
+      const elements = elementMap.get(priceData.variantId);
+      if (!elements) return;
+
+      elements.forEach(priceEl => {
+        const priceValueEl = priceEl.querySelector('.card-variant__price-value');
+
+        if (priceData.price && priceData.price > 0) {
+          if (priceValueEl) {
+            priceValueEl.textContent = formatPrice(priceData.price);
+          }
+          priceEl.classList.remove('f-price--loading');
+          priceEl.classList.add('f-price--loaded');
+        } else {
+          priceEl.classList.remove('f-price--loading');
+          priceEl.style.display = 'none';
+        }
+      });
+    });
+
+  } catch (error) {
+    console.error('[Outlet Pricing] Error updating outlet prices:', error);
+    // Hide all price elements on error
+    priceElements.forEach(el => {
+      el.classList.remove('f-price--loading');
+      el.style.display = 'none';
+    });
+  }
+}
+
 // Make functions available globally for Shopify themes
 window.getCustomerPrice = getCustomerPrice;
 window.getVariantMonitorId = getVariantMonitorId;
@@ -279,3 +429,5 @@ window.setPriceLoading = setPriceLoading;
 window.enableAddToCartButton = enableAddToCartButton;
 window.disableAddToCartButton = disableAddToCartButton;
 window.formatPrice = formatPrice;
+window.getBatchPrices = getBatchPrices;
+window.updateOutletPrices = updateOutletPrices;
