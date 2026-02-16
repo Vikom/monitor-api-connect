@@ -178,8 +178,13 @@ console.log("🔄 Setting up cron schedules...");
 // Set global flag for all sync operations in this worker
 global.useAdvancedStore = true;
 
-// Set up cron jobs
-setupCronJobs();
+// Set up cron jobs (skip in testing environment)
+const isTesting = process.env.NODE_ENV === 'testing';
+if (isTesting) {
+  console.log("🧪 Testing environment detected - cron jobs disabled");
+} else {
+  setupCronJobs();
+}
 
 console.log("✅ Worker is running and scheduled jobs are active");
 console.log("💡 Worker will continue running indefinitely until stopped");
