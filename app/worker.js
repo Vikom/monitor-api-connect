@@ -71,6 +71,13 @@ async function testShopifyConnection() {
     return false;
   }
 
+  const testQuery = `query {
+    shop {
+      id
+      name
+    }
+  }`;
+
   try {
     const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
       method: 'POST',
@@ -78,15 +85,8 @@ async function testShopifyConnection() {
         'Content-Type': 'application/json',
         'X-Shopify-Access-Token': accessToken,
       },
-      body: JSON.stringify({
-        query: `{ shop { name id } }`
-      }),
+      body: JSON.stringify({ query: testQuery }),
     });
-
-    if (!response.ok) {
-      console.log(`❌ Shopify API: Request failed (Status: ${response.status})`);
-      return false;
-    }
 
     const result = await response.json();
     
