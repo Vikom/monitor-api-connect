@@ -1,6 +1,7 @@
 import "@shopify/shopify-api/adapters/node";
 import cron from "node-cron";
 import dotenv from "dotenv";
+import https from "https";
 import { pollForNewOrders } from "./orderPollJob.js";
 import { syncInventory } from "./syncInventoryJob.js";
 import { syncProducts } from "./syncProductsJob.js";
@@ -8,6 +9,120 @@ import { syncCustomers } from "./syncCustomersJob.js";
 import fetch from "node-fetch";
 
 dotenv.config();
+
+// HTTPS agent for Monitor API (self-signed certificate)
+const agent = new https.Agent({ rejectUnauthorized: false });
+
+// Function to test Monitor API connectivity
+async function testMonitorConnection() {
+  const monitorUrl = process.env.MONITOR_URL;
+  const monitorUsername = process.env.MONITOR_USER;
+  const monitorPassword = process.env.MONITOR_PASS;
+  const monitorCompany = process.env.MONITOR_COMPANY;
+
+  if (!monitorUrl || !monitorUsername || !monitorPassword || !monitorCompany) {
+    console.log("❌ Monitor API: Missing configuration (MONITOR_URL, MONITOR_USER, MONITOR_PASS, MONITOR_COMPANY)");
+    return false;
+  }
+
+  try {
+    const url = `${monitorUrl}/${monitorCompany}/login`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({
+        Username: monitorUsername,
+        Password: monitorPassword,
+        ForceRelogin: true,
+      }),
+      agent,
+    });
+
+    if (!res.ok) {
+      console.log(`❌ Monitor API: Login failed (Status: ${res.status})`);
+      return false;
+    }
+
+    const sessionId = res.headers.get("x-monitor-sessionid") || res.headers.get("X-Monitor-SessionId");
+    if (!sessionId) {
+      console.log("❌ Monitor API: No session ID returned");
+      return false;
+    }
+
+    console.log("✅ Monitor API: Connection successful");
+    return true;
+  } catch (error) {
+    console.log(`❌ Monitor API: Connection failed - ${error.message}`);
+    return false;
+  }
+}
+
+// Function to test Shopify API connectivity
+async function testShopifyConnection() {
+  const shop = process.env.ADVANCED_STORE_DOMAIN;
+  const accessToken = process.env.ADVANCED_STORE_ADMIN_TOKEN;
+
+  if (!shop || !accessToken) {
+    console.log("❌ Shopify API: Missing configuration (ADVANCED_STORE_DOMAIN, ADVANCED_STORE_ADMIN_TOKEN)");
+    return false;
+  }
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify({
+        query: `{ shop { name id } }`
+      }),
+    });
+
+    if (!response.ok) {
+      console.log(`❌ Shopify API: Request failed (Status: ${response.status})`);
+      return false;
+    }
+
+    const result = await response.json();
+    
+    if (result.errors) {
+      console.log(`❌ Shopify API: GraphQL errors - ${JSON.stringify(result.errors)}`);
+      return false;
+    }
+
+    if (result.data?.shop?.name) {
+      console.log(`✅ Shopify API: Connection successful (Shop: ${result.data.shop.name})`);
+      return true;
+    }
+
+    console.log("❌ Shopify API: Unexpected response format");
+    return false;
+  } catch (error) {
+    console.log(`❌ Shopify API: Connection failed - ${error.message}`);
+    return false;
+  }
+}
+
+// Function to run connectivity tests
+async function runConnectivityTests() {
+  console.log("\n🧪 Running connectivity tests...\n");
+  
+  const [monitorOk, shopifyOk] = await Promise.all([
+    testMonitorConnection(),
+    testShopifyConnection()
+  ]);
+
+  console.log("\n📊 Connectivity Test Results:");
+  console.log(`   Monitor API: ${monitorOk ? '✅ OK' : '❌ FAILED'}`);
+  console.log(`   Shopify API: ${shopifyOk ? '✅ OK' : '❌ FAILED'}\n`);
+
+  return monitorOk && shopifyOk;
+}
 
 // Function to log Railway's outbound IP for Monitor API whitelisting
 async function logRailwayIP() {
@@ -182,12 +297,27 @@ global.useAdvancedStore = true;
 const isTesting = process.env.NODE_ENV === 'testing';
 if (isTesting) {
   console.log("🧪 Testing environment detected - cron jobs disabled");
+  console.log("🔗 Running connectivity tests instead...");
+  
+  // Run connectivity tests and exit
+  runConnectivityTests().then((allOk) => {
+    if (allOk) {
+      console.log("✅ All connectivity tests passed!");
+      process.exit(0);
+    } else {
+      console.log("❌ Some connectivity tests failed!");
+      process.exit(1);
+    }
+  }).catch((error) => {
+    console.error("❌ Connectivity test error:", error);
+    process.exit(1);
+  });
 } else {
   setupCronJobs();
+  
+  console.log("✅ Worker is running and scheduled jobs are active");
+  console.log("💡 Worker will continue running indefinitely until stopped");
 }
-
-console.log("✅ Worker is running and scheduled jobs are active");
-console.log("💡 Worker will continue running indefinitely until stopped");
 
 // Keep the process alive
 process.on('SIGTERM', () => {
