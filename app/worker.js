@@ -296,14 +296,12 @@ global.useAdvancedStore = true;
 // Set up cron jobs (skip in testing environment)
 const isTesting = process.env.NODE_ENV === 'testing';
 if (isTesting) {
-  console.log("🧪 Testing environment detected - cron jobs disabled");
-  console.log("🔗 Running connectivity tests instead...");
+  console.log("🔗 Running connectivity tests...");
   
   // Run connectivity tests and exit
   runConnectivityTests().then((allOk) => {
     if (allOk) {
       console.log("✅ All connectivity tests passed!");
-      process.exit(0);
     } else {
       console.log("❌ Some connectivity tests failed!");
       process.exit(1);
