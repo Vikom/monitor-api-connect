@@ -312,6 +312,11 @@ if (isTesting) {
     console.error("❌ Connectivity test error:", error);
     process.exit(1);
   });
+
+  setupCronJobs();
+  
+  console.log("✅ Worker is running and scheduled jobs are active");
+  console.log("💡 Worker will continue running indefinitely until stopped");
 } else {
   setupCronJobs();
   
