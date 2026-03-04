@@ -70,6 +70,9 @@ export async function action({ request }) {
       apiDomain = 'mdnjqg-qg.myshopify.com';
       console.log(`Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
     }
+    else if (shop.endsWith('.myshopify.com')) {
+      console.log(`Shop domain is already a myshopify domain: ${shop}`);
+    }
     
     // Test GraphQL connection first
     const testQuery = `query { shop { name } }`;
@@ -83,7 +86,7 @@ export async function action({ request }) {
     });
     
     const testData = await testResponse.json();
-    console.log(`GraphQL test query result:`, testData);
+    // console.log(`GraphQL test query result:`, testData);
     
     if (!testResponse.ok || testData.errors) {
       console.error(`GraphQL connection test failed:`, testData);
@@ -179,7 +182,7 @@ export async function action({ request }) {
         }
         
         const variantData = await variantResponse.json();
-        console.log(`GraphQL Response for ${variantId}:`, JSON.stringify(variantData, null, 2));
+        // console.log(`GraphQL Response for ${variantId}:`, JSON.stringify(variantData, null, 2));
         
         const variant = variantData.data?.productVariant;
         
@@ -221,7 +224,7 @@ export async function action({ request }) {
         const imageUrl = variantImage?.url || productImage?.url;
         const imageAlt = variantImage?.altText || productImage?.altText || variant.product.title;
         
-        console.log(`Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
+        // console.log(`Image data - Variant image: ${variantImage?.url}, Product image: ${productImage?.url}, Using: ${imageUrl}`);
         
         // Check if this item has beam data in its properties (for Balk products)
         const itemBeamData = item.properties || {};
@@ -246,6 +249,8 @@ export async function action({ request }) {
             }
           }
         `;
+
+        console.log(`[DEBUG] Making GraphQL request for customer: ${customerId}`);
         
         const customerResponse = await fetch(`https://${apiDomain}/admin/api/${apiVersion}/graphql.json`, {
           method: 'POST',
@@ -261,6 +266,7 @@ export async function action({ request }) {
         
         const customerData = await customerResponse.json();
         const customer = customerData.data?.customer;
+        console.log(`[DEBUG] Customer GraphQL response:`, JSON.stringify(customerData, null, 2));
         
         const customerMonitorIdMetafield = customer?.metafields.edges.find(
           edge => edge.node.namespace === 'custom' && edge.node.key === 'monitor_id'
