@@ -183,15 +183,21 @@ async function pollForNewOrders() {
           continue;
         }
 
-        // Get customer monitor_id metafield
-        const monitorCustomerId = await getCustomerMonitorId(shop, accessToken, customer.id.split('/').pop());
-        
-        if (!monitorCustomerId) {
+        // Get customer monitor_id metafield and reference ID from note
+        const customerData = await getCustomerMonitorId(shop, accessToken, customer.id.split('/').pop());
+
+        if (!customerData || !customerData.monitorId) {
           console.log(`⚠️ Customer ${customer.id} for draft order ${order.name} has no monitor_id metafield, skipping Monitor sync`);
           continue;
         }
 
+        const monitorCustomerId = customerData.monitorId;
+        const referenceId = customerData.referenceId;
+
         console.log(`Found monitor customer ID: ${monitorCustomerId} for Shopify customer ${customer.id}`);
+        if (referenceId) {
+          console.log(`Found reference ID: ${referenceId} from customer note`);
+        }
 
         // Build Monitor order rows from line items
         const lineItems = order.lineItems?.edges?.map(edge => edge.node) || [];
@@ -241,12 +247,17 @@ async function pollForNewOrders() {
             await updateDraftOrderName(shop, accessToken, order.id.split('/').pop(), monitorOrderNumber);
           }
 
-          // Set order properties (Preliminary, GoodsLabel1, and BusinessContactOrderNumber) in a second request
+          // Set order properties (Preliminary, GoodsLabel1, BusinessContactOrderNumber, and BusinessContactReferenceId) in a second request
           const orderProperties = {
             Preliminary: { Value: true }, // NotNullBooleanInput
             GoodsLabel1: { Value: goodsLabel.substring(0, 80) }, // Limit to 80 characters
             BusinessContactOrderNumber: { Value: orderMark.substring(0, 30) } // Limit to 30 characters
           };
+
+          // Add BusinessContactReferenceId if we have a reference ID from the customer note
+          if (referenceId) {
+            orderProperties.BusinessContactReferenceId = { Value: referenceId };
+          }
           
           const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
           
@@ -299,13 +310,15 @@ async function pollForNewOrders() {
 }
 
 /**
- * Get customer's monitor_id metafield from Shopify
+ * Get customer's monitor_id metafield and note field from Shopify
+ * Returns an object with monitorId and referenceId (parsed from note)
  */
 async function getCustomerMonitorId(shop, accessToken, customerId) {
   const fetch = (await import('node-fetch')).default;
-  
+
   const query = `query {
     customer(id: "gid://shopify/Customer/${customerId}") {
+      note
       metafields(first: 10, namespace: "custom") {
         edges {
           node {
@@ -334,10 +347,27 @@ async function getCustomerMonitorId(shop, accessToken, customerId) {
       return null;
     }
 
-    const metafields = result.data?.customer?.metafields?.edges || [];
+    const customer = result.data?.customer;
+    const metafields = customer?.metafields?.edges || [];
     const monitorIdMetafield = metafields.find(mf => mf.node.key === "monitor_id");
-    
-    return monitorIdMetafield ? monitorIdMetafield.node.value : null;
+
+    if (!monitorIdMetafield) {
+      return null;
+    }
+
+    // Parse Reference ID from note field
+    // Note format: "Monitor Customer ID: <id>, Reference ID: <id>"
+    let referenceId = null;
+    const note = customer?.note || '';
+    const referenceIdMatch = note.match(/Reference ID:\s*(\d+)/);
+    if (referenceIdMatch) {
+      referenceId = parseInt(referenceIdMatch[1], 10);
+    }
+
+    return {
+      monitorId: monitorIdMetafield.node.value,
+      referenceId: referenceId
+    };
   } catch (error) {
     console.error("Error fetching customer metafields:", error);
     return null;

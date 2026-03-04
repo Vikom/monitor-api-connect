@@ -1,6 +1,6 @@
 # Custom built Shopify application for Sonsabs integration with Monitor
 
-This app was generated from a template to kickstart development. However because of that there is quite a lot of unused code in the project.
+This app was generated from a template to kickstart development. Because of that there is quite a lot of unused code in the project.
 
 ## Sync jobs
 
