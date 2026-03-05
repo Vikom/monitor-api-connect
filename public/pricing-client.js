@@ -421,6 +421,89 @@ async function updateOutletPrices(customerId) {
   }
 }
 
+/**
+ * Fetch comparison price for a variant
+ * @param {string} monitorId - Monitor Part ID
+ * @param {string} customerMonitorId - Monitor Customer ID
+ * @returns {Promise<{comparisonPrice: number|null, unitCode: string|null}>}
+ */
+async function getComparisonPrice(monitorId, customerMonitorId) {
+  if (!monitorId || !customerMonitorId) {
+    return { comparisonPrice: null, unitCode: null };
+  }
+
+  try {
+    const apiUrl = window.pricingApiUrl ?
+      `https://${window.pricingApiUrl}/api/comparison-price-public` :
+      '/api/comparison-price-public';
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        monitorId,
+        customerMonitorId
+      })
+    });
+
+    if (!response.ok) {
+      console.log('[Comparison Price] Error response:', response.status);
+      return { comparisonPrice: null, unitCode: null };
+    }
+
+    const data = await response.json();
+    return {
+      comparisonPrice: data.comparisonPrice || null,
+      unitCode: data.unitCode || null
+    };
+  } catch (error) {
+    console.error('[Comparison Price] Error fetching comparison price:', error);
+    return { comparisonPrice: null, unitCode: null };
+  }
+}
+
+/**
+ * Update comparison price display on a product page
+ * @param {string} monitorId - Monitor Part ID for the current variant
+ */
+async function updateComparisonPriceDisplay(monitorId) {
+  const comparisonPriceContainer = document.querySelector('.f-price__comparison');
+
+  if (!comparisonPriceContainer) {
+    return;
+  }
+
+  // Hide by default
+  comparisonPriceContainer.style.display = 'none';
+
+  if (!monitorId || !window.customerMonitorId) {
+    return;
+  }
+
+  try {
+    const { comparisonPrice, unitCode } = await getComparisonPrice(monitorId, window.customerMonitorId);
+
+    if (comparisonPrice && comparisonPrice > 0) {
+      const formattedPrice = formatPrice(comparisonPrice);
+      const priceValueEl = comparisonPriceContainer.querySelector('.f-price__comparison-value');
+
+      if (priceValueEl) {
+        priceValueEl.textContent = formattedPrice;
+      } else {
+        // If no specific value element, update the entire container
+        comparisonPriceContainer.innerHTML = `<span class="f-price__comparison-label">Jmfr. pris</span> <span class="f-price__comparison-value">${formattedPrice}</span>`;
+      }
+
+      comparisonPriceContainer.style.display = '';
+      console.log(`[Comparison Price] Displayed: ${formattedPrice} (unit: ${unitCode})`);
+    }
+  } catch (error) {
+    console.error('[Comparison Price] Error updating display:', error);
+  }
+}
+
 // Make functions available globally for Shopify themes
 window.getCustomerPrice = getCustomerPrice;
 window.getVariantMonitorId = getVariantMonitorId;
@@ -431,3 +514,5 @@ window.disableAddToCartButton = disableAddToCartButton;
 window.formatPrice = formatPrice;
 window.getBatchPrices = getBatchPrices;
 window.updateOutletPrices = updateOutletPrices;
+window.getComparisonPrice = getComparisonPrice;
+window.updateComparisonPriceDisplay = updateComparisonPriceDisplay;

@@ -52,6 +52,22 @@
   color: #000000;
 }
 
+/* Comparison price styling */
+.f-price__comparison {
+  display: none;
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 4px;
+}
+
+.f-price__comparison-label {
+  font-weight: normal;
+}
+
+.f-price__comparison-value {
+  font-weight: 500;
+}
+
 /* Disabled button styling */
 .btn--disabled {
   opacity: 0.6;
@@ -159,6 +175,11 @@
   <!-- Contact for price message (hidden by default) -->
   <div class="f-price__contact-for-price hidden">
     <a href="mailto:order@sonsab.com">Fråga oss om pris</a>
+  </div>
+
+  <!-- Comparison price (hidden by default, shown via JS if available) -->
+  <div class="f-price__comparison" style="display: none;">
+    <span class="f-price__comparison-label">Jmfr. pris</span> <span class="f-price__comparison-value"></span>
   </div>
   <!-- END: Uncommented price -->
 

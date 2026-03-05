@@ -21,12 +21,12 @@ async function pollForNewOrders() {
   try {
     const fetch = (await import('node-fetch')).default;
     
-    // Get draft orders from last 2 hours to catch any we might have missed
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    // Get draft orders from last 12 hours to catch any we might have missed
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
     
     // Only query completed draft orders that haven't been sent to Monitor yet
     const draftOrderQuery = `query {
-      draftOrders(first: 50, query: "created_at:>='${twoHoursAgo}' AND status:completed") {
+      draftOrders(first: 50, query: "created_at:>='${twelveHoursAgo}' AND status:completed") {
         edges {
           node {
             id

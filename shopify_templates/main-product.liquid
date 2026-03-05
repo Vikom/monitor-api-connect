@@ -234,8 +234,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   
   const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
-  
+
   await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+
+  // Fetch comparison price after main price is loaded
+  const monitorId = getVariantMonitorId(variantId);
+  if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
+    await updateComparisonPriceDisplay(monitorId);
+  }
 });
 
 // Debounce mechanism to prevent multiple simultaneous price updates
@@ -269,6 +275,12 @@ async function handleVariantPriceUpdate(variantId, source = 'unknown') {
     promise: (async () => {
       try {
         await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+
+        // Update comparison price after main price
+        const monitorId = getVariantMonitorId(variantId);
+        if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
+          await updateComparisonPriceDisplay(monitorId);
+        }
       } catch (error) {
         console.error('Error updating price for variant:', variantId, error);
       } finally {
@@ -279,7 +291,7 @@ async function handleVariantPriceUpdate(variantId, source = 'unknown') {
       }
     })()
   };
-  
+
   await currentPriceUpdatePromise.promise;
 }
 
