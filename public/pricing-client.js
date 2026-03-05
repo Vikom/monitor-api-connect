@@ -496,7 +496,7 @@ async function updateComparisonPriceDisplay(monitorId) {
         comparisonPriceContainer.innerHTML = `<span class="f-price__comparison-label">Jmfr. pris</span> <span class="f-price__comparison-value">${formattedPrice}</span>`;
       }
 
-      comparisonPriceContainer.style.display = '';
+      comparisonPriceContainer.style.display = 'block';
       console.log(`[Comparison Price] Displayed: ${formattedPrice} (unit: ${unitCode})`);
     }
   } catch (error) {
