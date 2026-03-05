@@ -59,6 +59,9 @@ async function pollForNewOrders() {
               zip
               phone
             }
+            shippingLine {
+              title
+            }
             metafields(first: 10, namespace: "custom") {
               edges {
                 node {
@@ -214,6 +217,14 @@ async function pollForNewOrders() {
         const goodsLabel = goodsLabelMetafield ? goodsLabelMetafield.node.value : '';
         const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
         const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
+
+        // Extract shipping method
+        const shippingMethod = order.shippingLine?.title || '';
+        const isKranbil = shippingMethod.toLowerCase() === 'kranbil';
+        const isHamtas = shippingMethod.toLowerCase() === 'hämtas';
+        if (shippingMethod) {
+          console.log(`Shipping method: ${shippingMethod}${isKranbil ? ' (Kranbil detected)' : ''}${isHamtas ? ' (Hämtas detected)' : ''}`);
+        }
         
         // Note: Beam data is now stored as line item properties, not as a draft order metafield
         const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
@@ -257,6 +268,16 @@ async function pollForNewOrders() {
           // Add BusinessContactReferenceId if we have a reference ID from the customer note
           if (referenceId) {
             orderProperties.BusinessContactReferenceId = { Value: referenceId };
+          }
+
+          // Add OurReferenceName if shipping method is Kranbil
+          if (isKranbil) {
+            orderProperties.OurReferenceName = { Value: "*** Kranbil ***" };
+          }
+
+          // Add DeliveryMethodId if shipping method is Hämtas
+          if (isHamtas) {
+            orderProperties.DeliveryMethodId = { Value: "1001713089519322776" };
           }
           
           const propertiesSet = await setOrderPropertiesInMonitor(monitorOrderId, orderProperties);
