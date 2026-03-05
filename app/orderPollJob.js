@@ -102,6 +102,9 @@ async function pollForNewOrders() {
                 zip
                 phone
               }
+              shippingLine {
+                title
+              }
             }
             lineItems(first: 50) {
               edges {
@@ -218,13 +221,12 @@ async function pollForNewOrders() {
         const orderMarkMetafield = metafields.find(mf => mf.node.key === "order_mark");
         const orderMark = orderMarkMetafield ? orderMarkMetafield.node.value : '';
 
-        // Extract shipping method
-        const shippingMethod = order.shippingLine?.title || '';
+        // Extract shipping method - check completed order first, then draft order
+        const shippingMethod = order.order?.shippingLine?.title || order.shippingLine?.title || '';
         const isKranbil = shippingMethod.toLowerCase() === 'kranbil';
         const isHamtas = shippingMethod.toLowerCase() === 'hämtas';
-        if (shippingMethod) {
-          console.log(`Shipping method: ${shippingMethod}${isKranbil ? ' (Kranbil detected)' : ''}${isHamtas ? ' (Hämtas detected)' : ''}`);
-        }
+        console.log(`Shipping method: ${shippingMethod || 'not set'}${isKranbil ? ' (Kranbil detected)' : ''}${isHamtas ? ' (Hämtas detected)' : ''}`);
+
         
         // Note: Beam data is now stored as line item properties, not as a draft order metafield
         const orderRows = await buildMonitorOrderRows(shop, accessToken, lineItems);
