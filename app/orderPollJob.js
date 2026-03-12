@@ -384,7 +384,7 @@ async function getCustomerMonitorId(shop, accessToken, customerId) {
     const note = customer?.note || '';
     const referenceIdMatch = note.match(/Reference ID:\s*(\d+)/);
     if (referenceIdMatch) {
-      referenceId = parseInt(referenceIdMatch[1], 10);
+      referenceId = referenceIdMatch[1];
     }
 
     return {

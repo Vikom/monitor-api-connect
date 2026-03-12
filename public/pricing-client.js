@@ -487,17 +487,18 @@ async function updateComparisonPriceDisplay(monitorId) {
 
     if (comparisonPrice && comparisonPrice > 0) {
       const formattedPrice = formatPrice(comparisonPrice);
+      const unitSuffix = unitCode ? `/${unitCode}` : '';
       const priceValueEl = comparisonPriceContainer.querySelector('.f-price__comparison-value');
 
       if (priceValueEl) {
-        priceValueEl.textContent = formattedPrice;
+        priceValueEl.textContent = `${formattedPrice}${unitSuffix}`;
       } else {
         // If no specific value element, update the entire container
-        comparisonPriceContainer.innerHTML = `<span class="f-price__comparison-label">Jmfr. pris</span> <span class="f-price__comparison-value">${formattedPrice}</span>`;
+        comparisonPriceContainer.innerHTML = `<span class="f-price__comparison-label">Jmfr. pris</span> <span class="f-price__comparison-value">${formattedPrice}${unitSuffix}</span>`;
       }
 
       comparisonPriceContainer.style.display = 'block';
-      console.log(`[Comparison Price] Displayed: ${formattedPrice} (unit: ${unitCode})`);
+      console.log(`[Comparison Price] Displayed: ${formattedPrice}${unitSuffix}`);
     }
   } catch (error) {
     console.error('[Comparison Price] Error updating display:', error);
