@@ -86,9 +86,19 @@ function updateStockDisplay(stockByName) {
       <div class="product__divider no-empty"></div>
     </div>`;
 
-  // If no stock, show order/out-of-stock status
-  if (totalStock === 0) {
-    // Check stock_control from the variant metafield on the page
+  if (totalStock > 0) {
+    // Show total stock count
+    const formattedTotal = totalStock.toLocaleString('sv-SE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).replace('.', ',');
+    stockHtml += `
+      <p class="product__inventory product__inventory--in-stock font-body-bolder">
+        <span class="product__inventory-icon"></span>
+        <span class="product__inventory-text">Totalt (${formattedTotal})</span>
+      </p>`;
+  } else {
+    // No stock - show order/out-of-stock status
     const stockControlEl = document.querySelector('[data-stock-control]');
     const stockControlStr = stockControlEl ? stockControlEl.dataset.stockControl : '';
     const hasOrderLocation = stockControlStr.includes('"order"');

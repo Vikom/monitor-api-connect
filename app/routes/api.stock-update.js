@@ -271,16 +271,16 @@ export async function action({ request }) {
     const warehouseIds = Object.keys(WAREHOUSE_METAFIELD_MAPPING);
     const stockData = {};
 
-    // Fetch balance for each warehouse in parallel
-    const balancePromises = warehouseIds.map(async (warehouseId) => {
-      let res = await getPartBalance(monitorId, warehouseId, session);
+    // Test session with first warehouse, re-login if needed
+    const firstRes = await getPartBalance(monitorId, warehouseIds[0], session);
+    if (firstRes.status === 401) {
+      sessionId = null;
+      session = await login();
+    }
 
-      // Re-login on 401
-      if (res.status === 401) {
-        sessionId = null;
-        session = await login();
-        res = await getPartBalance(monitorId, warehouseId, session);
-      }
+    // Fetch balance for each warehouse in parallel (session is now valid)
+    const balancePromises = warehouseIds.map(async (warehouseId) => {
+      const res = await getPartBalance(monitorId, warehouseId, session);
 
       if (res.status === 200) {
         const data = await res.json();

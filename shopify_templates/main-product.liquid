@@ -172,44 +172,6 @@ document.addEventListener('DOMContentLoaded', function () {
   <script type="application/ld+json">
     {{ product | structured_data }}
   </script>
-<!-- START: Variant data and stock (available to all visitors) -->
-<script>
-  // Set your app URL for API calls
-  window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
-
-  // Create a map of all variant IDs to their monitor IDs
-  window.variantMonitorIds = {
-    {% for variant in product.variants %}
-      "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
-    {% endfor %}
-  };
-</script>
-
-<!-- Load stock update client script -->
-<script src="{{ 'stock-client.js' | asset_url }}" defer></script>
-
-<!-- Non-logged-in: trigger stock update on page load and variant change -->
-{% unless customer %}
-<script>
-window.addEventListener('DOMContentLoaded', async () => {
-  // Wait for stock-client.js to load
-  while (typeof triggerStockUpdate === 'undefined') {
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
-  triggerStockUpdate(variantId);
-});
-
-// Handle variant changes for stock updates (non-logged-in visitors)
-document.addEventListener('change', (event) => {
-  if (event.target.name === 'id' && typeof triggerStockUpdate !== 'undefined') {
-    const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
-    triggerStockUpdate(variantId);
-  }
-});
-</script>
-{% endunless %}
-
 <!-- START: Custom pricing -->
 {% if customer %}
 <script>
@@ -220,13 +182,23 @@ document.addEventListener('change', (event) => {
     first_name: {{ customer.first_name | json }},
     last_name: {{ customer.last_name | json }}
   };
-
+  
+  // Set your app URL for pricing API calls
+  window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
+  
   // Set product information for pricing
   window.currentVariantMonitorId = "{{ product.selected_or_first_available_variant.metafields.custom.monitor_id }}";
   window.customerMonitorId = "{{ customer.metafields.custom.monitor_id }}";
   window.customerDiscountCategory = "{{ customer.metafields.custom.discount_category }}";
   window.customerPriceListId = "{{ customer.metafields.custom.pricelist_id }}";
-
+  
+  // Create a map of all variant IDs to their monitor IDs
+  window.variantMonitorIds = {
+    {% for variant in product.variants %}
+      "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  };
+  
   // Check if product is in outlet collection
   {% assign is_in_outlet = false %}
   {% for collection in product.collections %}
@@ -244,16 +216,11 @@ document.addEventListener('change', (event) => {
 <script>
 // Update product page price - customer must be logged in
 window.addEventListener('DOMContentLoaded', async () => {
-  // Wait for pricing-client.js and stock-client.js to load
-  while (typeof updatePriceDisplay === 'undefined' || typeof triggerStockUpdate === 'undefined') {
+  // Wait for pricing-client.js to load
+  while (typeof updatePriceDisplay === 'undefined') {
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   
-  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
-
-  // Trigger non-blocking stock update from Monitor (for all visitors)
-  triggerStockUpdate(variantId);
-
   if (!window.customer?.id) {
     console.log('Customer not logged in - no pricing available');
     // Show regular prices immediately for non-logged-in customers
@@ -264,7 +231,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     return;
   }
-
+  
+  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
   const customerId = `gid://shopify/Customer/${window.customer.id}`;
 
   await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
@@ -313,11 +281,6 @@ async function handleVariantPriceUpdate(variantId, source = 'unknown') {
         if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
           await updateComparisonPriceDisplay(monitorId);
         }
-
-        // Trigger non-blocking stock update on variant change
-        if (typeof triggerStockUpdate !== 'undefined') {
-          triggerStockUpdate(variantId);
-        }
       } catch (error) {
         console.error('Error updating price for variant:', variantId, error);
       } finally {
@@ -352,24 +315,14 @@ function getCurrentVariantId() {
 // Handle variant changes - consolidated event handling
 document.addEventListener('variant:change', async (event) => {
   const variantId = event.detail.variantId;
-  // Always update stock (for all visitors)
-  if (typeof triggerStockUpdate !== 'undefined') {
-    triggerStockUpdate(variantId);
-  }
   debounceVariantChange(variantId, 'variant:change');
 });
 
 // Alternative event listener for themes that don't use 'variant:change'
 document.addEventListener('change', async (event) => {
-  if (event.target.name === 'id') {
+  if (event.target.name === 'id' && window.customer?.id) {
     const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
-    // Always update stock (for all visitors)
-    if (typeof triggerStockUpdate !== 'undefined') {
-      triggerStockUpdate(variantId);
-    }
-    if (window.customer?.id) {
-      debounceVariantChange(variantId, 'change');
-    }
+    debounceVariantChange(variantId, 'change');
   }
 });
 
@@ -406,6 +359,50 @@ if (variantInput && window.customer?.id) {
 </script>
 {% endif %}
 <!-- END: Custom pricing -->
+
+<!-- START: Real-time stock update from Monitor -->
+<script src="{{ 'stock-client.js' | asset_url }}" defer></script>
+<script>
+(function() {
+  // Build variant monitor ID map (same data as pricing uses, but independent copy)
+  var stockVariantMonitorIds = {
+    {% for variant in product.variants %}
+      "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  };
+  var stockApiUrl = "monitor-api-connect-production.up.railway.app";
+  var initialVariantId = '{{ product.selected_or_first_available_variant.id }}';
+
+  function getStockMonitorId(numericVariantId) {
+    return stockVariantMonitorIds[numericVariantId] || null;
+  }
+
+  window.addEventListener('DOMContentLoaded', async function() {
+    // Wait for stock-client.js to load (with timeout to never block the page)
+    var waited = 0;
+    while (typeof window.triggerStockUpdate === 'undefined' && waited < 5000) {
+      await new Promise(function(r) { setTimeout(r, 100); });
+      waited += 100;
+    }
+    if (typeof window.triggerStockUpdate === 'undefined') return;
+
+    // Ensure stock client knows the API URL and variant map
+    if (!window.pricingApiUrl) window.pricingApiUrl = stockApiUrl;
+    if (!window.variantMonitorIds) window.variantMonitorIds = stockVariantMonitorIds;
+
+    window.triggerStockUpdate('gid://shopify/ProductVariant/' + initialVariantId);
+  });
+
+  // Listen for variant changes to update stock
+  document.addEventListener('change', function(event) {
+    if (event.target.name === 'id' && typeof window.triggerStockUpdate !== 'undefined') {
+      window.triggerStockUpdate('gid://shopify/ProductVariant/' + event.target.value);
+    }
+  });
+})();
+</script>
+<!-- END: Real-time stock update from Monitor -->
+
 </product-info>
 {%- assign block_atc_bar = section.blocks | where: 'type', 'sticky-atc-bar' | first -%}
 {%- if block_atc_bar != blank -%}
