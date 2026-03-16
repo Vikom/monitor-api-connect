@@ -23,6 +23,19 @@
 
   assign block_size = section.blocks.size
   assign products_to_display = section.settings.products_per_page | minus: block_size
+
+  assign is_outlet_type = false
+  if collection.handle == 'outlet'
+    assign is_outlet_type = true
+  endif
+  assign collection_id_str = collection.id | append: ''
+  assign outlet_sub_ids = '304431300656,304431333424,304431366192,304431431728,304431464496' | split: ','
+  for sub_id in outlet_sub_ids
+    if collection_id_str == sub_id
+      assign is_outlet_type = true
+      break
+    endif
+  endfor
 -%}
 {%- capture image_sizes -%}
 (max-width: 767px) calc((100vw - 38px) / {{ columns_mobile }}),
@@ -50,7 +63,7 @@
               {%- render 'loading-spinner' -%}
               <p id="ProductCount" class="m-0 text-subtext" role="status">
                 {%- liquid
-                  if collection.handle == 'outlet'
+                  if is_outlet_type
                     echo '<span id="OutletVariantCount">...</span> artiklar'
                   elsif collection.results_count
                     echo 'products.facets.filters_selected' | t: terms: collection.terms, count: collection.results_count
@@ -169,10 +182,7 @@
           >
             {%- liquid
               assign current_position = 1
-              assign is_outlet_collection = false
-              if collection.handle == 'outlet'
-                assign is_outlet_collection = true
-              endif
+              assign is_outlet_collection = is_outlet_type
             -%}
             {%- if is_outlet_collection -%}
               {%- comment -%} Outlet collection: show each variant as a separate card {%- endcomment -%}
@@ -488,7 +498,7 @@ setInterval(() => {
 </script>
 <!-- END: Custom customer detection -->
 
-{%- if collection.handle == 'outlet' -%}
+{%- if is_outlet_type -%}
 <!-- START: Outlet variant pricing -->
 <style>
   /* Fade-in animation for outlet prices */

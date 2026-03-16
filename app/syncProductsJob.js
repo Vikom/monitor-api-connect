@@ -3,6 +3,7 @@ import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogs
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";
+import { OUTLET_COLLECTIONS, PART_CODE_TO_OUTLET_COLLECTION } from "./utils/outlet-collections.js";
 dotenv.config();
 
 // Unit mapping from Monitor StandardUnitId to unit codes
@@ -23,6 +24,7 @@ const STANDARD_UNIT_MAPPING = {
   "1069043662952867563": "pås",      // Påse
   "1069044050573666032": "Sk"        // Säck
 };
+
 
 // Function to get unit code from StandardUnitId
 function getUnitCodeFromStandardUnitId(standardUnitId) {
@@ -559,13 +561,17 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
       console.log(`Processing product: ${productName} with ${variations.length} variations`);
       
       // Get collections for both ProductGroup and PartCode
-      const productGroupId = variations[0]?.productGroupId;
-      const productGroupDescription = variations[0]?.productGroupDescription;
+      // Prefer a non-outlet variant for ProductGroup since outlet variants have a different group,
+      // while all non-outlet variants share the same "real" ProductGroup
+      const OUTLET_GROUP_ID = "1229581166640460381";
+      const nonOutletVariation = variations.find(v => v.productGroupId !== OUTLET_GROUP_ID) || variations[0];
+      const productGroupId = nonOutletVariation?.productGroupId;
+      const productGroupDescription = nonOutletVariation?.productGroupDescription;
       const partCodeId = variations[0]?.partCodeId;
       const partCodeDescription = variations[0]?.partCodeDescription;
-      
+
       const collectionIds = [];
-      
+
       if (productGroupId && productGroupDescription) {
         console.log(`  🏷️  Finding collection for ProductGroup: "${productGroupDescription}" (ID: ${productGroupId})`);
         try {
@@ -577,7 +583,7 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
           console.warn(`⚠️  Failed to find ProductGroup collection "${productGroupDescription}": ${error.message}. Continuing without this collection...`);
         }
       }
-      
+
       if (partCodeId && partCodeDescription) {
         console.log(`  🏷️  Finding collection for PartCode: "${partCodeDescription}" (ID: ${partCodeId})`);
         try {
@@ -589,7 +595,7 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
           console.warn(`⚠️  Failed to find PartCode collection "${partCodeDescription}": ${error.message}. Continuing without this collection...`);
         }
       }
-      
+
       // Check if product already exists in Shopify by productName
       let existingProduct;
       try {
@@ -600,12 +606,12 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
         failedProducts.set(productName, { variations, error: error.message });
         continue;
       }
-      
+
       try {
         if (existingProduct) {
           console.log(`Product "${productName}" already exists, adding new variations if needed`);
           const variationsAdded = await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
-          
+
           if (!variationsAdded) {
             console.error(`❌ Failed to add variations to existing product ${existingProduct.id}. Some variants may be missing.`);
             // Track this for reporting
@@ -620,12 +626,38 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
               isExistingProduct: true
             });
           }
-          
+
+          // Resolve outlet collections based on ALL variants (batch + Shopify siblings)
+          const outletResult = await resolveOutletCollectionsForProduct(shop, accessToken, existingProduct.id, variations);
+          if (outletResult.shouldBeInOutlet) {
+            // Add main outlet collection
+            if (outletResult.outletCollectionGid && !collectionIds.includes(outletResult.outletCollectionGid)) {
+              collectionIds.push(outletResult.outletCollectionGid);
+            }
+            // Add outlet sub-collections
+            for (const subGid of outletResult.outletSubCollectionGids) {
+              if (!collectionIds.includes(subGid)) {
+                console.log(`  🏷️  Outlet product — adding to sub-collection: ${OUTLET_COLLECTIONS[subGid]}`);
+                collectionIds.push(subGid);
+              }
+            }
+          } else if (!outletResult.skipRemoval) {
+            // No outlet variants at all — remove from main outlet collection and all sub-collections
+            console.log(`  🏷️  No outlet variants — removing from outlet collections if present`);
+            const outletMainGid = await findExistingCollection(shop, accessToken, "1229581166640460381", "Outlet");
+            if (outletMainGid) {
+              await removeProductFromCollection(shop, accessToken, existingProduct.id, outletMainGid);
+            }
+            for (const subGid of Object.keys(OUTLET_COLLECTIONS)) {
+              await removeProductFromCollection(shop, accessToken, existingProduct.id, subGid);
+            }
+          }
+
           // Add product to all collections
           for (const collectionId of collectionIds) {
             await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
           }
-          
+
           // Ensure existing product is published to Online Store
           if (onlineStoreSalesChannelId) {
             await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
@@ -633,13 +665,31 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
         } else {
           console.log(`Creating new product: ${productName}`);
           const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
-          
+
           if (newProductId) {
+            // For new products, just add outlet collections if batch has outlet variants
+            const batchIsOutlet = variations.some(v => v.isOutletProduct);
+            if (batchIsOutlet) {
+              const outletMainGid = await findExistingCollection(shop, accessToken, "1229581166640460381", "Outlet");
+              if (outletMainGid && !collectionIds.includes(outletMainGid)) {
+                collectionIds.push(outletMainGid);
+              }
+              for (const v of variations) {
+                if (v.isOutletProduct && v.partCodeId) {
+                  const subGid = PART_CODE_TO_OUTLET_COLLECTION[v.partCodeId];
+                  if (subGid && !collectionIds.includes(subGid)) {
+                    console.log(`  🏷️  Outlet product — adding to sub-collection: ${OUTLET_COLLECTIONS[subGid]}`);
+                    collectionIds.push(subGid);
+                  }
+                }
+              }
+            }
+
             // Add product to all collections
             for (const collectionId of collectionIds) {
               await addProductToCollection(shop, accessToken, newProductId, collectionId);
             }
-            
+
             // Publish new product to Online Store
             if (onlineStoreSalesChannelId) {
               await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
@@ -675,13 +725,15 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
         
         try {
           // Get collections for both ProductGroup and PartCode
-          const productGroupId = variations[0]?.productGroupId;
-          const productGroupDescription = variations[0]?.productGroupDescription;
+          const OUTLET_GROUP_ID = "1229581166640460381";
+          const nonOutletVariation = variations.find(v => v.productGroupId !== OUTLET_GROUP_ID) || variations[0];
+          const productGroupId = nonOutletVariation?.productGroupId;
+          const productGroupDescription = nonOutletVariation?.productGroupDescription;
           const partCodeId = variations[0]?.partCodeId;
           const partCodeDescription = variations[0]?.partCodeDescription;
-          
+
           const collectionIds = [];
-          
+
           if (productGroupId && productGroupDescription) {
             try {
               const productGroupCollectionId = await findExistingCollection(shop, accessToken, productGroupId, productGroupDescription);
@@ -692,7 +744,7 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
               console.warn(`⚠️  [Retry] Failed to find ProductGroup collection "${productGroupDescription}": ${error.message}. Continuing without this collection...`);
             }
           }
-          
+
           if (partCodeId && partCodeDescription) {
             try {
               const partCodeCollectionId = await findExistingCollection(shop, accessToken, partCodeId, partCodeDescription);
@@ -704,23 +756,15 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
             }
           }
           
-          // Check if any variation has status = 6 (outlet), add outlet collection as last collection
-          /*const hasOutletVariant = variations.some(variation => variation.status === 6);
-          if (hasOutletVariant) {
-            const outletCollectionId = "gid://shopify/Collection/651232051534";
-            collectionIds.push(outletCollectionId);
-          }*/
-          
           // Check if product already exists in Shopify by productName
           const existingProduct = await findExistingProductByName(shop, accessToken, productName);
-          
+
           if (existingProduct) {
             console.log(`Product "${productName}" already exists, adding new variations if needed`);
             const variationsAdded = await addVariationsToExistingProduct(shop, accessToken, existingProduct.id, variations);
-            
+
             if (!variationsAdded) {
               console.error(`❌ [Retry] Failed to add variations to existing product ${existingProduct.id}. Some variants may be missing.`);
-              // Track this for reporting
               if (!global.productsWithFailedVariants) {
                 global.productsWithFailedVariants = [];
               }
@@ -733,12 +777,34 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
                 isRetryAttempt: true
               });
             }
-            
+
+            // Resolve outlet collections based on ALL variants (batch + Shopify siblings)
+            const outletResult = await resolveOutletCollectionsForProduct(shop, accessToken, existingProduct.id, variations);
+            if (outletResult.shouldBeInOutlet) {
+              if (outletResult.outletCollectionGid && !collectionIds.includes(outletResult.outletCollectionGid)) {
+                collectionIds.push(outletResult.outletCollectionGid);
+              }
+              for (const subGid of outletResult.outletSubCollectionGids) {
+                if (!collectionIds.includes(subGid)) {
+                  collectionIds.push(subGid);
+                }
+              }
+            } else if (!outletResult.skipRemoval) {
+              console.log(`  🏷️  [Retry] No outlet variants — removing from outlet collections if present`);
+              const outletMainGid = await findExistingCollection(shop, accessToken, "1229581166640460381", "Outlet");
+              if (outletMainGid) {
+                await removeProductFromCollection(shop, accessToken, existingProduct.id, outletMainGid);
+              }
+              for (const subGid of Object.keys(OUTLET_COLLECTIONS)) {
+                await removeProductFromCollection(shop, accessToken, existingProduct.id, subGid);
+              }
+            }
+
             // Add product to all collections
             for (const collectionId of collectionIds) {
               await addProductToCollection(shop, accessToken, existingProduct.id, collectionId);
             }
-            
+
             // Ensure existing product is published to Online Store
             if (onlineStoreSalesChannelId) {
               await publishProductToOnlineStore(shop, accessToken, existingProduct.id, onlineStoreSalesChannelId);
@@ -746,13 +812,30 @@ export async function syncProducts(isIncrementalSync = false, singlePartNumberPa
           } else {
             console.log(`Creating new product: ${productName}`);
             const newProductId = await createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId);
-            
+
             if (newProductId) {
+              // For new products, add outlet collections if batch has outlet variants
+              const batchIsOutlet = variations.some(v => v.isOutletProduct);
+              if (batchIsOutlet) {
+                const outletMainGid = await findExistingCollection(shop, accessToken, "1229581166640460381", "Outlet");
+                if (outletMainGid && !collectionIds.includes(outletMainGid)) {
+                  collectionIds.push(outletMainGid);
+                }
+                for (const v of variations) {
+                  if (v.isOutletProduct && v.partCodeId) {
+                    const subGid = PART_CODE_TO_OUTLET_COLLECTION[v.partCodeId];
+                    if (subGid && !collectionIds.includes(subGid)) {
+                      collectionIds.push(subGid);
+                    }
+                  }
+                }
+              }
+
               // Add product to all collections
               for (const collectionId of collectionIds) {
                 await addProductToCollection(shop, accessToken, newProductId, collectionId);
               }
-              
+
               // Publish new product to Online Store
               if (onlineStoreSalesChannelId) {
                 await publishProductToOnlineStore(shop, accessToken, newProductId, onlineStoreSalesChannelId);
@@ -2271,6 +2354,129 @@ async function addProductToCollection(shop, accessToken, productId, collectionId
     console.error("Unexpected response adding product to collection:", JSON.stringify(result, null, 2));
     return false;
   }
+}
+
+// Helper function to remove a product from a collection
+async function removeProductFromCollection(shop, accessToken, productId, collectionId) {
+  const fetch = (await import('node-fetch')).default;
+
+  // First check if product is actually in the collection
+  const isInCollection = await checkProductInCollection(shop, accessToken, productId, collectionId);
+  if (!isInCollection) {
+    return true;
+  }
+
+  const mutation = `mutation collectionRemoveProducts($id: ID!, $productIds: [ID!]!) {
+    collectionRemoveProducts(id: $id, productIds: $productIds) {
+      job {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }`;
+
+  const variables = {
+    id: collectionId,
+    productIds: [productId]
+  };
+
+  const response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': accessToken,
+    },
+    body: JSON.stringify({ query: mutation, variables }),
+  });
+
+  const result = await response.json();
+
+  if (result.errors) {
+    console.error("GraphQL errors removing product from collection:", JSON.stringify(result.errors, null, 2));
+    return false;
+  }
+
+  if (result.data?.collectionRemoveProducts?.userErrors?.length > 0) {
+    console.error("User errors removing product from collection:", JSON.stringify(result.data.collectionRemoveProducts.userErrors, null, 2));
+    return false;
+  }
+
+  console.log(`    🗑️  Removed product ${productId} from collection ${collectionId}`);
+  return true;
+}
+
+// Helper function to resolve outlet collections for a Shopify product based on ALL its variants
+// Returns { shouldBeInOutlet, outletCollectionGid, outletSubCollectionGids }
+async function resolveOutletCollectionsForProduct(shop, accessToken, productId, batchVariations) {
+  const OUTLET_GROUP_ID = "1229581166640460381";
+  const batchIsOutlet = batchVariations.some(v => v.isOutletProduct);
+
+  // Collect outlet sub-collections from batch variations
+  const outletSubCollectionGids = new Set();
+  if (batchIsOutlet) {
+    for (const v of batchVariations) {
+      if (v.isOutletProduct && v.partCodeId) {
+        const gid = PART_CODE_TO_OUTLET_COLLECTION[v.partCodeId];
+        if (gid) outletSubCollectionGids.add(gid);
+      }
+    }
+  }
+
+  // Get all variant monitor_ids from the Shopify product
+  const shopifyVariants = await getExistingVariants(shop, accessToken, productId);
+  const batchMonitorIds = new Set(batchVariations.map(v => v.id));
+
+  // Find monitor IDs on Shopify product that are NOT in the current batch
+  const nonBatchMonitorIds = shopifyVariants
+    .map(sv => sv.monitorId)
+    .filter(mid => mid && !batchMonitorIds.has(mid));
+
+  // Check non-batch variants in Monitor for outlet status
+  let nonBatchHasOutlet = false;
+  if (nonBatchMonitorIds.length > 0) {
+    try {
+      console.log(`    🔍 Checking ${nonBatchMonitorIds.length} sibling variants in Monitor for outlet status...`);
+      const siblingParts = await fetchProductsByIdsFromMonitor(nonBatchMonitorIds);
+      for (const part of siblingParts) {
+        const partGroupId = part.ProductGroup?.Id || part.ProductGroupId;
+        if (partGroupId === OUTLET_GROUP_ID) {
+          nonBatchHasOutlet = true;
+          // Also collect their sub-collections
+          const partCodeId = part.PartCode?.Id || part.PartCodeId;
+          if (partCodeId) {
+            const gid = PART_CODE_TO_OUTLET_COLLECTION[partCodeId];
+            if (gid) outletSubCollectionGids.add(gid);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`    ⚠️  Failed to check sibling variants in Monitor: ${error.message}. Keeping current outlet status.`);
+      // On error, be conservative — don't remove from outlet
+      return { shouldBeInOutlet: batchIsOutlet, outletSubCollectionGids: [...outletSubCollectionGids], skipRemoval: true };
+    }
+  }
+
+  const shouldBeInOutlet = batchIsOutlet || nonBatchHasOutlet;
+
+  // Find the main outlet collection GID
+  let outletCollectionGid = null;
+  if (shouldBeInOutlet) {
+    try {
+      outletCollectionGid = await findExistingCollection(shop, accessToken, OUTLET_GROUP_ID, "Outlet");
+    } catch (error) {
+      console.warn(`    ⚠️  Failed to find main outlet collection: ${error.message}`);
+    }
+  }
+
+  return {
+    shouldBeInOutlet,
+    outletCollectionGid,
+    outletSubCollectionGids: [...outletSubCollectionGids],
+    skipRemoval: false
+  };
 }
 
 // Helper function to check if a product is already in a collection
