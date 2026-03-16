@@ -1,17 +1,21 @@
 import { json } from "@remix-run/node";
 import https from "https";
 
-// Monitor API configuration
+// Lazy-loaded shared MonitorClient to avoid session conflicts with other endpoints
+let monitorClient = null;
+async function getMonitorClient() {
+  if (!monitorClient) {
+    const { MonitorClient } = await import("../utils/monitor.server.js");
+    monitorClient = new MonitorClient();
+  }
+  return monitorClient;
+}
+
 const monitorUrl = process.env.MONITOR_URL;
-const monitorUsername = process.env.MONITOR_USER;
-const monitorPassword = process.env.MONITOR_PASS;
 const monitorCompany = process.env.MONITOR_COMPANY;
 
 // SSL agent for self-signed certificates
 const agent = new https.Agent({ rejectUnauthorized: false });
-
-// Simple session management for this endpoint
-let sessionId = null;
 
 // Warehouse mapping (same as syncInventoryJob.js)
 const WAREHOUSE_METAFIELD_MAPPING = {
@@ -32,7 +36,6 @@ const WAREHOUSE_JSON_MAPPING = {
   '933126074830088482': 'stockholm'
 };
 
-// Helper function to add CORS headers
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -41,96 +44,38 @@ function corsHeaders() {
   };
 }
 
-// Monitor API login
-async function login() {
-  if (!monitorUrl || !monitorUsername || !monitorPassword || !monitorCompany) {
-    throw new Error('Missing Monitor API environment variables');
-  }
-
-  const url = `${monitorUrl}/${monitorCompany}/login`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "Cache-Control": "no-cache",
-    },
-    body: JSON.stringify({
-      Username: monitorUsername,
-      Password: monitorPassword,
-      ForceRelogin: true,
-    }),
-    agent,
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error(`[Stock Update] Monitor login failed: ${res.status} ${errorText}`);
-    throw new Error(`Monitor login failed: ${res.status}`);
-  }
-
-  const newSessionId = res.headers.get("x-monitor-sessionid") || res.headers.get("X-Monitor-SessionId");
-  await res.json(); // consume body
-
-  if (!newSessionId) {
-    throw new Error('No session ID returned from Monitor API');
-  }
-
-  sessionId = newSessionId;
-  return sessionId;
-}
-
-// Get or refresh session ID
-async function getSessionId() {
-  if (!sessionId) {
-    sessionId = await login();
-  }
-  return sessionId;
-}
-
 // Call Monitor GetPartBalanceInfo for a specific warehouse
-async function getPartBalance(partId, warehouseId, session) {
+async function getPartBalance(partId, warehouseId, sessionId) {
   const url = `${monitorUrl}/${monitorCompany}/api/v1/Inventory/Parts/GetPartBalanceInfo`;
 
   // BalanceDate = today + 14 days
   const balanceDate = new Date();
   balanceDate.setDate(balanceDate.getDate() + 14);
-  const balanceDateStr = balanceDate.toISOString();
 
-  const res = await fetch(url, {
+  return fetch(url, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
       "Cache-Control": "no-cache",
-      "X-Monitor-SessionId": session,
+      "X-Monitor-SessionId": sessionId,
     },
     body: JSON.stringify({
       PartId: partId,
       WarehouseId: warehouseId,
-      BalanceDate: balanceDateStr,
+      BalanceDate: balanceDate.toISOString(),
     }),
     agent,
   });
-
-  return res;
 }
 
 // Determine stock status from stock data and stock control
 function determineStockStatus(stockData, stockControlJson) {
-  const hasStockInAnyLocation = Object.entries(stockData).some(([warehouseId, stock]) => {
-    return WAREHOUSE_METAFIELD_MAPPING[warehouseId] && stock > 0;
-  });
-
-  if (hasStockInAnyLocation) {
-    return 'I lager';
-  }
-
-  const hasOrderLocation = Object.values(stockControlJson).some(v => v === 'order');
-  if (hasOrderLocation) {
-    return 'Beställningsvara';
-  }
-
+  const hasStock = Object.entries(stockData).some(([wId, stock]) =>
+    WAREHOUSE_METAFIELD_MAPPING[wId] && stock > 0
+  );
+  if (hasStock) return 'I lager';
+  if (Object.values(stockControlJson).some(v => v === 'order')) return 'Beställningsvara';
   return '';
 }
 
@@ -144,25 +89,18 @@ async function getShopifyAccessToken(shop) {
   try {
     const { sessionStorage } = await import("../shopify.server.js");
     const sessions = await sessionStorage.findSessionsByShop(shop);
-    if (sessions && sessions.length > 0 && sessions[0].accessToken) {
-      return sessions[0].accessToken;
-    }
+    if (sessions?.[0]?.accessToken) return sessions[0].accessToken;
   } catch (e) {
     console.log(`[Stock Update] Could not find session for shop ${shop}:`, e.message);
   }
 
-  if (process.env.SHOPIFY_ACCESS_TOKEN) {
-    return process.env.SHOPIFY_ACCESS_TOKEN;
-  }
-
-  return null;
+  return process.env.SHOPIFY_ACCESS_TOKEN || null;
 }
 
 // Update variant metafields in Shopify (same fields as syncInventoryJob)
 async function updateShopifyMetafields(shop, accessToken, variantId, stockData) {
   const metafields = [];
 
-  // Stock per warehouse
   for (const [warehouseId, metafieldKey] of Object.entries(WAREHOUSE_METAFIELD_MAPPING)) {
     const stock = stockData[warehouseId] || 0;
     const [namespace, key] = metafieldKey.split('.');
@@ -175,7 +113,7 @@ async function updateShopifyMetafields(shop, accessToken, variantId, stockData) 
     });
   }
 
-  // Fetch existing stock_control from Shopify so we can compute stock_status correctly
+  // Fetch existing stock_control to compute stock_status
   let stockControlJson = {};
   try {
     const queryRes = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
@@ -195,14 +133,11 @@ async function updateShopifyMetafields(shop, accessToken, variantId, stockData) 
     });
     const queryData = await queryRes.json();
     const controlValue = queryData.data?.productVariant?.metafield?.value;
-    if (controlValue) {
-      stockControlJson = JSON.parse(controlValue);
-    }
+    if (controlValue) stockControlJson = JSON.parse(controlValue);
   } catch (e) {
     console.log(`[Stock Update] Could not fetch stock_control, using empty:`, e.message);
   }
 
-  // Stock status
   const stockStatus = determineStockStatus(stockData, stockControlJson);
   metafields.push({
     ownerId: variantId,
@@ -242,7 +177,6 @@ async function updateShopifyMetafields(shop, accessToken, variantId, stockData) 
   return true;
 }
 
-// Handle OPTIONS request for CORS preflight
 export async function loader({ request }) {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders() });
@@ -263,25 +197,38 @@ export async function action({ request }) {
       return json({ error: "monitorId is required" }, { status: 400, headers: corsHeaders() });
     }
 
-    if (!monitorUrl || !monitorUsername || !monitorCompany) {
+    if (!monitorUrl || !monitorCompany) {
       return json({ error: "Monitor API not configured" }, { status: 500, headers: corsHeaders() });
     }
 
-    let session = await getSessionId();
+    // Use the shared MonitorClient session (stored in DB, shared with pricing endpoint)
+    const client = await getMonitorClient();
+    let sessionId = await client.getSessionId();
     const warehouseIds = Object.keys(WAREHOUSE_METAFIELD_MAPPING);
     const stockData = {};
 
     // Test session with first warehouse, re-login if needed
-    const firstRes = await getPartBalance(monitorId, warehouseIds[0], session);
-    if (firstRes.status === 401) {
-      sessionId = null;
-      session = await login();
+    const testRes = await getPartBalance(monitorId, warehouseIds[0], sessionId);
+    if (testRes.status === 401) {
+      console.log('[Stock Update] Session expired, re-logging in...');
+      sessionId = await client.login();
+    } else if (testRes.status === 200) {
+      // Use the test result for the first warehouse
+      const testData = await testRes.json();
+      stockData[warehouseIds[0]] = testData.AvailableBalance || 0;
+    } else {
+      const errorText = await testRes.text();
+      console.error(`[Stock Update] GetPartBalanceInfo failed for warehouse ${warehouseIds[0]}: ${testRes.status} ${errorText}`);
+      stockData[warehouseIds[0]] = 0;
     }
 
-    // Fetch balance for each warehouse in parallel (session is now valid)
-    const balancePromises = warehouseIds.map(async (warehouseId) => {
-      const res = await getPartBalance(monitorId, warehouseId, session);
+    // Fetch remaining warehouses in parallel
+    const remainingIds = stockData[warehouseIds[0]] !== undefined
+      ? warehouseIds.slice(1)
+      : warehouseIds;
 
+    const balancePromises = remainingIds.map(async (warehouseId) => {
+      const res = await getPartBalance(monitorId, warehouseId, sessionId);
       if (res.status === 200) {
         const data = await res.json();
         stockData[warehouseId] = data.AvailableBalance || 0;
@@ -300,9 +247,7 @@ export async function action({ request }) {
     const stockByName = {};
     for (const [warehouseId, balance] of Object.entries(stockData)) {
       const name = WAREHOUSE_JSON_MAPPING[warehouseId];
-      if (name) {
-        stockByName[name] = balance;
-      }
+      if (name) stockByName[name] = balance;
     }
 
     // Update Shopify metafields if we have shop and variantId

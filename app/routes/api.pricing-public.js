@@ -13,8 +13,15 @@ const monitorCompany = process.env.MONITOR_COMPANY;
 // SSL agent for self-signed certificates
 const agent = new https.Agent({ rejectUnauthorized: false });
 
-// Simple session management for this endpoint
-let sessionId = null;
+// Use shared MonitorClient for session management (stored in DB, shared across endpoints)
+let _monitorClient = null;
+async function getMonitorClient() {
+  if (!_monitorClient) {
+    const { MonitorClient } = await import("../utils/monitor.server.js");
+    _monitorClient = new MonitorClient();
+  }
+  return _monitorClient;
+}
 
 // Helper function to add CORS headers
 function corsHeaders() {
@@ -25,74 +32,16 @@ function corsHeaders() {
   };
 }
 
-// Monitor API login
-async function login() {
-  try {
-    // Validate environment variables
-    if (!monitorUrl || !monitorUsername || !monitorPassword || !monitorCompany) {
-      console.error('Missing Monitor API credentials:', {
-        hasUrl: !!monitorUrl,
-        hasUser: !!monitorUsername,
-        hasPass: !!monitorPassword,
-        hasCompany: !!monitorCompany
-      });
-      throw new Error('Missing Monitor API environment variables');
-    }
-    
-    const url = `${monitorUrl}/${monitorCompany}/login`;
-    console.log(`Attempting Monitor API login to: ${url} with user: ${monitorUsername}`);
-    
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "Cache-Control": "no-cache",
-      },
-      body: JSON.stringify({
-        Username: monitorUsername,  // Fixed: was UserName, should be Username
-        Password: monitorPassword,
-        ForceRelogin: true,  // Added to force fresh login
-      }),
-      agent,
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Monitor login failed: ${res.status} ${res.statusText}`);
-      console.error(`Login error response: ${errorText}`);
-      throw new Error(`Monitor login failed: ${res.status} - ${errorText}`);
-    }
-
-    // Get session ID from response header (like monitor.js), with fallback to body
-    let sessionIdFromHeader = res.headers.get("x-monitor-sessionid") || res.headers.get("X-Monitor-SessionId");
-    const data = await res.json();
-    
-    // Try header first, then body (for compatibility)
-    const receivedSessionId = sessionIdFromHeader || data.SessionId;
-    
-    if (!receivedSessionId) {
-      console.error(`No SessionId in header or body. Headers: ${JSON.stringify([...res.headers])}, Body:`, data);
-      throw new Error('No SessionId received from Monitor API');
-    }
-    
-    console.log(`Monitor API login successful, SessionId: ${receivedSessionId.substring(0, 8)}...`);
-    console.log(`SessionId source: ${sessionIdFromHeader ? 'header' : 'body'}`);
-    sessionId = receivedSessionId;
-    return sessionId;
-  } catch (error) {
-    console.error('Monitor API login error:', error);
-    sessionId = null; // Clear any stale session
-    throw error;
-  }
+// Get or refresh session ID using shared MonitorClient
+async function getSessionId() {
+  const client = await getMonitorClient();
+  return client.getSessionId();
 }
 
-// Get or refresh session ID
-async function getSessionId() {
-  if (!sessionId) {
-    sessionId = await login();
-  }
-  return sessionId;
+// Re-login and get new session ID using shared MonitorClient
+async function login() {
+  const client = await getMonitorClient();
+  return client.login();
 }
 
 // Handle OPTIONS request for CORS preflight
@@ -495,7 +444,6 @@ export async function action({ request }) {
       if (res.status === 401) {
         // Session expired, force re-login and retry
         console.log(`Session expired for customer part links fetch, re-logging in...`);
-        sessionId = null; // Clear the session
         session = await login();
         res = await fetch(url, {
           method: "POST",
