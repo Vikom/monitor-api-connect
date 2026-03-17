@@ -25,6 +25,7 @@
   assign products_to_display = section.settings.products_per_page | minus: block_size
 
   assign is_outlet_type = false
+  assign is_outlet_sub = false
   if collection.handle == 'outlet'
     assign is_outlet_type = true
   endif
@@ -33,6 +34,7 @@
   for sub_id in outlet_sub_ids
     if collection_id_str == sub_id
       assign is_outlet_type = true
+      assign is_outlet_sub = true
       break
     endif
   endfor
@@ -75,7 +77,7 @@
                 -%}
               </p>
             </div>
-            {%- if enable_filtering -%}
+            {%- if enable_filtering and is_outlet_type == false -%}
               {%- render 'facets-drawer',
                 results: collection,
                 enable_sorting: enable_sorting,
@@ -133,18 +135,20 @@
       </div>
     {%- endif -%}
     {%- liquid
-      if enable_filtering
+      if enable_filtering and is_outlet_type == false
         render 'facets-active', results: collection
       endif
     -%}
     <div class="collection__content flex">
       {%- if collection.all_products_count > 0 -%}
         <div
-          class="no-js-hidden hidden{% if enable_filtering and filter_type == 'vertical' %} xl:block{% endif %}"
+          class="no-js-hidden{% if is_outlet_type %} xl:block{% elsif enable_filtering and filter_type == 'vertical' %} hidden xl:block{% else %} hidden{% endif %}"
           id="FacetFiltersContainer"
         >
           <div class="sticky-element z-8" style="--sticky-offset: 7.2rem;">
-            {%- render 'facets', context: 'vertical', results: collection -%}
+            {%- unless is_outlet_type -%}
+              {%- render 'facets', context: 'vertical', results: collection -%}
+            {%- endunless -%}
           </div>
         </div>
       {%- endif -%}
@@ -164,11 +168,21 @@
               {%- else -%}
                 <div class="gap-3 flex flex-col items-center justify-center text-center">
                   {%- render 'icon-empty-state' -%}
-                  <p class="h4">{{ 'collections.general.empty' | t }}</p>
+                  {%- if is_outlet_sub -%}
+                    <p class="h4">F&ouml;r n&auml;rvarande inga varor i denna kategori</p>
+                  {%- else -%}
+                    <p class="h4">{{ 'collections.general.empty' | t }}</p>
+                  {%- endif -%}
                 </div>
-                <a class="btn btn--primary" href="{{ routes.all_products_collection_url }}">
-                  {{ 'collections.general.continue_shopping' | t }}
-                </a>
+                {%- if is_outlet_sub -%}
+                  <a class="btn btn--primary" href="/collections/outlet">
+                    Visa alla outlet-varor
+                  </a>
+                {%- else -%}
+                  <a class="btn btn--primary" href="{{ routes.all_products_collection_url }}">
+                    {{ 'collections.general.continue_shopping' | t }}
+                  </a>
+                {%- endif -%}
               {%- endif -%}
             </div>
           {%- endif -%}
@@ -524,31 +538,32 @@ setInterval(() => {
   window.customerPriceListId = "{{ customer.metafields.custom.pricelist_id }}";
   window.isOutletProduct = true;
 
-  // Fetch outlet variant count from API
+  // Fetch outlet variant count
   document.addEventListener('DOMContentLoaded', async function() {
     const countEl = document.getElementById('OutletVariantCount');
-    if (!countEl) {
-      console.error('OutletVariantCount element not found');
-      return;
-    }
+    if (!countEl) return;
 
-    try {
-      const shop = window.Shopify?.shop || '{{ shop.permanent_domain }}';
-      console.log('Fetching outlet count for shop:', shop);
-      const response = await fetch(`https://monitor-api-connect-production.up.railway.app/api/outlet-count?shop=${encodeURIComponent(shop)}`);
+    {% if is_outlet_sub %}
+      // For sub-collections, count rendered variant cards on the page
+      const variantCards = document.querySelectorAll('#ProductsList .product-column');
+      countEl.textContent = variantCards.length;
+    {% else %}
+      // For main outlet, fetch total count from API
+      try {
+        const shop = window.Shopify?.shop || '{{ shop.permanent_domain }}';
+        const response = await fetch(`https://monitor-api-connect-production.up.railway.app/api/outlet-count?shop=${encodeURIComponent(shop)}`);
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Outlet count response:', data);
-        countEl.textContent = data.count;
-      } else {
-        console.error('Outlet count API error:', response.status);
+        if (response.ok) {
+          const data = await response.json();
+          countEl.textContent = data.count;
+        } else {
+          countEl.textContent = '';
+        }
+      } catch (error) {
+        console.error('Error fetching outlet count:', error);
         countEl.textContent = '';
       }
-    } catch (error) {
-      console.error('Error fetching outlet count:', error);
-      countEl.textContent = '';
-    }
+    {% endif %}
   });
 </script>
 
