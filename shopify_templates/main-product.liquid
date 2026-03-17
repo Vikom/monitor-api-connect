@@ -214,144 +214,146 @@ document.addEventListener('DOMContentLoaded', function () {
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
 
 <script>
-// Update product page price - customer must be logged in
+// Sequential pricing then stock - they must not run concurrently against Monitor API
 window.addEventListener('DOMContentLoaded', async () => {
   // Wait for pricing-client.js to load
   while (typeof updatePriceDisplay === 'undefined') {
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  
-  if (!window.customer?.id) {
+
+  var initialVariantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
+
+  // === STEP 1: PRICING (always runs first) ===
+  if (window.customer?.id) {
+    var customerId = 'gid://shopify/Customer/' + window.customer.id;
+    try {
+      await updatePriceDisplay(initialVariantId, '.f-price-item--regular', customerId);
+      var monitorId = getVariantMonitorId(initialVariantId);
+      if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
+        await updateComparisonPriceDisplay(monitorId);
+      }
+    } catch (e) {
+      console.error('[Pricing] Error on initial load:', e);
+    }
+  } else {
     console.log('Customer not logged in - no pricing available');
-    // Show regular prices immediately for non-logged-in customers
-    const priceContainers = document.querySelectorAll('.f-price');
-    priceContainers.forEach(container => {
+    var priceContainers = document.querySelectorAll('.f-price');
+    priceContainers.forEach(function(container) {
       container.classList.remove('f-price--loading');
       container.classList.add('f-price--no-custom-pricing');
     });
-    return;
   }
-  
-  const variantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
-  const customerId = `gid://shopify/Customer/${window.customer.id}`;
 
-  await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
-
-  // Fetch comparison price after main price is loaded
-  const monitorId = getVariantMonitorId(variantId);
-  if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
-    await updateComparisonPriceDisplay(monitorId);
+  // === STEP 2: STOCK (runs after pricing completes) ===
+  if (typeof window.triggerStockUpdate !== 'undefined') {
+    window.triggerStockUpdate(initialVariantId);
   }
 });
 
-// Debounce mechanism to prevent multiple simultaneous price updates
-let priceUpdateTimeout = null;
-let currentPriceUpdatePromise = null;
+// Debounce mechanism to prevent multiple simultaneous updates
+let variantUpdateTimeout = null;
+let currentVariantUpdatePromise = null;
 
-// Function to handle variant price updates with debouncing
-async function handleVariantPriceUpdate(variantId, source = 'unknown') {
-  if (!window.customer?.id) return;
-  
-  // Clear any pending timeout
-  if (priceUpdateTimeout) {
-    clearTimeout(priceUpdateTimeout);
-  }
-  
-  // If there's already a price update in progress for the same variant, skip this one
-  if (currentPriceUpdatePromise && currentPriceUpdatePromise.variantId === variantId) {
-    return;
-  }
-  
-  // Set loading state immediately when variant changes
-  if (typeof setPriceLoading !== 'undefined') {
+// Sequential variant update: price first, then stock
+async function handleVariantUpdate(variantId, source) {
+  // Set loading states immediately
+  if (typeof setPriceLoading !== 'undefined' && window.customer?.id) {
     setPriceLoading();
   }
-  
-  const customerId = `gid://shopify/Customer/${window.customer.id}`;
-  
-  // Create a promise to track this update
-  currentPriceUpdatePromise = {
+  var stockContainer = document.querySelector('.stock-container');
+  if (stockContainer) {
+    stockContainer.innerHTML = '<p class="product__inventory font-body-bolder" style="color: rgb(var(--color-foreground-secondary, 107, 114, 128)); font-style: italic;"><span class="product__inventory-text">Uppdaterar lagersaldo...</span></p>';
+  }
+
+  // If there's already an update in progress for the same variant, skip
+  if (currentVariantUpdatePromise && currentVariantUpdatePromise.variantId === variantId) {
+    return;
+  }
+
+  currentVariantUpdatePromise = {
     variantId: variantId,
     promise: (async () => {
       try {
-        await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+        // STEP 1: Price first
+        if (window.customer?.id) {
+          var customerId = 'gid://shopify/Customer/' + window.customer.id;
+          await updatePriceDisplay(variantId, '.f-price-item--regular', customerId);
+          var monitorId = getVariantMonitorId(variantId);
+          if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
+            await updateComparisonPriceDisplay(monitorId);
+          }
+        }
 
-        // Update comparison price after main price
-        const monitorId = getVariantMonitorId(variantId);
-        if (monitorId && typeof updateComparisonPriceDisplay !== 'undefined') {
-          await updateComparisonPriceDisplay(monitorId);
+        // STEP 2: Stock after price
+        if (typeof window.triggerStockUpdate !== 'undefined') {
+          window.triggerStockUpdate(variantId);
         }
       } catch (error) {
-        console.error('Error updating price for variant:', variantId, error);
+        console.error('[VariantUpdate] Error:', error);
+        // Still try stock even if pricing failed
+        if (typeof window.triggerStockUpdate !== 'undefined') {
+          window.triggerStockUpdate(variantId);
+        }
       } finally {
-        // Clear the current promise when done
-        if (currentPriceUpdatePromise && currentPriceUpdatePromise.variantId === variantId) {
-          currentPriceUpdatePromise = null;
+        if (currentVariantUpdatePromise && currentVariantUpdatePromise.variantId === variantId) {
+          currentVariantUpdatePromise = null;
         }
       }
     })()
   };
 
-  await currentPriceUpdatePromise.promise;
+  await currentVariantUpdatePromise.promise;
 }
 
 // Debounced variant change handler
-function debounceVariantChange(variantId, source, delay = 150) {
-  if (priceUpdateTimeout) {
-    clearTimeout(priceUpdateTimeout);
+function debounceVariantChange(variantId, source, delay) {
+  delay = delay || 150;
+  if (variantUpdateTimeout) {
+    clearTimeout(variantUpdateTimeout);
   }
-  
-  priceUpdateTimeout = setTimeout(() => {
-    handleVariantPriceUpdate(variantId, source);
+  variantUpdateTimeout = setTimeout(function() {
+    handleVariantUpdate(variantId, source);
   }, delay);
 }
 
-// Get current variant ID from the form
-function getCurrentVariantId() {
-  const variantInput = document.querySelector('[name="id"]');
-  return variantInput ? `gid://shopify/ProductVariant/${variantInput.value}` : null;
-}
-
 // Handle variant changes - consolidated event handling
-document.addEventListener('variant:change', async (event) => {
-  const variantId = event.detail.variantId;
+document.addEventListener('variant:change', function(event) {
+  var variantId = event.detail.variantId;
   debounceVariantChange(variantId, 'variant:change');
 });
 
-// Alternative event listener for themes that don't use 'variant:change'
-document.addEventListener('change', async (event) => {
-  if (event.target.name === 'id' && window.customer?.id) {
-    const variantId = `gid://shopify/ProductVariant/${event.target.value}`;
+document.addEventListener('change', function(event) {
+  if (event.target.name === 'id') {
+    var variantId = 'gid://shopify/ProductVariant/' + event.target.value;
     debounceVariantChange(variantId, 'change');
   }
 });
 
 // Watch for variant input changes using MutationObserver as fallback
-const variantInput = document.querySelector('[name="id"]');
-if (variantInput && window.customer?.id) {
-  let lastObservedValue = variantInput.value;
-  
-  const observer = new MutationObserver((mutations) => {
-    const currentValue = variantInput.value;
+var variantInput = document.querySelector('[name="id"]');
+if (variantInput) {
+  var lastObservedValue = variantInput.value;
+
+  var observer = new MutationObserver(function() {
+    var currentValue = variantInput.value;
     if (currentValue !== lastObservedValue && currentValue) {
       lastObservedValue = currentValue;
-      const variantId = `gid://shopify/ProductVariant/${currentValue}`;
+      var variantId = 'gid://shopify/ProductVariant/' + currentValue;
       debounceVariantChange(variantId, 'mutation');
     }
   });
-  
-  observer.observe(variantInput, { 
-    attributes: true, 
-    attributeFilter: ['value'] 
+
+  observer.observe(variantInput, {
+    attributes: true,
+    attributeFilter: ['value']
   });
-  
-  // Property change detection as final fallback
-  let lastPolledValue = variantInput.value;
-  setInterval(() => {
-    const currentValue = variantInput.value;
+
+  var lastPolledValue = variantInput.value;
+  setInterval(function() {
+    var currentValue = variantInput.value;
     if (currentValue !== lastPolledValue && currentValue) {
       lastPolledValue = currentValue;
-      const variantId = `gid://shopify/ProductVariant/${currentValue}`;
+      var variantId = 'gid://shopify/ProductVariant/' + currentValue;
       debounceVariantChange(variantId, 'polling');
     }
   }, 500);
@@ -360,47 +362,48 @@ if (variantInput && window.customer?.id) {
 {% endif %}
 <!-- END: Custom pricing -->
 
-<!-- START: Real-time stock update from Monitor -->
+<!-- START: Real-time stock update from Monitor (works for all users) -->
 <script src="{{ 'stock-client.js' | asset_url }}" defer></script>
 <script>
-(function() {
-  // Build variant monitor ID map (same data as pricing uses, but independent copy)
-  var stockVariantMonitorIds = {
-    {% for variant in product.variants %}
-      "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
-    {% endfor %}
-  };
-  var stockApiUrl = "monitor-api-connect-production.up.railway.app";
-  var initialVariantId = '{{ product.selected_or_first_available_variant.id }}';
-
-  function getStockMonitorId(numericVariantId) {
-    return stockVariantMonitorIds[numericVariantId] || null;
+  // Set up globals for stock if not already set by pricing (non-logged-in users)
+  if (!window.pricingApiUrl) {
+    window.pricingApiUrl = "monitor-api-connect-production.up.railway.app";
   }
+  if (!window.variantMonitorIds) {
+    window.variantMonitorIds = {
+      {% for variant in product.variants %}
+        "{{ variant.id }}": "{{ variant.metafields.custom.monitor_id }}"{% unless forloop.last %},{% endunless %}
+      {% endfor %}
+    };
+  }
+</script>
+{% unless customer %}
+{%- comment -%} For non-logged-in users, trigger stock independently since there's no pricing to wait for {%- endcomment -%}
+<script>
+window.addEventListener('DOMContentLoaded', async function() {
+  var waited = 0;
+  while (typeof window.triggerStockUpdate === 'undefined' && waited < 5000) {
+    await new Promise(function(r) { setTimeout(r, 100); });
+    waited += 100;
+  }
+  if (typeof window.triggerStockUpdate === 'undefined') return;
 
-  window.addEventListener('DOMContentLoaded', async function() {
-    // Wait for stock-client.js to load (with timeout to never block the page)
-    var waited = 0;
-    while (typeof window.triggerStockUpdate === 'undefined' && waited < 5000) {
-      await new Promise(function(r) { setTimeout(r, 100); });
-      waited += 100;
-    }
-    if (typeof window.triggerStockUpdate === 'undefined') return;
+  var initialVariantId = 'gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}';
+  window.triggerStockUpdate(initialVariantId);
 
-    // Ensure stock client knows the API URL and variant map
-    if (!window.pricingApiUrl) window.pricingApiUrl = stockApiUrl;
-    if (!window.variantMonitorIds) window.variantMonitorIds = stockVariantMonitorIds;
-
-    window.triggerStockUpdate('gid://shopify/ProductVariant/' + initialVariantId);
-  });
-
-  // Listen for variant changes to update stock
+  // Listen for variant changes
   document.addEventListener('change', function(event) {
-    if (event.target.name === 'id' && typeof window.triggerStockUpdate !== 'undefined') {
+    if (event.target.name === 'id') {
+      var stockContainer = document.querySelector('.stock-container');
+      if (stockContainer) {
+        stockContainer.innerHTML = '<p class="product__inventory font-body-bolder" style="color: rgb(var(--color-foreground-secondary, 107, 114, 128)); font-style: italic;"><span class="product__inventory-text">Uppdaterar lagersaldo...</span></p>';
+      }
       window.triggerStockUpdate('gid://shopify/ProductVariant/' + event.target.value);
     }
   });
-})();
+});
 </script>
+{% endunless %}
 <!-- END: Real-time stock update from Monitor -->
 
 </product-info>

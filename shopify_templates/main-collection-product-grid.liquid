@@ -142,7 +142,7 @@
     <div class="collection__content flex">
       {%- if collection.all_products_count > 0 -%}
         <div
-          class="no-js-hidden{% if is_outlet_type %} xl:block{% elsif enable_filtering and filter_type == 'vertical' %} hidden xl:block{% else %} hidden{% endif %}"
+          class="no-js-hidden{% if is_outlet_type %} hidden{% elsif enable_filtering and filter_type == 'vertical' %} hidden xl:block{% else %} hidden{% endif %}"
           id="FacetFiltersContainer"
         >
           <div class="sticky-element z-8" style="--sticky-offset: 7.2rem;">
@@ -189,7 +189,7 @@
           <div
             id="ProductsList"
             class="grid-list products-list f-grid f-grid--gap-medium f-grid--row-gap-large"
-            style="--f-columns-mobile: {{ columns_mobile }}; --f-columns-md: {{ columns_tablet }}; --f-columns-xl: {{ columns_desktop }};"
+            style="--f-columns-mobile: {{ columns_mobile }}; --f-columns-md: 3; --f-columns-xl: {% if is_outlet_type %}5{% else %}{{ columns_desktop }}{% endif %};"
             {% if settings.pcard_style == 'card' %}
               data-grid-class="color-{{ settings.pcard_color_scheme }}"
             {% endif %}

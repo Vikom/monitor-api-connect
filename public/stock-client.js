@@ -143,6 +143,12 @@ function triggerStockUpdate(variantId) {
     return;
   }
 
+  // Show loading message
+  const stockContainer = document.querySelector('.stock-container');
+  if (stockContainer && !stockContainer.querySelector('.stock-loading-message')) {
+    stockContainer.innerHTML = '<p class="product__inventory font-body-bolder stock-loading-message" style="color: rgb(var(--color-foreground-secondary, 107, 114, 128)); font-style: italic;"><span class="product__inventory-text">Uppdaterar lagersaldo...</span></p>';
+  }
+
   const tracker = { cancelled: false };
   currentStockRequest = tracker;
 

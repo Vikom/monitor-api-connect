@@ -64,6 +64,7 @@ async function getPartBalance(partId, warehouseId, sessionId) {
       PartId: partId,
       WarehouseId: warehouseId,
       BalanceDate: balanceDate.toISOString(),
+      ActualOrdersTransactionType: 16352,
     }),
     agent,
   });
