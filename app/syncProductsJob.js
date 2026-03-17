@@ -258,15 +258,13 @@ async function generateMetafieldsForVariation(variation) {
     });
   }
 
-  // Add outlet metafield if ProductGroup is 1229581166640460381
-  if (variation.productGroupId === "1229581166640460381") {
-    metafields.push({
-      namespace: "custom",
-      key: "outlet",
-      value: "true",
-      type: "boolean"
-    });
-  }
+  // Set outlet metafield based on ProductGroup
+  metafields.push({
+    namespace: "custom",
+    key: "outlet",
+    value: variation.productGroupId === "1229581166640460381" ? "true" : "false",
+    type: "boolean"
+  });
 
   // Fetch ARTFSC data if the variation has the ARTFSC field
   if (variation.hasARTFSC) {
