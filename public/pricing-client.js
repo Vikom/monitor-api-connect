@@ -137,23 +137,32 @@ async function updatePriceDisplay(variantId, priceSelector, customerId) {
       // Format price according to shop's currency settings
       const formattedPrice = formatPrice(priceData.price);
       priceElement.textContent = formattedPrice;
-      
+
       // Add a data attribute to indicate dynamic pricing
       if (priceData.metadata?.priceSource === 'dynamic') {
         priceElement.setAttribute('data-dynamic-price', 'true');
         priceElement.setAttribute('title', 'Special customer pricing applied');
       }
-      
+
       // Show normal price display
       priceContainers.forEach(container => {
         container.classList.remove('f-price--loading');
         container.classList.add('f-price--loaded');
-        
+
+        // Add sale class for outlet products and set price on sale element
+        if (window.isOutletProduct) {
+          container.classList.add('f-price--on-sale');
+          const salePriceEl = container.querySelector('.f-price-item--sale');
+          if (salePriceEl) {
+            salePriceEl.textContent = formattedPrice;
+          }
+        }
+
         // Show regular price sections and hide contact for price message
         const priceRegular = container.querySelector('.f-price__regular');
         const priceSale = container.querySelector('.f-price__sale');
         const contactForPrice = container.querySelector('.f-price__contact-for-price');
-        
+
         if (priceRegular) priceRegular.style.display = '';
         if (priceSale) priceSale.style.display = '';
         if (contactForPrice) contactForPrice.classList.add('hidden');
