@@ -1,11 +1,20 @@
 // Outlet collection GIDs mapped to their display names
 export const OUTLET_COLLECTIONS = {
+  "gid://shopify/Collection/685232357710": "Outlet skivor",
+  "gid://shopify/Collection/685232390478": "Outlet byggmaterial",
+  "gid://shopify/Collection/685232456014": "Outlet trävaror",
+  "gid://shopify/Collection/685232619854": "Outlet interiör",
+  "gid://shopify/Collection/685232652622": "Outlet kakel & klinker"
+};
+
+/*export const OUTLET_COLLECTIONS = {
   "gid://shopify/Collection/304431300656": "Outlet skivor",
   "gid://shopify/Collection/304431333424": "Outlet byggmaterial",
   "gid://shopify/Collection/304431366192": "Outlet trävaror",
   "gid://shopify/Collection/304431431728": "Outlet interiör",
   "gid://shopify/Collection/304431464496": "Outlet kakel & klinker"
-};
+};*/
+
 
 // Mapping of Monitor PartCodeId to outlet collection GID
 // Based on part code ranges: 1xxx=skivor, 2xxx=byggmaterial, 3xxx=trävaror, 4xxx=interiör (excl 46xx), 46xx=kakel & klinker
