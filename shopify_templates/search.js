@@ -52,35 +52,15 @@ class PredictiveSearch extends HTMLElement {
     return str.replace(/[åäöÅÄÖ]/g, match => charMap[match] || match);
   }
 
-  // Create search terms - handle Swedish characters and spaces for better predictive search
+  // Create search terms - handle Swedish characters for better search results
   createSearchTerms(query) {
     const original = query.trim();
     let processedQuery = this.normalizeSwedishChars(original);
-    
-    // Handle spaces in predictive search
-    if (processedQuery.includes(' ')) {
-      const words = processedQuery.split(/\s+/).filter(word => word.length > 0);
-      
-      if (words.length > 1) {
-        // Check if the last word looks incomplete (short)
-        const lastWord = words[words.length - 1];
-        const isLastWordPartial = lastWord.length < 3;
-        
-        if (isLastWordPartial && words.length === 2) {
-          // For partial searches like "MDF S", use the first word and let Shopify handle prefix matching
-          processedQuery = words[0];
-          console.log(`Partial word detected: "${original}" -> searching with "${processedQuery}" (letting Shopify handle prefix matching)`);
-        } else {
-          // For multi-word queries, use the first word only since predictive search is strict
-          // This ensures we get results that can be refined by the user
-          processedQuery = words[0];
-          console.log(`Multi-word query detected: "${original}" -> searching with first word "${processedQuery}" (predictive search fallback)`);
-        }
-      }
-    } else if (original !== processedQuery) {
+
+    if (original !== processedQuery) {
       console.log(`Swedish chars detected: "${original}" -> searching with "${processedQuery}"`);
     }
-    
+
     return processedQuery;
   }
 
@@ -153,18 +133,18 @@ class PredictiveSearch extends HTMLElement {
   setupURL() {
     const url = new URL(`${FoxTheme.routes.shop_url}${FoxTheme.routes.predictive_search_url}`);
     let search_term = this.createSearchTerms(this.getQuery());
-    
+
     if (this.searchProductTypes && this.searchProductTypes.value != '') {
-      search_term = `product_type:${this.searchProductTypes.value} AND (${encodeURIComponent(search_term)})`;
-    } else {
-      search_term = encodeURIComponent(search_term);
+      search_term = `product_type:${this.searchProductTypes.value} AND (${search_term})`;
     }
-    
+
     url.searchParams.set('q', search_term);
     url.searchParams.set('resources[limit]', this.dataset.resultsLimit || 3);
     url.searchParams.set('resources[limit_scope]', 'each');
+    url.searchParams.set('resources[options][prefix]', 'last');
+    url.searchParams.set('resources[options][fields]', 'title,product_type,variants.title,variants.sku,variants.barcode');
     url.searchParams.set('section_id', FoxTheme.utils.getSectionId(this));
-    
+
     return url;
   }
 
@@ -173,14 +153,10 @@ class PredictiveSearch extends HTMLElement {
       this.clear();
       return;
     }
-    
-    // If it's a potential SKU, try SKU-specific search
-    if (this.isPotentialSku(this.getQuery())) {
-      this.handleSkuSearch();
-    } else {
-      const url = this.setupURL().toString();
-      this.renderSection(url);
-    }
+
+    // SKU search now handled natively via resources[options][fields] in setupURL()
+    const url = this.setupURL().toString();
+    this.renderSection(url);
   }
 
   async handleSkuSearch() {
