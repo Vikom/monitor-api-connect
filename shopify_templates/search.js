@@ -101,6 +101,12 @@ class PredictiveSearch extends HTMLElement {
     return this.input.value.trim();
   }
 
+  // TODO: The SKU workaround code below (isPotentialSku, handleSkuSearch, searchProductsBySku,
+  // extractProductsFromSearchPage, extractProductData, renderCustomSkuResults) is no longer called.
+  // SKU search is now handled natively via resources[options][fields] in setupURL().
+  // Keeping this code until native SKU search is verified in prod (~3800 variants).
+  // If it works well in prod, remove all SKU workaround code below. — 2026-03-26
+
   isPotentialSku(query) {
     // Check if query looks like a SKU
     // For this shop, SKUs are just numbers like 1002450008
