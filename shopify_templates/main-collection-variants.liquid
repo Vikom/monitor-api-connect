@@ -203,14 +203,13 @@ function detectCustomerLogin() {
 document.addEventListener('DOMContentLoaded', function() {
   const isCustomerLoggedIn = detectCustomerLogin();
 
-  // Show/hide customer-only content across all product cards
-  const customerOnlyElements = document.querySelectorAll('.customer-only-content');
-
-  customerOnlyElements.forEach(function(element) {
-    element.style.display = isCustomerLoggedIn ? 'block' : 'none';
+  // Show/hide customer-only / guest-only content
+  var showSelector = isCustomerLoggedIn
+    ? '.customer-only-content, .customer-only-inline, .customer-only-table-cell'
+    : '.guest-only-content, .guest-only-table-cell';
+  document.querySelectorAll(showSelector).forEach(function(el) {
+    el.classList.add('is-visible');
   });
-
-  console.log('Updated', customerOnlyElements.length, 'customer-only elements');
 
   // Set global state for other scripts (like pricing)
   window.customerState = {
@@ -391,8 +390,8 @@ setInterval(() => {
       table.hidden = expanded;
       card.classList.toggle('is-expanded', !expanded);
 
-      // Fetch real-time stock on first open (sequentially)
-      if (!expanded && !stockFetchedCards[cardId]) {
+      // Fetch real-time stock on first open (sequentially) — skip for guests
+      if (!expanded && !stockFetchedCards[cardId] && !(window.customerState && !window.customerState.isLoggedIn)) {
         stockFetchedCards[cardId] = true;
 
         var stockCells = card.querySelectorAll('[data-stock-variant-id]');
@@ -501,6 +500,9 @@ setInterval(() => {
 
   // --- Batch pricing (runs on load and after facet updates) ---
   async function loadVariantPrices() {
+    // Skip all pricing work for guests
+    if (window.customerState && !window.customerState.isLoggedIn) return;
+
     var priceElements = document.querySelectorAll('.card-variants__price[data-variant-id]');
     if (priceElements.length === 0) return;
 
@@ -684,6 +686,29 @@ setInterval(() => {
 </script>
 
 <style>
+  /* Guest/customer visibility — hidden by default, toggled by JS via .is-visible */
+  .customer-only-content,
+  .customer-only-inline,
+  .guest-only-content { display: none !important; }
+  .customer-only-table-cell,
+  .guest-only-table-cell { display: none !important; }
+
+  .customer-only-content.is-visible { display: block !important; }
+  .customer-only-inline.is-visible { display: inline !important; }
+  .guest-only-content.is-visible { display: inline !important; }
+  .cv-grid-card__price.customer-only-content.is-visible { display: flex !important; }
+  .customer-only-table-cell.is-visible { display: table-cell !important; }
+  .guest-only-table-cell.is-visible { display: table-cell !important; }
+
+  .card-variants__guest-cell {
+    color: var(--color-foreground-lighten-40);
+    text-align: right;
+    white-space: nowrap;
+  }
+  thead .guest-only-table-cell {
+    width: 100%;
+  }
+
   /* Layout modes */
   .cv-products {
     display: flex;

@@ -80,11 +80,12 @@
       </h3>
 
       <div class="cv-grid-card__meta text-sm">
-        <span class="cv-grid-card__stock {% if has_stock %}cv-grid-card__stock--in{% else %}cv-grid-card__stock--out{% endif %}">
+        <span class="cv-grid-card__stock {% if has_stock %}cv-grid-card__stock--in{% else %}cv-grid-card__stock--out{% endif %} customer-only-inline">
           <span class="stock-dot {% if has_stock %}stock-dot--in-stock{% else %}stock-dot--out-of-stock{% endif %}"></span>
           {%- if has_stock -%}I lager{%- else -%}Beställningsvara{%- endif -%}
         </span>
-        {%- if variant_count > 1 -%}<span class="cv-grid-card__count">{{ variant_count }} varianter</span>{%- endif -%}
+        {%- if variant_count > 1 -%}<span class="cv-grid-card__count customer-only-inline">{{ variant_count }} varianter</span>{%- endif -%}
+        <span class="cv-grid-card__login-msg guest-only-content text-sm">Logga in för att handla</span>
       </div>
 
       <div class="cv-grid-card__variants-list">
@@ -103,7 +104,7 @@
         {%- endif -%}
       </div>
 
-      <div class="cv-grid-card__price{% if is_fully_outlet %} cv-grid-card__price--outlet{% endif %}" data-from-price-grid="{{ unique_id }}">
+      <div class="cv-grid-card__price customer-only-content{% if is_fully_outlet %} cv-grid-card__price--outlet{% endif %}" data-from-price-grid="{{ unique_id }}">
         {%- if variant_count > 1 -%}<span class="cv-grid-card__price-label text-sm">Från</span>{%- endif -%}
         <span class="cv-grid-card__price-value">-</span>
         <span class="cv-grid-card__price-unit text-sm"></span>
@@ -292,6 +293,8 @@
     margin-right: 0.5rem;
     color: var(--color-foreground-lighten-60);
   }
+
+  .cv-grid-card__meta > .guest-only-content::before { content: none !important; }
 
   .cv-grid-card__stock--in { color: #0d8756; }
   .cv-grid-card__stock--out { color: #d97706; }

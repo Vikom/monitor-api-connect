@@ -74,16 +74,17 @@
         {%- if product.metafields.custom.fsc_pefc != blank -%}
           <span class="card-variants__tag text-sm">{{ product.metafields.custom.fsc_pefc }}</span>
         {%- endif -%}
-        <span class="card-variants__stock-summary {% if has_stock %}in-stock{% else %}out-of-stock{% endif %}">
+        <span class="card-variants__stock-summary {% if has_stock %}in-stock{% else %}out-of-stock{% endif %} customer-only-inline">
           {%- if has_stock -%}I lager{%- else -%}Beställningsvara{%- endif -%}
         </span>
+        <span class="guest-only-content text-sm" style="color: var(--color-foreground-lighten-40);">Logga in för att handla</span>
         {%- if has_outlet -%}
           <span class="card-variants__outlet-badge">{%- if is_fully_outlet -%}Outlet{%- else -%}Outlet-alternativ{%- endif -%}</span>
         {%- endif -%}
       </div>
     </div>
     <div class="card-variants__actions">
-      <div class="card-variants__from-price-wrap{% if is_fully_outlet %} card-variants__from-price-wrap--outlet{% endif %}" data-from-price-for="{{ unique_id }}">
+      <div class="card-variants__from-price-wrap customer-only-content{% if is_fully_outlet %} card-variants__from-price-wrap--outlet{% endif %}" data-from-price-for="{{ unique_id }}">
         {%- if variant_count > 1 -%}<span class="card-variants__from-label text-sm">Från</span>{%- endif -%}
         <span class="card-variants__from-value">-</span>
         <span class="card-variants__from-unit text-sm"></span>
@@ -114,9 +115,10 @@
           {%- for option in product.options -%}
             <th>{{ option }}</th>
           {%- endfor -%}
-          <th>Lager</th>
-          <th class="card-variants__th-price">Pris ex. moms</th>
-          <th class="card-variants__th-buy"></th>
+          <th class="customer-only-table-cell">Lager</th>
+          <th class="card-variants__th-price customer-only-table-cell">Pris ex. moms</th>
+          <th class="card-variants__th-buy customer-only-table-cell"></th>
+          <th class="guest-only-table-cell"></th>
         </tr>
       </thead>
       <tbody class="text-sm">
@@ -140,7 +142,7 @@
             {%- liquid
               assign stock_status_meta = variant.metafields.custom.stock_status
             -%}
-            <td class="card-variants__stock" data-label="Lager"
+            <td class="card-variants__stock customer-only-table-cell" data-label="Lager"
               data-stock-variant-id="{{ variant.id }}"
               data-stock-monitor-id="{{ variant.metafields.custom.monitor_id }}"
               data-stock-synced="{{ stock_status_meta | default: '' }}"
@@ -153,14 +155,14 @@
             {%- liquid
               assign v_standard_unit = variant.metafields.custom.standard_unit | default: 'st'
             -%}
-            <td class="card-variants__price f-price f-price--loading" data-label="Pris"
+            <td class="card-variants__price f-price f-price--loading customer-only-table-cell" data-label="Pris"
               data-variant-id="{{ variant.id }}"
               data-variant-monitor-id="{{ variant.metafields.custom.monitor_id }}"
               data-variant-unit-id="{{ variant.metafields.custom.unitid }}"
             >
               <span class="card-variants__price-value">-</span><span class="card-variants__price-unit text-sm">/{{ v_standard_unit }}</span>
             </td>
-            <td class="card-variants__buy-cell">
+            <td class="card-variants__buy-cell customer-only-table-cell">
               <form method="post" action="/cart/add" id="variant-form-{{ unique_id }}-{{ variant.id }}" class="card-variants__form" is="product-form" data-hide-errors="true">
                 <input type="hidden" name="id" value="{{ variant.id }}" {% unless variant.available %}disabled{% endunless %}>
                 <quantity-input class="quantity">
@@ -198,6 +200,7 @@
                 </button>
               </form>
             </td>
+            <td class="card-variants__guest-cell guest-only-table-cell text-sm">Logga in för att handla</td>
           </tr>
         {%- endfor -%}
       </tbody>
@@ -293,6 +296,7 @@
 
   .card-variants__tag + span::before { content: none; }
   .card-variants__tag::before { content: none !important; }
+  .card-variants__meta > .guest-only-content::before { content: none !important; }
 
   .card-variants__stock-summary.in-stock { color: #0d8756; }
   .card-variants__stock-summary.out-of-stock { color: #d97706; }
@@ -442,6 +446,9 @@
 
   .card-variants__table td.card-variants__price.f-price {
     display: table-cell !important;
+  }
+  .card-variants__table td.card-variants__price.f-price.customer-only-table-cell:not(.is-visible) {
+    display: none !important;
   }
 
   /* Row dividers */
