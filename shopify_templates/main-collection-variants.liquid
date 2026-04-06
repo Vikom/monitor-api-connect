@@ -173,30 +173,13 @@
   {%- endpaginate -%}
   <!-- START: Custom customer detection -->
   <script>
-// Simple customer detection for new Customer Accounts
+// Customer detection — use Liquid customer object (server-side, always reliable)
 function detectCustomerLogin() {
-  // Check for logout links (most reliable indicator)
-  const logoutLinks = document.querySelectorAll('a[href*="logout"]');
-
-  // Check for customer-specific elements in navigation
-  const customerMenus = document.querySelectorAll('.customer-menu, .account-menu, [data-customer-email]');
-
-  // Check for Shopify customer cookies
-  const hasCustomerCookies = document.cookie.includes('_shopify_s=') ||
-                            document.cookie.includes('_secure_session_id=');
-
-  const isLoggedIn = logoutLinks.length > 0 ||
-                    customerMenus.length > 0 ||
-                    hasCustomerCookies;
-
-  console.log('Customer detection:', {
-    logoutLinks: logoutLinks.length,
-    customerMenus: customerMenus.length,
-    hasCustomerCookies: hasCustomerCookies,
-    result: isLoggedIn
-  });
-
-  return isLoggedIn;
+  {%- if customer -%}
+    return true;
+  {%- else -%}
+    return false;
+  {%- endif -%}
 }
 
 // Apply customer detection when page loads
@@ -204,12 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const isCustomerLoggedIn = detectCustomerLogin();
 
   // Show/hide customer-only / guest-only content
-  var showSelector = isCustomerLoggedIn
-    ? '.customer-only-content, .customer-only-inline, .customer-only-table-cell'
-    : '.guest-only-content, .guest-only-table-cell';
-  document.querySelectorAll(showSelector).forEach(function(el) {
-    el.classList.add('is-visible');
-  });
+  applyCustomerVisibility(isCustomerLoggedIn);
 
   // Set global state for other scripts (like pricing)
   window.customerState = {
@@ -218,6 +196,15 @@ document.addEventListener('DOMContentLoaded', function() {
     loading: false
   };
 });
+
+function applyCustomerVisibility(isLoggedIn) {
+  var showSelector = isLoggedIn
+    ? '.customer-only-content, .customer-only-inline, .customer-only-table-cell'
+    : '.guest-only-content, .guest-only-table-cell';
+  document.querySelectorAll(showSelector).forEach(function(el) {
+    el.classList.add('is-visible');
+  });
+}
 
 /**
  * Swedish localization for facet filter decimal display
@@ -667,8 +654,8 @@ setInterval(() => {
   window.addEventListener('DOMContentLoaded', loadVariantPrices);
 
   // Re-run after facet/filter updates
-  document.addEventListener('facet:updated', function() { initCvLayout(); setTimeout(loadVariantPrices, 100); });
-  document.addEventListener('facets:updated', function() { initCvLayout(); setTimeout(loadVariantPrices, 100); });
+  document.addEventListener('facet:updated', function() { initCvLayout(); applyCustomerVisibility(detectCustomerLogin()); setTimeout(loadVariantPrices, 100); });
+  document.addEventListener('facets:updated', function() { initCvLayout(); applyCustomerVisibility(detectCustomerLogin()); setTimeout(loadVariantPrices, 100); });
 
   // Also observe ProductGridContainer for DOM changes (catch all filter updates)
   var gridObserver = new MutationObserver(function(mutations) {
@@ -677,6 +664,7 @@ setInterval(() => {
     });
     if (hasNewProducts) {
       initCvLayout();
+      applyCustomerVisibility(detectCustomerLogin());
       setTimeout(loadVariantPrices, 200);
     }
   });
@@ -694,6 +682,7 @@ setInterval(() => {
   .guest-only-table-cell { display: none !important; }
 
   .customer-only-content.is-visible { display: block !important; }
+  .card-variants__from-price-wrap.customer-only-content.is-visible { display: flex !important; }
   .customer-only-inline.is-visible { display: inline !important; }
   .guest-only-content.is-visible { display: inline !important; }
   .cv-grid-card__price.customer-only-content.is-visible { display: flex !important; }
