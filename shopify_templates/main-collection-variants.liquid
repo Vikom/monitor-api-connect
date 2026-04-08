@@ -198,6 +198,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function applyCustomerVisibility(isLoggedIn) {
+  document.body.classList.toggle('is-customer', isLoggedIn);
+  document.body.classList.toggle('is-guest', !isLoggedIn);
+
   var showSelector = isLoggedIn
     ? '.customer-only-content, .customer-only-inline, .customer-only-table-cell'
     : '.guest-only-content, .guest-only-table-cell';
@@ -331,7 +334,8 @@ setInterval(() => {
   'use strict';
 
   // --- Layout toggle (global, survives facet updates) ---
-  var currentCvMode = new URLSearchParams(window.location.search).get('layout') || 'list';
+  var defaultMode = window.innerWidth <= 749 ? 'grid' : 'list';
+  var currentCvMode = new URLSearchParams(window.location.search).get('layout') || defaultMode;
 
   function initCvLayout() {
     var productsList = document.getElementById('ProductsList');
@@ -712,7 +716,8 @@ setInterval(() => {
     display: grid;
     grid-template-columns: repeat(var(--cv-grid-cols, 4), 1fr);
     grid-template-rows: auto;
-    gap: 1.5rem;
+    column-gap: 1.5rem;
+    row-gap: 1.5rem;
   }
 
   .cv-products[data-cv-mode="grid"] > .cv-item--grid {
@@ -721,12 +726,25 @@ setInterval(() => {
     grid-template-rows: subgrid;
   }
 
+  .is-guest .cv-products[data-cv-mode="grid"] > .cv-item--grid {
+    grid-row: span 4;
+  }
+  .is-guest .cv-grid-card {
+    grid-row: span 4;
+  }
+  .is-guest .cv-grid-card__wrapper {
+    grid-row: span 4;
+  }
+  .is-guest .cv-grid-card__info {
+    grid-row: span 3;
+  }
+
   @media (max-width: 1279px) {
     .cv-products[data-cv-mode="grid"] { --cv-grid-cols: 3; }
   }
 
   @media (max-width: 767px) {
-    .cv-products[data-cv-mode="grid"] { --cv-grid-cols: 2; }
+    .cv-products[data-cv-mode="grid"] { --cv-grid-cols: 2; row-gap: 0.25rem !important; }
   }
 
 </style>
