@@ -326,6 +326,9 @@ setInterval(() => {
   window.customerMonitorId = window.customerMonitorId || "{{ customer.metafields.custom.monitor_id }}";
   window.customerDiscountCategory = window.customerDiscountCategory || "{{ customer.metafields.custom.discount_category }}";
   window.customerPriceListId = window.customerPriceListId || "{{ customer.metafields.custom.pricelist_id }}";
+  {%- if customer -%}
+  window.customer = window.customer || { id: {{ customer.id | json }} };
+  {%- endif -%}
 </script>
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
 
@@ -496,13 +499,6 @@ setInterval(() => {
 
     var priceElements = document.querySelectorAll('.card-variants__price[data-variant-id]');
     if (priceElements.length === 0) return;
-
-    // Wait for window.customer (set by cart-drawer.liquid)
-    var waitAttempts = 0;
-    while ((!window.customer || !window.customer.id) && waitAttempts < 30) {
-      await new Promise(function(r) { setTimeout(r, 100); });
-      waitAttempts++;
-    }
 
     if (!window.customer || !window.customer.id) {
       priceElements.forEach(function(el) {
