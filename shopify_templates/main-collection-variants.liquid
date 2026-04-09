@@ -544,9 +544,32 @@ setInterval(() => {
 
     if (items.length === 0) return;
 
-    try {
+    // Show "Laddar..." only on items that will be fetched
+    elementMap.forEach(function(elements) {
+      elements.forEach(function(el) {
+        var val = el.querySelector('.card-variants__price-value');
+        if (val) val.textContent = 'Laddar...';
+      });
+    });
+
+    async function fetchAndApplyPrices(attempt) {
       var prices = await getBatchPrices(items, customerId);
 
+      var resolved = 0;
+      var total = 0;
+      prices.forEach(function(priceData) {
+        total++;
+        if (priceData.price && priceData.price > 0) resolved++;
+      });
+
+      // Retry once if >50% of prices are null (likely cold start / timeout)
+      if (attempt === 1 && total > 0 && resolved < total * 0.5) {
+        console.log('[VariantList] Most prices empty (' + resolved + '/' + total + '), retrying in 3s...');
+        await new Promise(function(r) { setTimeout(r, 3000); });
+        return fetchAndApplyPrices(2);
+      }
+
+      // Apply prices to DOM
       prices.forEach(function(priceData) {
         var elements = elementMap.get(priceData.variantId);
         if (!elements) return;
@@ -579,6 +602,12 @@ setInterval(() => {
           }
         });
       });
+
+      return prices;
+    }
+
+    try {
+      var prices = await fetchAndApplyPrices(1);
 
       // Calculate from-price per product card
       document.querySelectorAll('[data-from-price-for]').forEach(function(wrapEl) {
