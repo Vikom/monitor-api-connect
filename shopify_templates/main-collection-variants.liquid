@@ -348,6 +348,15 @@ setInterval(() => {
     layoutBtns.forEach(function(b) {
       b.classList.toggle('btn--active', b.getAttribute('data-cv-layout') === currentCvMode);
     });
+
+    // Inject layout param into pagination links
+    document.querySelectorAll('.pagination a, .pagination__item a').forEach(function(a) {
+      try {
+        var url = new URL(a.href, window.location.origin);
+        url.searchParams.set('layout', currentCvMode);
+        a.href = url.toString();
+      } catch(e) {}
+    });
   }
 
   // Use event delegation for layout clicks (survives DOM replacement)
@@ -543,14 +552,6 @@ setInterval(() => {
     });
 
     if (items.length === 0) return;
-
-    // Show "Laddar..." only on items that will be fetched
-    elementMap.forEach(function(elements) {
-      elements.forEach(function(el) {
-        var val = el.querySelector('.card-variants__price-value');
-        if (val) val.textContent = 'Laddar...';
-      });
-    });
 
     async function fetchAndApplyPrices(attempt) {
       var prices = await getBatchPrices(items, customerId);

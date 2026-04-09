@@ -71,9 +71,9 @@
         <a href="{{ product.url }}">{{ product.title }}</a>
       </h3>
       <div class="card-variants__meta text-sm">
-        {%- if variant_count == 1 -%}
+        {%- if variant_count == 1 and product.variants.first.option1 != 'Default Title' -%}
           <span class="card-variants__variant-name">{{ product.variants.first.option1 }}{%- if product.variants.first.option2 %} · {{ product.variants.first.option2 }}{%- endif -%}{%- if product.variants.first.option3 %} · {{ product.variants.first.option3 }}{%- endif -%}</span>
-        {%- else -%}
+        {%- elsif variant_count > 1 -%}
           <span class="card-variants__variant-count">{{ variant_count }} varianter</span>
         {%- endif -%}
         {%- if product.metafields.custom.fsc_pefc != blank -%}
@@ -136,7 +136,7 @@
               <td class="card-variants__option" data-label="{{ product.options[forloop.index0] }}">
                 <a href="{{ product.url }}?variant={{ variant.id }}">
                   {%- case i -%}
-                    {%- when 1 -%}{{ variant.option1 }}
+                    {%- when 1 -%}{%- if variant.option1 == 'Default Title' -%}-{%- else -%}{{ variant.option1 }}{%- endif -%}
                     {%- when 2 -%}{{ variant.option2 }}
                     {%- when 3 -%}{{ variant.option3 }}
                   {%- endcase -%}
@@ -351,12 +351,13 @@
     align-items: baseline;
     justify-content: flex-end;
     gap: 0.375rem;
-    visibility: hidden;
     white-space: nowrap;
     padding-right: var(--cv-pad);
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
-  .card-variants__from-price-wrap.is-loaded { visibility: visible; }
+  .card-variants__from-price-wrap.is-loaded { opacity: 1; }
 
   .card-variants__from-label { color: var(--color-foreground-lighten-40); }
 
@@ -543,8 +544,9 @@
   /* ========== Price ========== */
   .card-variants__price { font-weight: 600; }
   .card-variants__price-unit { color: var(--color-foreground-lighten-40); margin-left: 0.25rem; font-weight: 400; }
-  .card-variants__price.f-price--loading .card-variants__price-value { color: transparent; }
-  .card-variants__price.f-price--loaded .card-variants__price-value { color: inherit; }
+  .card-variants__price .card-variants__price-value { transition: opacity 0.3s ease; }
+  .card-variants__price.f-price--loading .card-variants__price-value { opacity: 0; }
+  .card-variants__price.f-price--loaded .card-variants__price-value { opacity: 1; }
 
   /* ========== Buy cell ========== */
   .card-variants__buy-cell { white-space: nowrap; }

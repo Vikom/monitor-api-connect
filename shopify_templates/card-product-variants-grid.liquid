@@ -90,10 +90,12 @@
 
       <div class="cv-grid-card__variants-list">
         {%- for variant in product.variants -%}
+          {%- unless variant.option1 == 'Default Title' -%}
           <a href="{{ product.url }}?variant={{ variant.id }}" class="cv-grid-card__variant-row text-sm{% if forloop.index > max_visible %} cv-grid-card__variant-row--extra{% endif %}">
             <span class="cv-grid-card__variant-option">{{ variant.option1 }}{%- if variant.option2 %} · {{ variant.option2 }}{%- endif -%}{%- if variant.option3 %} · {{ variant.option3 }}{%- endif -%}</span>
             {%- if variant.metafields.custom.outlet -%}<span class="cv-grid-card__variant-outlet">Outlet</span>{%- endif -%}
           </a>
+          {%- endunless -%}
         {%- endfor -%}
         {%- if variant_count > max_visible -%}
           {%- assign extra_count = variant_count | minus: max_visible -%}
@@ -259,12 +261,13 @@
     display: flex;
     align-items: baseline;
     gap: 0.375rem;
-    visibility: hidden;
     align-self: end;
     padding-top: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
-  .cv-grid-card__price.is-loaded { visibility: visible; }
+  .cv-grid-card__price.is-loaded { opacity: 1; }
 
   .cv-grid-card__price-label {
     color: var(--color-foreground-lighten-40);
