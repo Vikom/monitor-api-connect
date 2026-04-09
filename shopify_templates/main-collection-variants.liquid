@@ -329,6 +329,21 @@ setInterval(() => {
   {%- if customer -%}
   window.customer = window.customer || { id: {{ customer.id | json }} };
   {%- endif -%}
+
+  // Populate variantMonitorIds for cart drawer pricing (persist via localStorage)
+  window.variantMonitorIds = window.variantMonitorIds || {};
+  try {
+    var stored = JSON.parse(localStorage.getItem('variantMonitorIds') || '{}');
+    Object.assign(window.variantMonitorIds, stored);
+  } catch(e) {}
+  {%- for product in collection.products -%}
+    {%- for variant in product.variants -%}
+      {%- if variant.metafields.custom.monitor_id != blank -%}
+  window.variantMonitorIds["{{ variant.id }}"] = "{{ variant.metafields.custom.monitor_id }}";
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endfor -%}
+  try { localStorage.setItem('variantMonitorIds', JSON.stringify(window.variantMonitorIds)); } catch(e) {}
 </script>
 <script src="{{ 'pricing-client.js' | asset_url }}" defer></script>
 
