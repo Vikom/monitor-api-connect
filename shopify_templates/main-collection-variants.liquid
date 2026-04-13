@@ -568,16 +568,7 @@ setInterval(() => {
 
     if (items.length === 0) return;
 
-    try {
-      var prices = await getBatchPrices(items, customerId);
-
-      // If most prices are null, treat as API failure and trigger retry
-      var pricesWithValue = prices.filter(function(p) { return p.price && p.price > 0; }).length;
-      if (prices.length > 0 && pricesWithValue < prices.length * 0.5) {
-        throw new Error('Most prices returned null (' + pricesWithValue + '/' + prices.length + ')');
-      }
-
-      // Apply variant prices
+    function applyPricesToDOM(prices) {
       prices.forEach(function(priceData) {
         var elements = elementMap.get(priceData.variantId);
         if (!elements) return;
@@ -657,37 +648,35 @@ setInterval(() => {
           wrapEl.classList.add('is-loaded');
         }
       });
+    }
+
+    try {
+      var prices = await getBatchPrices(items, customerId);
+
+      // If most prices are null, treat as API failure and retry
+      var pricesWithValue = prices.filter(function(p) { return p.price && p.price > 0; }).length;
+      if (prices.length > 0 && pricesWithValue < prices.length * 0.5) {
+        throw new Error('Most prices returned null (' + pricesWithValue + '/' + prices.length + ')');
+      }
+
+      applyPricesToDOM(prices);
 
     } catch (err) {
-      console.error('[VariantList] Batch price error, retrying in 3s...', err);
+      console.warn('[VariantList] Batch pricing failed, retrying in 3s...', err.message);
       try {
         await new Promise(function(r) { setTimeout(r, 3000); });
         var retryPrices = await getBatchPrices(items, customerId);
-
-        retryPrices.forEach(function(priceData) {
-          var elements = elementMap.get(priceData.variantId);
-          if (!elements) return;
-          elements.forEach(function(priceEl) {
-            var priceValueEl = priceEl.querySelector('.card-variants__price-value');
-            if (priceData.price && priceData.price > 0) {
-              if (priceValueEl) priceValueEl.textContent = formatPrice(priceData.price);
-              priceEl.classList.remove('f-price--loading');
-              priceEl.classList.add('f-price--loaded');
-            }
-          });
-        });
+        applyPricesToDOM(retryPrices);
       } catch (retryErr) {
         console.error('[VariantList] Retry also failed:', retryErr);
+        priceElements.forEach(function(el) {
+          if (!el.classList.contains('f-price--loaded')) {
+            el.innerHTML = '<span class="card-variants__price-value">Fråga oss</span>';
+            el.classList.remove('f-price--loading');
+            el.classList.add('f-price--loaded');
+          }
+        });
       }
-
-      // Mark any still unloaded
-      priceElements.forEach(function(el) {
-        if (!el.classList.contains('f-price--loaded')) {
-          el.innerHTML = '<span class="card-variants__price-value">Fråga oss</span>';
-          el.classList.remove('f-price--loading');
-          el.classList.add('f-price--loaded');
-        }
-      });
     }
   }
 
