@@ -549,11 +549,11 @@ setInterval(() => {
       var monitorId = el.dataset.variantMonitorId;
       var unitId = el.dataset.variantUnitId;
 
-      if (variantId && monitorId && unitId) {
+      if (variantId && monitorId) {
         items.push({
           variantId: variantId,
           monitorId: monitorId,
-          standardUnitId: unitId
+          standardUnitId: unitId || null
         });
         if (!elementMap.has(variantId)) {
           elementMap.set(variantId, []);
