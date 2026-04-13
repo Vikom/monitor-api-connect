@@ -571,6 +571,12 @@ setInterval(() => {
     try {
       var prices = await getBatchPrices(items, customerId);
 
+      // If most prices are null, treat as API failure and trigger retry
+      var pricesWithValue = prices.filter(function(p) { return p.price && p.price > 0; }).length;
+      if (prices.length > 0 && pricesWithValue < prices.length * 0.5) {
+        throw new Error('Most prices returned null (' + pricesWithValue + '/' + prices.length + ')');
+      }
+
       // Apply variant prices
       prices.forEach(function(priceData) {
         var elements = elementMap.get(priceData.variantId);
@@ -583,7 +589,9 @@ setInterval(() => {
             priceEl.classList.add('f-price--loaded');
           } else {
             priceEl.classList.remove('f-price--loading');
-            if (priceValueEl) priceValueEl.textContent = 'Kontakta oss';
+            if (priceValueEl) priceValueEl.textContent = 'Fråga oss';
+            var unitEl = priceEl.querySelector('.card-variants__price-unit');
+            if (unitEl) unitEl.style.display = 'none';
             priceEl.classList.add('f-price--loaded');
           }
         });
@@ -594,7 +602,7 @@ setInterval(() => {
         elements.forEach(function(el) {
           if (!el.classList.contains('f-price--loaded')) {
             el.classList.remove('f-price--loading');
-            el.innerHTML = '<span class="card-variants__price-value">Kontakta oss</span>';
+            el.innerHTML = '<span class="card-variants__price-value">Fråga oss</span>';
             el.classList.add('f-price--loaded');
           }
         });
@@ -651,10 +659,31 @@ setInterval(() => {
       });
 
     } catch (err) {
-      console.error('[VariantList] Batch price error:', err);
+      console.error('[VariantList] Batch price error, retrying in 3s...', err);
+      try {
+        await new Promise(function(r) { setTimeout(r, 3000); });
+        var retryPrices = await getBatchPrices(items, customerId);
+
+        retryPrices.forEach(function(priceData) {
+          var elements = elementMap.get(priceData.variantId);
+          if (!elements) return;
+          elements.forEach(function(priceEl) {
+            var priceValueEl = priceEl.querySelector('.card-variants__price-value');
+            if (priceData.price && priceData.price > 0) {
+              if (priceValueEl) priceValueEl.textContent = formatPrice(priceData.price);
+              priceEl.classList.remove('f-price--loading');
+              priceEl.classList.add('f-price--loaded');
+            }
+          });
+        });
+      } catch (retryErr) {
+        console.error('[VariantList] Retry also failed:', retryErr);
+      }
+
+      // Mark any still unloaded
       priceElements.forEach(function(el) {
         if (!el.classList.contains('f-price--loaded')) {
-          el.innerHTML = '<span class="card-variants__price-value">-</span>';
+          el.innerHTML = '<span class="card-variants__price-value">Fråga oss</span>';
           el.classList.remove('f-price--loading');
           el.classList.add('f-price--loaded');
         }
