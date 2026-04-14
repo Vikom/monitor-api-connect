@@ -168,7 +168,7 @@
             </td>
             <td class="card-variants__buy-cell customer-only-table-cell">
               <form method="post" action="/cart/add" id="variant-form-{{ unique_id }}-{{ variant.id }}" class="card-variants__form" is="product-form" data-hide-errors="true">
-                <input type="hidden" name="id" value="{{ variant.id }}" {% unless variant.available %}disabled{% endunless %}>
+                <input type="hidden" name="id" value="{{ variant.id }}">
                 <quantity-input class="quantity">
                   <button type="button" name="minus" class="quantity__button" aria-label="Minska antal">
                     <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -198,7 +198,6 @@
                 <button
                   type="submit"
                   class="btn btn--primary card-variants__add-btn"
-                  {% unless variant.available %}disabled{% endunless %}
                 >
                   Lägg till
                 </button>

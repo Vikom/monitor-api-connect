@@ -574,16 +574,20 @@ setInterval(() => {
         if (!elements) return;
         elements.forEach(function(priceEl) {
           var priceValueEl = priceEl.querySelector('.card-variants__price-value');
+          var row = priceEl.closest('.card-variants__row');
+          var addBtn = row ? row.querySelector('.card-variants__add-btn') : null;
           if (priceData.price && priceData.price > 0) {
             if (priceValueEl) priceValueEl.textContent = formatPrice(priceData.price);
             priceEl.classList.remove('f-price--loading');
             priceEl.classList.add('f-price--loaded');
+            if (addBtn) addBtn.disabled = false;
           } else {
             priceEl.classList.remove('f-price--loading');
             if (priceValueEl) priceValueEl.textContent = 'Fråga oss';
             var unitEl = priceEl.querySelector('.card-variants__price-unit');
             if (unitEl) unitEl.style.display = 'none';
             priceEl.classList.add('f-price--loaded');
+            if (addBtn) addBtn.disabled = true;
           }
         });
       });
@@ -595,6 +599,9 @@ setInterval(() => {
             el.classList.remove('f-price--loading');
             el.innerHTML = '<span class="card-variants__price-value">Fråga oss</span>';
             el.classList.add('f-price--loaded');
+            var row = el.closest('.card-variants__row');
+            var addBtn = row ? row.querySelector('.card-variants__add-btn') : null;
+            if (addBtn) addBtn.disabled = true;
           }
         });
       });
