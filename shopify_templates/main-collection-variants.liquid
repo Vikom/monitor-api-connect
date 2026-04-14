@@ -495,18 +495,6 @@ setInterval(() => {
                 '</span>';
             } else {
               cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
-
-              // Disable add-to-cart — real-time says out of stock
-              var row = cell.closest('.card-variants__row');
-              if (row) {
-                var form = row.querySelector('form');
-                if (form) {
-                  var idInput = form.querySelector('input[name="id"]');
-                  if (idInput) idInput.disabled = true;
-                  var buyBtn = form.querySelector('[type="submit"]');
-                  if (buyBtn) buyBtn.disabled = true;
-                }
-              }
             }
           } catch (err) {
             renderSyncedFallback(cell);
