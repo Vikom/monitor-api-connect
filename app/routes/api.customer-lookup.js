@@ -41,28 +41,21 @@ export async function loader({ request }) {
     }
 
     const query = (searchUrl.searchParams.get("q") || "").trim();
-    const debug = searchUrl.searchParams.get("debug") === "1";
 
-    if (!debug && query.length < 2) {
+    if (query.length < 2) {
       return json({ customers: [], message: "Search query must be at least 2 characters" }, { headers: corsHeaders() });
     }
 
-    console.log("[Customer Lookup] Query:", query, "debug:", debug);
+    console.log("[Customer Lookup] Query:", query);
 
     const client = await getMonitorClient();
     const sessionId = await client.getSessionId();
     console.log("[Customer Lookup] Session obtained");
 
-    // In debug mode: fetch one customer with all fields so we can inspect field names.
-    // Normal mode: search active customers by Name via OData filter.
-    let url;
-    if (debug) {
-      url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$top=1`;
-    } else {
-      const escapedQuery = query.replace(/'/g, "''");
-      const filter = `contains(Name,'${escapedQuery}')`;
-      url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$filter=${filter}&$top=10`;
-    }
+    // Search non-blocked customers by Name or Code (customer number) via OData filter.
+    const escapedQuery = query.replace(/'/g, "''");
+    const filter = `(contains(Name,'${escapedQuery}') or contains(Code,'${escapedQuery}')) and BlockedStatus ne 2`;
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Code&$filter=${filter}&$top=10`;
     console.log("[Customer Lookup] Monitor URL:", url);
 
     let res = await fetch(url, {
@@ -97,17 +90,10 @@ export async function loader({ request }) {
 
     const customers = await res.json();
 
-    if (debug) {
-      const first = Array.isArray(customers) && customers[0] ? customers[0] : null;
-      const keys = first ? Object.keys(first).sort() : [];
-      console.log("[Customer Lookup] DEBUG keys:", keys.join(", "));
-      return json({ debug: true, keys, sample: first }, { headers: corsHeaders() });
-    }
-
     const result = (Array.isArray(customers) ? customers : []).map(c => ({
       id: c.Id,
       name: c.Name || "",
-      number: c.Number || "",
+      number: c.Code || "",
     }));
 
     console.log(`[Customer Lookup] Returning ${result.length} customers`);
