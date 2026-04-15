@@ -1,0 +1,127 @@
+{%- if customer and customer.metafields.custom.is_sales_rep == 'true' -%}
+<div id="SalesRepPanel" class="sales-rep-panel">
+  <div class="sales-rep-panel__bar" id="SalesRepBar" style="display:none;">
+    <span class="sales-rep-panel__label">Kundvy: <strong id="SalesRepActiveId"></strong></span>
+    <button class="sales-rep-panel__clear" id="SalesRepClear" type="button">Avsluta kundvy</button>
+  </div>
+  <div class="sales-rep-panel__input" id="SalesRepInput">
+    <label class="sales-rep-panel__label" for="SalesRepMonitorId">Visa priser för kund:</label>
+    <input type="text" id="SalesRepMonitorId" class="sales-rep-panel__field" placeholder="Ange kundnummer (Monitor-ID)" autocomplete="off">
+    <button class="sales-rep-panel__btn" id="SalesRepActivate" type="button">Aktivera</button>
+  </div>
+</div>
+
+<style>
+  .sales-rep-panel {
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+    font-size: 14px;
+    font-family: var(--font-body-family);
+  }
+
+  .sales-rep-panel__bar {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 0.5rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .sales-rep-panel__bar strong {
+    font-weight: 600;
+    color: #7dd3fc;
+  }
+
+  .sales-rep-panel__clear {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .sales-rep-panel__clear:hover {
+    background: rgba(255,255,255,0.1);
+  }
+
+  .sales-rep-panel__input {
+    background: #f0f4ff;
+    border-bottom: 1px solid #c7d2fe;
+    padding: 0.5rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .sales-rep-panel__label {
+    white-space: nowrap;
+    color: #374151;
+  }
+
+  .sales-rep-panel__field {
+    flex: 1;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+    font-size: 14px;
+    max-width: 20rem;
+  }
+
+  .sales-rep-panel__btn {
+    background: #1a1a2e;
+    color: #fff;
+    border: none;
+    padding: 0.375rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .sales-rep-panel__btn:hover {
+    background: #2d2d4e;
+  }
+</style>
+
+<script>
+(function() {
+  var input = document.getElementById('SalesRepMonitorId');
+  var activateBtn = document.getElementById('SalesRepActivate');
+  var clearBtn = document.getElementById('SalesRepClear');
+  var bar = document.getElementById('SalesRepBar');
+  var inputSection = document.getElementById('SalesRepInput');
+  var activeIdEl = document.getElementById('SalesRepActiveId');
+
+  // Check if already active
+  var existing = null;
+  try { existing = JSON.parse(sessionStorage.getItem('salesRepCustomer')); } catch(e) {}
+
+  if (existing && existing.monitorId) {
+    bar.style.display = 'flex';
+    inputSection.style.display = 'none';
+    activeIdEl.textContent = existing.monitorId;
+  }
+
+  activateBtn.addEventListener('click', function() {
+    var monitorId = input.value.trim();
+    if (!monitorId) return;
+
+    sessionStorage.setItem('salesRepCustomer', JSON.stringify({ monitorId: monitorId }));
+    window.location.reload();
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') activateBtn.click();
+  });
+
+  clearBtn.addEventListener('click', function() {
+    sessionStorage.removeItem('salesRepCustomer');
+    window.location.reload();
+  });
+})();
+</script>
+{%- endif -%}

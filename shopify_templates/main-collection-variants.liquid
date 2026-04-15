@@ -33,6 +33,7 @@
   show_divider: section.settings.show_section_divider,
   divider_width: section.settings.divider_width
 %}
+{%- render 'sales-rep-panel' -%}
 <div
   class="collection section--padding page-width color-{{ section.settings.color_scheme }}"
   style="--section-padding-top: {{ section.settings.padding_top }}px;--section-padding-bottom: {{ section.settings.padding_bottom }}px;"
@@ -326,6 +327,14 @@ setInterval(() => {
   window.customerMonitorId = window.customerMonitorId || "{{ customer.metafields.custom.monitor_id }}";
   window.customerDiscountCategory = window.customerDiscountCategory || "{{ customer.metafields.custom.discount_category }}";
   window.customerPriceListId = window.customerPriceListId || "{{ customer.metafields.custom.pricelist_id }}";
+
+  // Sales rep override — use selected customer's monitor ID for pricing
+  try {
+    var _srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
+    if (_srp && _srp.monitorId) {
+      window.customerMonitorId = _srp.monitorId;
+    }
+  } catch(e) {}
   {%- if customer -%}
   window.customer = window.customer || { id: {{ customer.id | json }} };
   {%- endif -%}

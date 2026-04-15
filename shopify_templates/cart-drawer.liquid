@@ -1703,14 +1703,22 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('🛒 Cart drawer checkout - Final order mark to use:', orderMark);
           console.log('🛒 Cart drawer checkout - Full cart attributes:', cart.attributes);
           
+          // Sales rep override — use selected customer's monitor ID
+          let salesRepMonitorId = null;
+          try {
+            const srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
+            if (srp && srp.monitorId) salesRepMonitorId = srp.monitorId;
+          } catch(e) {}
+
           // Create draft order with dynamic pricing
           const apiPayload = {
             customerId: `gid://shopify/Customer/${window.customer.id}`,
             items: items,
             shop: window.Shopify?.shop?.domain || window.location.hostname,
-            priceListId: customerPriceListId, // Add the missing price list ID!
-            goodsLabel: goodsLabel, // Add the goods label from cart note
-            orderMark: orderMark // Add the order mark
+            priceListId: customerPriceListId,
+            goodsLabel: goodsLabel,
+            orderMark: orderMark,
+            customerMonitorId: salesRepMonitorId || window.customerMonitorId || null
           };
           
           console.log('🔧 Cart Drawer - Sending to API:', apiPayload);
