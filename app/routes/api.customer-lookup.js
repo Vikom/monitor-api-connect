@@ -46,13 +46,17 @@ export async function loader({ request }) {
       return json({ customers: [], message: "Search query must be at least 2 characters" }, { headers: corsHeaders() });
     }
 
+    console.log("[Customer Lookup] Query:", query);
+
     const client = await getMonitorClient();
     const sessionId = await client.getSessionId();
+    console.log("[Customer Lookup] Session obtained");
 
     // Search active customers by Name or Number via OData filter
     const escapedQuery = query.replace(/'/g, "''");
     const filter = `(contains(Name,'${escapedQuery}') or contains(Number,'${escapedQuery}')) and BlockedStatus Neq 2`;
     const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Number&$filter=${filter}&$top=10`;
+    console.log("[Customer Lookup] Monitor URL:", url);
 
     let res = await fetch(url, {
       headers: {
