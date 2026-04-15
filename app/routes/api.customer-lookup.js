@@ -30,13 +30,14 @@ export async function loader({ request }) {
   }
 
   try {
-    // Verify API key
-    const apiKey = request.headers.get("X-Lookup-Key");
+    const searchUrl = new URL(request.url);
+
+    // Verify API key (via query param to avoid CORS preflight)
+    const apiKey = searchUrl.searchParams.get("key");
     if (!LOOKUP_API_KEY || apiKey !== LOOKUP_API_KEY) {
       return json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders() });
     }
 
-    const searchUrl = new URL(request.url);
     const query = (searchUrl.searchParams.get("q") || "").trim();
 
     if (query.length < 2) {

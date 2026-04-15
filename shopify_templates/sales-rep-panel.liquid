@@ -177,7 +177,7 @@
 
     searchTimer = setTimeout(function() {
       var apiUrl = (window.pricingApiUrl ? 'https://' + window.pricingApiUrl : '') + '/api/customer-lookup';
-      fetch(apiUrl + '?q=' + encodeURIComponent(query), { headers: { 'X-Lookup-Key': lookupKey } })
+      fetch(apiUrl + '?q=' + encodeURIComponent(query) + '&key=' + lookupKey)
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var matches = data.customers || [];
