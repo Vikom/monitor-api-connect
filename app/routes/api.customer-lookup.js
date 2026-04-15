@@ -3,6 +3,7 @@ import https from "https";
 
 const monitorUrl = process.env.MONITOR_URL;
 const monitorCompany = process.env.MONITOR_COMPANY;
+const LOOKUP_API_KEY = process.env.CUSTOMER_LOOKUP_API_KEY;
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 
@@ -19,7 +20,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Lookup-Key",
   };
 }
 
@@ -29,6 +30,12 @@ export async function loader({ request }) {
   }
 
   try {
+    // Verify API key
+    const apiKey = request.headers.get("X-Lookup-Key");
+    if (!LOOKUP_API_KEY || apiKey !== LOOKUP_API_KEY) {
+      return json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders() });
+    }
+
     const searchUrl = new URL(request.url);
     const query = (searchUrl.searchParams.get("q") || "").trim();
 

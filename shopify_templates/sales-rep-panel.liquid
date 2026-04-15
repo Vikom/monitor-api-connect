@@ -165,6 +165,7 @@
 
   // Debounced search against API
   var apiUrl = (window.pricingApiUrl ? 'https://' + window.pricingApiUrl : '') + '/api/customer-lookup';
+  var lookupKey = '{{ shop.metafields.custom.customer_lookup_key }}';
   var searchTimer = null;
 
   searchInput.addEventListener('input', function() {
@@ -176,7 +177,7 @@
     }
 
     searchTimer = setTimeout(function() {
-      fetch(apiUrl + '?q=' + encodeURIComponent(query))
+      fetch(apiUrl + '?q=' + encodeURIComponent(query), { headers: { 'X-Lookup-Key': lookupKey } })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var matches = data.customers || [];
