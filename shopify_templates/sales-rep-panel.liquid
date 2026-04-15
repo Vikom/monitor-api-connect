@@ -1,42 +1,52 @@
 {%- if customer and customer.metafields.custom.is_sales_rep -%}
 <div id="SalesRepPanel" class="sales-rep-panel">
   <div class="sales-rep-panel__bar" id="SalesRepBar" style="display:none;">
-    <span class="sales-rep-panel__info">Kundvy: <strong id="SalesRepActiveName"></strong> <span id="SalesRepActiveNumber" style="color:#a3a3a3;"></span></span>
-    <div class="sales-rep-panel__actions">
-      <button class="sales-rep-panel__action" id="SalesRepChange" type="button">Byt kund</button>
-      <button class="sales-rep-panel__action" id="SalesRepClear" type="button">Avsluta</button>
+    <div class="sales-rep-panel__inner">
+      <span class="sales-rep-panel__info">Kundvy: <strong id="SalesRepActiveName"></strong> <span id="SalesRepActiveNumber" style="color:#a3a3a3;"></span></span>
+      <div class="sales-rep-panel__actions">
+        <button class="sales-rep-panel__action" id="SalesRepChange" type="button">Byt kund</button>
+        <button class="sales-rep-panel__action" id="SalesRepClear" type="button">Avsluta</button>
+      </div>
     </div>
   </div>
   <div class="sales-rep-panel__input" id="SalesRepInput">
-    <span class="sales-rep-panel__info">Visa priser för kund</span>
-    <div class="sales-rep-panel__search-wrap">
-      <input type="text" id="SalesRepSearch" class="sales-rep-panel__field" placeholder="Sök kundnamn eller kundnr" autocomplete="off">
-      <div class="sales-rep-panel__results" id="SalesRepResults"></div>
+    <div class="sales-rep-panel__inner">
+      <span class="sales-rep-panel__info">Visa priser för kund</span>
+      <div class="sales-rep-panel__search-wrap">
+        <input type="text" id="SalesRepSearch" class="sales-rep-panel__field" placeholder="Sök kundnamn eller kundnr" autocomplete="off">
+        <div class="sales-rep-panel__results" id="SalesRepResults"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
   .sales-rep-panel {
+    --color-background: 29, 35, 87;
     position: sticky;
     top: 0;
     z-index: 9999;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1;
   }
 
   .sales-rep-panel__bar,
   .sales-rep-panel__input {
-    background: rgb(29, 52, 154);
+    background: rgb(var(--color-background));
     color: #e5e5e5;
-    padding: 0.6rem 1rem;
+  }
+
+  .sales-rep-panel__inner {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding: 0.9rem 1rem;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.75rem;
   }
 
   .sales-rep-panel__info {
-    flex: 1;
     white-space: nowrap;
     color: #a3a3a3;
   }
@@ -52,13 +62,13 @@
   }
 
   .sales-rep-panel__action {
-    background: rgba(0,0,0,0.25) !important;
+    background: rgba(255,255,255,0.12) !important;
     color: #e5e5e5 !important;
     border: none !important;
     padding: 0 0.875rem !important;
-    border-radius: 0.375rem !important;
+    border-radius: 9999px !important;
     cursor: pointer;
-    font-size: 11px !important;
+    font-size: 12px !important;
     line-height: 1 !important;
     white-space: nowrap;
     height: 26px !important;
@@ -68,7 +78,7 @@
   }
 
   .sales-rep-panel__action:hover {
-    background: rgba(0,0,0,0.4) !important;
+    background: rgba(255,255,255,0.2) !important;
     color: #fff !important;
   }
 
@@ -77,12 +87,12 @@
   }
 
   .sales-rep-panel__field {
-    background: rgba(0,0,0,0.25);
+    background: rgba(255,255,255,0.12);
     color: #fff;
     border: none;
-    padding: 0 0.5rem 0 0.75rem;
-    border-radius: 0.25rem;
-    font-size: 11px;
+    padding: 0 0.875rem 0 1rem;
+    border-radius: 9999px;
+    font-size: 12px;
     font-family: inherit;
     line-height: 1;
     height: 26px;
@@ -91,11 +101,11 @@
   }
 
   .sales-rep-panel__field::placeholder {
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.55);
   }
 
   .sales-rep-panel__field:focus {
-    background: rgba(0,0,0,0.35);
+    background: rgba(255,255,255,0.18);
   }
 
   .sales-rep-panel__results {
@@ -122,7 +132,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 13px;
     color: #1a1a1a;
     border-bottom: 1px solid #f0f0f0;
   }
@@ -137,12 +147,21 @@
 
   .sales-rep-panel__result-number {
     color: #888;
-    font-size: 11px;
+    font-size: 12px;
   }
 </style>
 
 <script>
 (function() {
+  // Capture the customer-lookup API host in a LOCAL variable at init time.
+  // Other templates (main-product, main-collection-variants, ...) assign
+  // window.pricingApiUrl directly later in the page, so relying on the
+  // global at fetch time would pick up their value — and customer-lookup
+  // may not be deployed to the same host that pricing/stock use.
+  // Change this one string if you need the sales-rep panel to hit a
+  // different backend than pricing/stock (e.g. the testing Railway).
+  var LOOKUP_API_HOST = "monitor-api-connect-production.up.railway.app";
+
   var searchInput = document.getElementById('SalesRepSearch');
   var resultsEl = document.getElementById('SalesRepResults');
   var changeBtn = document.getElementById('SalesRepChange');
@@ -176,7 +195,7 @@
     }
 
     searchTimer = setTimeout(function() {
-      var apiUrl = (window.pricingApiUrl ? 'https://' + window.pricingApiUrl : '') + '/api/customer-lookup';
+      var apiUrl = 'https://' + LOOKUP_API_HOST + '/api/customer-lookup';
       fetch(apiUrl + '?q=' + encodeURIComponent(query) + '&key=' + lookupKey)
         .then(function(r) { return r.json(); })
         .then(function(data) {
