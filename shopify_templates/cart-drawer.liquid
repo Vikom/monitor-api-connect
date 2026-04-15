@@ -1705,10 +1705,12 @@ document.addEventListener('DOMContentLoaded', () => {
           
           // Sales rep override — use selected customer's monitor ID
           let salesRepMonitorId = null;
+          {%- if customer.metafields.custom.is_sales_rep -%}
           try {
             const srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
             if (srp && srp.monitorId) salesRepMonitorId = srp.monitorId;
           } catch(e) {}
+          {%- endif -%}
 
           // Create draft order with dynamic pricing
           const apiPayload = {

@@ -327,13 +327,12 @@ setInterval(() => {
   window.customerDiscountCategory = window.customerDiscountCategory || "{{ customer.metafields.custom.discount_category }}";
   window.customerPriceListId = window.customerPriceListId || "{{ customer.metafields.custom.pricelist_id }}";
 
-  // Sales rep override — use selected customer's monitor ID for pricing
+  {%- if customer.metafields.custom.is_sales_rep -%}
   try {
     var _srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
-    if (_srp && _srp.monitorId) {
-      window.customerMonitorId = _srp.monitorId;
-    }
+    if (_srp && _srp.monitorId) window.customerMonitorId = _srp.monitorId;
   } catch(e) {}
+  {%- endif -%}
   {%- if customer -%}
   window.customer = window.customer || { id: {{ customer.id | json }} };
   {%- endif -%}
