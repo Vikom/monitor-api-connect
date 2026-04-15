@@ -25,6 +25,8 @@ function corsHeaders() {
 }
 
 export async function loader({ request }) {
+  console.log("[Customer Lookup] Request received:", request.method, request.url);
+
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders() });
   }
