@@ -1023,6 +1023,18 @@ window.cartItemsMetafields = {
   {% endfor %}
 };
 
+{%- if customer.metafields.custom.is_sales_rep -%}
+// Sales rep override — replace customerMonitorId in cart metafields
+try {
+  var _srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
+  if (_srp && _srp.monitorId) {
+    Object.keys(window.cartItemsMetafields).forEach(function(vid) {
+      window.cartItemsMetafields[vid].customerMonitorId = _srp.monitorId;
+    });
+  }
+} catch(e) {}
+{%- endif -%}
+
 // Enhanced checkout for dynamic pricing - Cart Drawer
 document.addEventListener('DOMContentLoaded', () => {
   // Helper function to format price with Swedish comma decimal separator
