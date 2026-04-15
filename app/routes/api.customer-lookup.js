@@ -41,12 +41,15 @@ export async function loader({ request }) {
     }
 
     const query = (searchUrl.searchParams.get("q") || "").trim();
+    // mode=contains|startswith|substringof|eq — lets us probe which OData
+    // string ops Monitor actually supports. Defaults to startswith.
+    const mode = searchUrl.searchParams.get("mode") || "startswith";
 
     if (query.length < 2) {
       return json({ customers: [], message: "Search query must be at least 2 characters" }, { headers: corsHeaders() });
     }
 
-    console.log("[Customer Lookup] Query:", query);
+    console.log("[Customer Lookup] Query:", query, "mode:", mode);
 
     const client = await getMonitorClient();
     const sessionId = await client.getSessionId();
@@ -56,8 +59,25 @@ export async function loader({ request }) {
     // NOTE: Monitor's OData parser rejects `ne` on BlockedStatus, so we filter
     // blocked customers client-side below instead of in the $filter.
     const escapedQuery = query.replace(/'/g, "''");
-    const filter = `contains(Name,'${escapedQuery}') or contains(Code,'${escapedQuery}')`;
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Code,BlockedStatus&$filter=${filter}&$top=20`;
+    let filter;
+    switch (mode) {
+      case "contains":
+        filter = `contains(Name,'${escapedQuery}') or contains(Code,'${escapedQuery}')`;
+        break;
+      case "substringof":
+        filter = `substringof('${escapedQuery}',Name) or substringof('${escapedQuery}',Code)`;
+        break;
+      case "eq":
+        filter = `Name eq '${escapedQuery}' or Code eq '${escapedQuery}'`;
+        break;
+      case "startswith":
+      default:
+        filter = `startswith(Name,'${escapedQuery}') or startswith(Code,'${escapedQuery}')`;
+        break;
+    }
+    const rawUrl = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Code,BlockedStatus&$filter=${filter}&$top=20`;
+    // URL-encode the filter section so spaces/parens/quotes are transmitted safely.
+    const url = encodeURI(rawUrl);
     console.log("[Customer Lookup] Monitor URL:", url);
 
     let res = await fetch(url, {
@@ -87,7 +107,7 @@ export async function loader({ request }) {
     if (res.status !== 200) {
       const errorText = await res.text();
       console.error("[Customer Lookup] Monitor API error:", res.status, errorText);
-      return json({ error: "Monitor API error" }, { status: 502, headers: corsHeaders() });
+      return json({ error: "Monitor API error", status: res.status, detail: errorText }, { status: 502, headers: corsHeaders() });
     }
 
     const customers = await res.json();
