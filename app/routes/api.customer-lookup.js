@@ -52,10 +52,12 @@ export async function loader({ request }) {
     const sessionId = await client.getSessionId();
     console.log("[Customer Lookup] Session obtained");
 
-    // Search non-blocked customers by Name or Code (customer number) via OData filter.
+    // Search customers by Name or Code (customer number) via OData filter.
+    // NOTE: Monitor's OData parser rejects `ne` on BlockedStatus, so we filter
+    // blocked customers client-side below instead of in the $filter.
     const escapedQuery = query.replace(/'/g, "''");
-    const filter = `(contains(Name,'${escapedQuery}') or contains(Code,'${escapedQuery}')) and BlockedStatus ne 2`;
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Code&$filter=${filter}&$top=10`;
+    const filter = `contains(Name,'${escapedQuery}') or contains(Code,'${escapedQuery}')`;
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Code,BlockedStatus&$filter=${filter}&$top=20`;
     console.log("[Customer Lookup] Monitor URL:", url);
 
     let res = await fetch(url, {
@@ -90,11 +92,14 @@ export async function loader({ request }) {
 
     const customers = await res.json();
 
-    const result = (Array.isArray(customers) ? customers : []).map(c => ({
-      id: c.Id,
-      name: c.Name || "",
-      number: c.Code || "",
-    }));
+    const result = (Array.isArray(customers) ? customers : [])
+      .filter(c => c.BlockedStatus !== 2)
+      .slice(0, 10)
+      .map(c => ({
+        id: c.Id,
+        name: c.Name || "",
+        number: c.Code || "",
+      }));
 
     console.log(`[Customer Lookup] Returning ${result.length} customers`);
 
