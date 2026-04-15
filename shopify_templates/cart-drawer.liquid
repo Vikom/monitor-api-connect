@@ -1213,7 +1213,12 @@ document.addEventListener('DOMContentLoaded', () => {
           // Get metafields from pre-populated data (same as product page approach!)
           let itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
           
-          // If no pre-populated metafields and we're on a product page, try to get from product page context
+          // Load variantMonitorIds from localStorage if not already in memory
+          if (!window.variantMonitorIds) {
+            try { window.variantMonitorIds = JSON.parse(localStorage.getItem('variantMonitorIds') || '{}'); } catch(e) {}
+          }
+
+          // If no pre-populated metafields, try to get from variantMonitorIds (product page or collection)
           if (!itemMetafields.monitorId && window.variantMonitorIds && window.variantMonitorIds[item.variant_id]) {
             itemMetafields = {
               monitorId: window.variantMonitorIds[item.variant_id],
