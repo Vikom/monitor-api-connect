@@ -29,11 +29,20 @@ export async function loader({ request }) {
   }
 
   try {
+    const searchUrl = new URL(request.url);
+    const query = (searchUrl.searchParams.get("q") || "").trim();
+
+    if (query.length < 2) {
+      return json({ customers: [], message: "Search query must be at least 2 characters" }, { headers: corsHeaders() });
+    }
+
     const client = await getMonitorClient();
     const sessionId = await client.getSessionId();
 
-    // Fetch all active customers with Name and Number
-    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Number&$filter=BlockedStatus Neq 2`;
+    // Search active customers by Name or Number via OData filter
+    const escapedQuery = query.replace(/'/g, "''");
+    const filter = `(contains(Name,'${escapedQuery}') or contains(Number,'${escapedQuery}')) and BlockedStatus Neq 2`;
+    const url = `${monitorUrl}/${monitorCompany}/api/v1/Sales/Customers?$select=Id,Name,Number&$filter=${filter}&$top=10`;
 
     let res = await fetch(url, {
       headers: {
@@ -76,10 +85,7 @@ export async function loader({ request }) {
     console.log(`[Customer Lookup] Returning ${result.length} customers`);
 
     return json({ customers: result }, {
-      headers: {
-        ...corsHeaders(),
-        "Cache-Control": "public, max-age=300", // Cache 5 min
-      },
+      headers: corsHeaders(),
     });
 
   } catch (error) {

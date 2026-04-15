@@ -151,7 +151,6 @@
   var inputSection = document.getElementById('SalesRepInput');
   var activeNameEl = document.getElementById('SalesRepActiveName');
   var activeNumberEl = document.getElementById('SalesRepActiveNumber');
-  var customers = [];
 
   // Check if already active
   var existing = null;
@@ -164,41 +163,39 @@
     activeNumberEl.textContent = existing.number ? '(' + existing.number + ')' : '';
   }
 
-  // Fetch customer list
+  // Debounced search against API
   var apiUrl = (window.pricingApiUrl ? 'https://' + window.pricingApiUrl : '') + '/api/customer-lookup';
-  fetch(apiUrl)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      customers = data.customers || [];
-    })
-    .catch(function(err) {
-      console.error('[SalesRep] Failed to load customers:', err);
-    });
+  var searchTimer = null;
 
-  // Search
   searchInput.addEventListener('input', function() {
-    var query = searchInput.value.trim().toLowerCase();
+    clearTimeout(searchTimer);
+    var query = searchInput.value.trim();
     if (query.length < 2) {
       resultsEl.classList.remove('is-open');
       return;
     }
 
-    var matches = customers.filter(function(c) {
-      return c.name.toLowerCase().indexOf(query) >= 0 || c.number.indexOf(query) >= 0;
-    }).slice(0, 10);
-
-    if (matches.length === 0) {
-      resultsEl.innerHTML = '<div class="sales-rep-panel__result-item" style="color:#888;">Inga träffar</div>';
-    } else {
-      resultsEl.innerHTML = matches.map(function(c) {
-        return '<div class="sales-rep-panel__result-item" data-id="' + c.id + '" data-name="' + c.name.replace(/"/g, '&quot;') + '" data-number="' + c.number + '">'
-          + '<span class="sales-rep-panel__result-name">' + c.name + '</span>'
-          + '<span class="sales-rep-panel__result-number">' + c.number + '</span>'
-          + '</div>';
-      }).join('');
-    }
-
-    resultsEl.classList.add('is-open');
+    searchTimer = setTimeout(function() {
+      fetch(apiUrl + '?q=' + encodeURIComponent(query))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var matches = data.customers || [];
+          if (matches.length === 0) {
+            resultsEl.innerHTML = '<div class="sales-rep-panel__result-item" style="color:#888;">Inga träffar</div>';
+          } else {
+            resultsEl.innerHTML = matches.map(function(c) {
+              return '<div class="sales-rep-panel__result-item" data-id="' + c.id + '" data-name="' + c.name.replace(/"/g, '&quot;') + '" data-number="' + c.number + '">'
+                + '<span class="sales-rep-panel__result-name">' + c.name + '</span>'
+                + '<span class="sales-rep-panel__result-number">' + c.number + '</span>'
+                + '</div>';
+            }).join('');
+          }
+          resultsEl.classList.add('is-open');
+        })
+        .catch(function(err) {
+          console.error('[SalesRep] Search failed:', err);
+        });
+    }, 300);
   });
 
   // Select customer
