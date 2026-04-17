@@ -30,7 +30,7 @@
     assign is_outlet_type = true
   endif
   assign collection_id_str = collection.id | append: ''
-  assign outlet_sub_ids = '304431300656,304431333424,304431366192,304431431728,304431464496' | split: ','
+  assign outlet_sub_ids = '685232357710,685232390478,685232456014,685232619854,685232652622' | split: ','
   for sub_id in outlet_sub_ids
     if collection_id_str == sub_id
       assign is_outlet_type = true
@@ -39,6 +39,7 @@
     endif
   endfor
 -%}
+{% comment %}assign outlet_sub_ids = '304431300656,304431333424,304431366192,304431431728,304431464496' | split: ','{% endcomment %}
 {%- capture image_sizes -%}
 (max-width: 767px) calc((100vw - 38px) / {{ columns_mobile }}),
 (max-width: 1279px) calc((100vw - 90px) / {{ columns_tablet }}),
@@ -358,41 +359,41 @@
 function detectCustomerLogin() {
   // Check for logout links (most reliable indicator)
   const logoutLinks = document.querySelectorAll('a[href*="logout"]');
-  
+
   // Check for customer-specific elements in navigation
   const customerMenus = document.querySelectorAll('.customer-menu, .account-menu, [data-customer-email]');
-  
+
   // Check for Shopify customer cookies
-  const hasCustomerCookies = document.cookie.includes('_shopify_s=') || 
+  const hasCustomerCookies = document.cookie.includes('_shopify_s=') ||
                             document.cookie.includes('_secure_session_id=');
-  
-  const isLoggedIn = logoutLinks.length > 0 || 
+
+  const isLoggedIn = logoutLinks.length > 0 ||
                     customerMenus.length > 0 ||
                     hasCustomerCookies;
-  
+
   console.log('Customer detection:', {
     logoutLinks: logoutLinks.length,
     customerMenus: customerMenus.length,
     hasCustomerCookies: hasCustomerCookies,
     result: isLoggedIn
   });
-  
+
   return isLoggedIn;
 }
 
 // Apply customer detection when page loads
 document.addEventListener('DOMContentLoaded', function() {
   const isCustomerLoggedIn = detectCustomerLogin();
-  
+
   // Show/hide customer-only content across all product cards
   const customerOnlyElements = document.querySelectorAll('.customer-only-content');
-  
+
   customerOnlyElements.forEach(function(element) {
     element.style.display = isCustomerLoggedIn ? 'block' : 'none';
   });
-  
+
   console.log('Updated', customerOnlyElements.length, 'customer-only elements');
-  
+
   // Set global state for other scripts (like pricing)
   window.customerState = {
     isLoggedIn: isCustomerLoggedIn,
@@ -410,17 +411,17 @@ function localizeDecimalDisplay() {
   // Target the specific facet sections for Bredd, Längd, and Tjocklek
   const targetSections = [
     'vertical-filter.v.m.custom.width',    // Bredd
-    'vertical-filter.v.m.custom.length',   // Längd  
+    'vertical-filter.v.m.custom.length',   // Längd
     'vertical-filter.v.m.custom.depth'     // Tjocklek
   ];
 
   targetSections.forEach(sectionId => {
     // Find all labels in this section
     const labels = document.querySelectorAll(`label[for^="${sectionId}"] .reversed-link__text`);
-    
+
     labels.forEach(label => {
       const originalText = label.textContent;
-      
+
       // Check if the text contains a decimal number (digits.digits)
       if (/^\d+\.\d+$/.test(originalText)) {
         // Replace dot with comma for display
@@ -455,12 +456,12 @@ document.addEventListener('change', function(event) {
 // Enhanced MutationObserver to catch more granular changes
 const observer = new MutationObserver((mutations) => {
   let shouldUpdate = false;
-  
+
   mutations.forEach((mutation) => {
     if (mutation.type === 'childList') {
       // Check if any facet-related content was updated
-      const facetUpdated = Array.from(mutation.addedNodes).some(node => 
-        node.nodeType === Node.ELEMENT_NODE && 
+      const facetUpdated = Array.from(mutation.addedNodes).some(node =>
+        node.nodeType === Node.ELEMENT_NODE &&
         (node.querySelector && (
           node.querySelector('.facet-accordion-details') ||
           node.querySelector('.reversed-link__text') ||
@@ -469,18 +470,18 @@ const observer = new MutationObserver((mutations) => {
           node.classList?.contains('accordion-details__content')
         ))
       );
-      
+
       if (facetUpdated) {
         shouldUpdate = true;
       }
     }
-    
+
     // Also check for attribute changes on facet elements
     if (mutation.type === 'attributes' && mutation.target.closest('.facet-accordion-details')) {
       shouldUpdate = true;
     }
   });
-  
+
   if (shouldUpdate) {
     // Use a small delay to ensure DOM is fully updated
     setTimeout(localizeDecimalDisplay, 50);
