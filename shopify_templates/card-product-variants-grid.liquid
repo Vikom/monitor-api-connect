@@ -22,6 +22,11 @@
     assign is_fully_outlet = true
   endif
 
+  if is_outlet_collection
+    assign variant_count = outlet_count
+    assign is_fully_outlet = true
+  endif
+
   assign featured_media = product.featured_media
   assign image_ratio = settings.pcard_image_ratio | default: '1'
   if image_ratio == 'adapt' and featured_media != blank
