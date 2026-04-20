@@ -48,13 +48,13 @@
 
 <div class="cv-grid-card product-card product-card-style-{{ settings.pcard_style }}{% if settings.pcard_style == 'card' %} color-{{ settings.pcard_color_scheme }}{% endif %}" data-product-url="{{ product.url }}">
   <div class="cv-grid-card__wrapper h-full">
-    {%- if is_outlet_collection -%}
-      <span class="cv-grid-card__outlet-badge">Outlet</span>
-    {%- elsif has_outlet -%}
-      <span class="cv-grid-card__outlet-badge">{%- if is_fully_outlet -%}Outlet{%- else -%}Outlet-alternativ{%- endif -%}</span>
-    {%- endif -%}
     <a href="{{ product.url }}" class="cv-grid-card__link" aria-label="{{ product.title | escape }}">
       <div class="cv-grid-card__image-wrap color-{{ settings.pcard_overlay_color_scheme }} bg-none">
+        {%- if is_outlet_collection -%}
+          <span class="cv-grid-card__outlet-badge">Outlet</span>
+        {%- elsif has_outlet -%}
+          <span class="cv-grid-card__outlet-badge">{%- if is_fully_outlet -%}Outlet{%- else -%}Outlet-alternativ{%- endif -%}</span>
+        {%- endif -%}
         {%- if featured_media -%}
           <div class="media-wrapper cv-grid-card__image" style="--aspect-ratio: {{ image_ratio }}">
             {{ featured_media | image_url: width: featured_media.width | image_tag:
@@ -319,7 +319,7 @@
 
   .cv-grid-card__outlet-badge {
     position: absolute;
-    top: 0;
+    top: 2.25rem;
     left: 0;
     background: rgb(196, 48, 28);
     color: #fff;
