@@ -45,7 +45,9 @@
   <div class="cv-grid-card__wrapper h-full">
     <a href="{{ product.url }}" class="cv-grid-card__link" aria-label="{{ product.title | escape }}">
       <div class="cv-grid-card__image-wrap color-{{ settings.pcard_overlay_color_scheme }} bg-none">
-        {%- if has_outlet -%}
+        {%- if is_outlet_collection -%}
+          <span class="cv-grid-card__outlet-badge">Outlet</span>
+        {%- elsif has_outlet -%}
           <span class="cv-grid-card__outlet-badge">{%- if is_fully_outlet -%}Outlet{%- else -%}Outlet-alternativ{%- endif -%}</span>
         {%- endif -%}
         {%- if featured_media -%}
@@ -90,6 +92,7 @@
 
       <div class="cv-grid-card__variants-list">
         {%- for variant in product.variants -%}
+          {%- if is_outlet_collection and variant.metafields.custom.outlet != true -%}{%- continue -%}{%- endif -%}
           {%- unless variant.option1 == 'Default Title' -%}
           <a href="{{ product.url }}?variant={{ variant.id }}" class="cv-grid-card__variant-row text-sm{% if forloop.index > max_visible %} cv-grid-card__variant-row--extra{% endif %}">
             <span class="cv-grid-card__variant-option">{{ variant.option1 }}{%- if variant.option2 %} · {{ variant.option2 }}{%- endif -%}{%- if variant.option3 %} · {{ variant.option3 }}{%- endif -%}</span>
