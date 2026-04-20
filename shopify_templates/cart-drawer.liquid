@@ -1224,23 +1224,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!priceData) {
           // Get metafields from pre-populated data (same as product page approach!)
           let itemMetafields = window.cartItemsMetafields?.[item.variant_id] || {};
-          
+
           // Load variantMonitorIds from localStorage if not already in memory
           if (!window.variantMonitorIds) {
             try { window.variantMonitorIds = JSON.parse(localStorage.getItem('variantMonitorIds') || '{}'); } catch(e) {}
           }
 
-          // If no pre-populated metafields, try to get from variantMonitorIds (product page or collection)
+          // If no pre-populated metafields (item added via AJAX after page load),
+          // build metafields from variantMonitorIds + global customer data and
+          // persist them so checkout has them too.
           if (!itemMetafields.monitorId && window.variantMonitorIds && window.variantMonitorIds[item.variant_id]) {
             itemMetafields = {
               monitorId: window.variantMonitorIds[item.variant_id],
               customerMonitorId: window.customerMonitorId || null,
               customerDiscountCategory: window.customerDiscountCategory || null,
               customerPriceListId: window.customerPriceListId || null,
-              standardUnit: null, // Will be handled by server-side fetching
+              standardUnit: null,
               isOutletProduct: window.isOutletProduct || false
             };
-            console.log(`Product page metafields applied:`, itemMetafields);
+            // Persist so checkout handler has access to the same data
+            window.cartItemsMetafields = window.cartItemsMetafields || {};
+            window.cartItemsMetafields[item.variant_id] = itemMetafields;
+            console.log(`Populated missing metafields for ${item.variant_id}:`, itemMetafields);
           }
         
           // Check if we have the essential monitor_id (required for pricing)
@@ -1626,13 +1631,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         console.log('Cart drawer checkout intercepted! Creating draft order...');
-        
+
+        // Wait for any in-progress price update to finish before proceeding.
+        // This prevents checkout with stale/missing prices when items were
+        // just added from the variants list via AJAX.
+        if (priceUpdateInProgress) {
+          console.log('Waiting for price update to finish before checkout...');
+          await new Promise(resolve => {
+            const checkInterval = setInterval(() => {
+              if (!priceUpdateInProgress) {
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }, 100);
+            // Safety timeout — don't wait forever
+            setTimeout(() => { clearInterval(checkInterval); resolve(); }, 10000);
+          });
+        }
+
         // Show loading
         const btnText = checkoutBtn.querySelector('.btn__text');
         const originalText = btnText.innerHTML;
         btnText.innerHTML = 'Tillämpar dina priser...';
         checkoutBtn.disabled = true;
-        
+
         try {
           // Get current cart
           const cartResponse = await fetch('/cart.js');

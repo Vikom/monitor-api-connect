@@ -71,7 +71,9 @@ export async function action({ request }) {
       customer_id,
       customer_email,
       customer_company,
-      monitor_id,
+      monitor_id: requested_monitor_id,
+      discount_category,
+      pricelist_id,
       format = 'pdf',
       selection_method,
       collections = [],
@@ -81,54 +83,85 @@ export async function action({ request }) {
 
     // Validate required fields
     if (!customer_id) {
-      return json({ error: 'Customer ID is required' }, { 
+      return json({ error: 'Customer ID is required' }, {
         status: 400,
         headers: corsHeaders()
       });
     }
 
     if (!customer_email) {
-      return json({ error: 'Customer email is required' }, { 
+      return json({ error: 'Customer email is required' }, {
         status: 400,
         headers: corsHeaders()
       });
     }
 
-    if (!monitor_id || monitor_id.trim() === '') {
-      return json({ 
-        error: 'Customer Monitor ID is required for pricing. Please ensure the customer has a monitor_id set in their custom fields.' 
-      }, { 
+    if (!requested_monitor_id || requested_monitor_id.trim() === '') {
+      return json({
+        error: 'Customer Monitor ID is required for pricing. Please ensure the customer has a monitor_id set in their custom fields.'
+      }, {
         status: 400,
         headers: corsHeaders()
       });
     }
 
     if (!shop) {
-      return json({ error: "Shop domain is required" }, { 
-        status: 400, 
-        headers: corsHeaders() 
+      return json({ error: "Shop domain is required" }, {
+        status: 400,
+        headers: corsHeaders()
       });
     }
 
-    console.log(`📋 Pricelist request: ${customer_email} (${customer_company || 'No company'}) - ${format.toUpperCase()} - ${selection_method} - ${collections?.length || products?.length || 0} items`);
-
     // For private apps, use direct API credentials from environment
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || process.env.ADVANCED_STORE_ADMIN_TOKEN;
-    
+
     if (!accessToken) {
       console.error('No SHOPIFY_ACCESS_TOKEN or ADVANCED_STORE_ADMIN_TOKEN found in environment');
-      return json({ 
-        error: "Private app access token not configured", 
+      return json({
+        error: "Private app access token not configured",
         suggestion: "Add SHOPIFY_ACCESS_TOKEN or check ADVANCED_STORE_ADMIN_TOKEN in Railway environment variables"
       }, { status: 500, headers: corsHeaders() });
     }
-    
+
     // Convert custom domain to myshopify domain for API calls
     let apiDomain = shop;
     if (shop === 'sonsab.com') {
       apiDomain = 'mdnjqg-qg.myshopify.com';
       console.log(`Converting custom domain to myshopify domain: ${shop} → ${apiDomain}`);
     }
+
+    // Verify sales rep authorization: if the requested monitor_id differs
+    // from the customer's own, validate that the customer has is_sales_rep.
+    let monitor_id = requested_monitor_id;
+    const customerGid = `gid://shopify/Customer/${customer_id}`;
+    try {
+      const verifyRes = await fetch(`https://${apiDomain}/admin/api/2025-01/graphql.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+        body: JSON.stringify({
+          query: `query($id: ID!) { customer(id: $id) { metafields(first: 5) { edges { node { namespace key value } } } } }`,
+          variables: { id: customerGid }
+        })
+      });
+      const verifyData = await verifyRes.json();
+      const metafields = verifyData.data?.customer?.metafields?.edges || [];
+      const ownMonitorId = metafields.find(e => e.node.namespace === 'custom' && e.node.key === 'monitor_id')?.node.value;
+      const isSalesRep = metafields.find(e => e.node.namespace === 'custom' && e.node.key === 'is_sales_rep')?.node.value;
+
+      if (requested_monitor_id !== ownMonitorId) {
+        if (!isSalesRep) {
+          console.warn(`[Pricelist] Non-sales-rep ${customer_id} tried to use monitor_id ${requested_monitor_id} (own: ${ownMonitorId}) — rejected`);
+          monitor_id = ownMonitorId;
+        } else {
+          console.log(`[Pricelist] Sales rep ${customer_id} generating pricelist for customer ${requested_monitor_id}`);
+        }
+      }
+    } catch (verifyError) {
+      console.error(`[Pricelist] Could not verify sales rep status:`, verifyError.message);
+      // Fail safe: use the requested ID (already validated as non-empty)
+    }
+
+    console.log(`📋 Pricelist request: ${customer_email} (${customer_company || 'No company'}) - ${format.toUpperCase()} - ${selection_method} - ${collections?.length || products?.length || 0} items`);
 
     // Fetch products based on selection method
     let productList = [];

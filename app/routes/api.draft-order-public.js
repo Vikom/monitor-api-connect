@@ -26,7 +26,7 @@ export async function action({ request }) {
     console.log('PRIVATE APP DRAFT ORDER - Starting draft order creation');
     
     const body = await request.json();
-    const { customerId, items, shop, priceListId, goodsLabel, orderMark } = body; // items: [{ variantId, quantity, properties }]
+    const { customerId, items, shop, priceListId, goodsLabel, orderMark, customerMonitorId: requestedMonitorId } = body;
     
     console.log('Request data:', { customerId, itemCount: items?.length, shop, priceListId, goodsLabel, orderMark });
     
@@ -271,8 +271,22 @@ export async function action({ request }) {
         const customerMonitorIdMetafield = customer?.metafields.edges.find(
           edge => edge.node.namespace === 'custom' && edge.node.key === 'monitor_id'
         );
-        const customerMonitorId = customerMonitorIdMetafield?.node.value;
-        
+        const ownMonitorId = customerMonitorIdMetafield?.node.value;
+
+        // Sales rep override: only accept a different customerMonitorId if the
+        // logged-in customer has is_sales_rep metafield set in Shopify.
+        const isSalesRep = customer?.metafields.edges.find(
+          edge => edge.node.namespace === 'custom' && edge.node.key === 'is_sales_rep'
+        )?.node.value;
+
+        const customerMonitorId = (isSalesRep && requestedMonitorId)
+          ? requestedMonitorId
+          : ownMonitorId;
+
+        if (isSalesRep && requestedMonitorId) {
+          console.log(`[Sales Rep] Override: using customer ${requestedMonitorId} instead of own ${ownMonitorId}`);
+        }
+
         const customerDiscountCategoryMetafield = customer?.metafields.edges.find(
           edge => edge.node.namespace === 'custom' && edge.node.key === 'discount_category'
         );
