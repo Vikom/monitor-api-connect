@@ -31,6 +31,11 @@
     assign is_fully_outlet = true
   endif
 
+  if is_outlet_collection
+    assign variant_count = outlet_count
+    assign is_fully_outlet = true
+  endif
+
   assign featured_media = product.featured_media
   assign image_ratio = '1'
   if featured_media != blank
@@ -82,7 +87,9 @@
         <span class="card-variants__stock-summary {% if has_stock %}in-stock{% else %}out-of-stock{% endif %} customer-only-inline">
           {%- if has_stock -%}I lager{%- else -%}Beställningsvara{%- endif -%}
         </span>
-        {%- if has_outlet -%}
+        {%- if is_outlet_collection -%}
+          <span class="card-variants__outlet-badge">Outlet</span>
+        {%- elsif has_outlet -%}
           <span class="card-variants__outlet-badge">{%- if is_fully_outlet -%}Outlet{%- else -%}Outlet-alternativ{%- endif -%}</span>
         {%- endif -%}
       </div>
@@ -128,6 +135,7 @@
       <tbody class="text-sm">
         {%- for variant in product.variants -%}
           {%- assign is_outlet_variant = variant.metafields.custom.outlet -%}
+          {%- if is_outlet_collection and is_outlet_variant != true -%}{%- continue -%}{%- endif -%}
           <tr class="card-variants__row{% if is_outlet_variant %} card-variants__row--outlet{% endif %}" data-variant-id="{{ variant.id }}" data-monitor-id="{{ variant.metafields.custom.monitor_id }}" data-unit-id="{{ variant.metafields.custom.unitid }}" data-unit="{{ variant.metafields.custom.standard_unit | default: 'st' }}">
             <td class="card-variants__artno" data-label="Art.nr">
               <a href="{{ product.url }}?variant={{ variant.id }}">{{ variant.sku | default: variant.metafields.custom.monitor_id | default: '-' }}</a>

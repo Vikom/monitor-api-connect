@@ -19,6 +19,19 @@
 
   assign block_size = section.blocks.size
   assign products_to_display = section.settings.products_per_page | minus: block_size
+
+  assign is_outlet_collection = false
+  if collection.handle == 'outlet'
+    assign is_outlet_collection = true
+  endif
+  assign outlet_sub_ids = '685232357710,685232390478,685232456014,685232619854,685232652622' | split: ','
+  assign collection_id_str = collection.id | append: ''
+  for sub_id in outlet_sub_ids
+    if collection_id_str == sub_id
+      assign is_outlet_collection = true
+      break
+    endif
+  endfor
 -%}
 {%- capture image_sizes -%}
 (max-width: 767px) calc((100vw - 38px) / {{ columns_mobile }}),
@@ -145,9 +158,20 @@
           {%- endif -%}
           <div id="ProductsList" class="cv-products" data-cv-mode="list">
             {%- for product in collection.products -%}
+              {%- if is_outlet_collection -%}
+                {%- assign _has_outlet_variant = false -%}
+                {%- for v in product.variants -%}
+                  {%- if v.metafields.custom.outlet -%}
+                    {%- assign _has_outlet_variant = true -%}
+                    {%- break -%}
+                  {%- endif -%}
+                {%- endfor -%}
+                {%- unless _has_outlet_variant -%}{%- continue -%}{%- endunless -%}
+              {%- endif -%}
               <div class="cv-item cv-item--list">
                 {%- render 'card-product-variants',
                   product: product,
+                  is_outlet_collection: is_outlet_collection,
                   section_id: section.id,
                   section_index: 2
                 -%}
@@ -155,6 +179,7 @@
               <div class="cv-item cv-item--grid">
                 {%- render 'card-product-variants-grid',
                   product: product,
+                  is_outlet_collection: is_outlet_collection,
                   section_id: section.id,
                   section_index: 2,
                   index: forloop.index
