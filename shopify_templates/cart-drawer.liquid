@@ -1424,6 +1424,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Reset checkout button if page is restored from bfcache (user clicked back)
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+      const btn = document.querySelector('.drawer__footer-buttons button[name="checkout"]');
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        const txt = btn.querySelector('.btn__text');
+        if (txt) txt.innerHTML = '{{ "sections.cart.checkout" | t }}';
+      }
+      priceUpdateInProgress = false;
+    }
+  });
+
   // Setup order mark save functionality for cart drawer
   function setupCartDrawerOrderMarkSave() {
     console.log('🔧 Setting up cart drawer order mark save functionality...');
@@ -1915,17 +1928,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             console.log('Cart drawer fallback checkout - Final order mark to use:', orderMark);
-            
+
+            // Sales rep override — use selected customer's monitor ID
+            let salesRepMonitorId = null;
+            {%- if customer.metafields.custom.is_sales_rep -%}
+            try {
+              const srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
+              if (srp && srp.monitorId) salesRepMonitorId = srp.monitorId;
+            } catch(e) {}
+            {%- endif -%}
+
             // Create draft order with dynamic pricing
             const apiPayload = {
               customerId: `gid://shopify/Customer/${window.customer.id}`,
               items: items,
               shop: window.Shopify?.shop?.domain || window.location.hostname,
               priceListId: customerPriceListId,
-              goodsLabel: goodsLabel, // Add the goods label from cart note
-              orderMark: orderMark // Add the order mark
+              goodsLabel: goodsLabel,
+              orderMark: orderMark,
+              customerMonitorId: salesRepMonitorId || window.customerMonitorId || null
             };
-            
+
             console.log('🔧 Cart Drawer Fallback - Sending to API:', apiPayload);
             
             const response = await fetch('https://monitor-api-connect-production.up.railway.app/api/draft-order-public', {

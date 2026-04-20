@@ -103,7 +103,7 @@
           {%- assign visible_index = visible_index | plus: 1 -%}
           <a href="{{ product.url }}?variant={{ variant.id }}" class="cv-grid-card__variant-row text-sm{% if visible_index > max_visible %} cv-grid-card__variant-row--extra{% endif %}">
             <span class="cv-grid-card__variant-option">{{ variant.option1 }}{%- if variant.option2 %} · {{ variant.option2 }}{%- endif -%}{%- if variant.option3 %} · {{ variant.option3 }}{%- endif -%}</span>
-            {%- if variant.metafields.custom.outlet -%}<span class="cv-grid-card__variant-outlet">Outlet</span>{%- endif -%}
+            {%- if variant.metafields.custom.outlet and is_outlet_collection != true -%}<span class="cv-grid-card__variant-outlet">Outlet</span>{%- endif -%}
           </a>
           {%- endunless -%}
         {%- endfor -%}
