@@ -672,13 +672,24 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     });
     
+    let monitorId = "{{ customer.metafields.custom.monitor_id | default: '' }}";
+    let discountCategory = "{{ customer.metafields.custom.discount_category | default: '' }}";
+    let pricelistId = "{{ customer.metafields.custom.pricelist_id | default: '' }}";
+
+    {%- if customer.metafields.custom.is_sales_rep -%}
+    try {
+      var _srp = JSON.parse(sessionStorage.getItem('salesRepCustomer'));
+      if (_srp && _srp.monitorId) monitorId = _srp.monitorId;
+    } catch(e) {}
+    {%- endif -%}
+
     let payload = {
       customer_id: {{ customer.id }},
       customer_email: "{{ customer.email }}",
       customer_company: "{{ customer.metafields.custom.company | default: '' }}",
-      monitor_id: "{{ customer.metafields.custom.monitor_id | default: '' }}",
-      discount_category: "{{ customer.metafields.custom.discount_category | default: '' }}",
-      pricelist_id: "{{ customer.metafields.custom.pricelist_id | default: '' }}",
+      monitor_id: monitorId,
+      discount_category: discountCategory,
+      pricelist_id: pricelistId,
       format: format,
       selection_method: "collections",
       shop: "{{ shop.domain }}",
