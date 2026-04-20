@@ -1424,6 +1424,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   
+  // Reset checkout button if page is restored from bfcache (user clicked back)
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+      const btn = document.querySelector('.drawer__footer-buttons button[name="checkout"]');
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        const txt = btn.querySelector('.btn__text');
+        if (txt) txt.innerHTML = '{{ "sections.cart.checkout" | t }}';
+      }
+      priceUpdateInProgress = false;
+    }
+  });
+
   // Setup order mark save functionality for cart drawer
   function setupCartDrawerOrderMarkSave() {
     console.log('🔧 Setting up cart drawer order mark save functionality...');
