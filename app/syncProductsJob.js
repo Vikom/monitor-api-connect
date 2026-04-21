@@ -1,5 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, fetchSingleProductByPartNumberFromMonitor, fetchOutletPriceFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.server.js";
+import { fetchProductsFromMonitor, fetchARTFSCFromMonitor, fetchARTTRDMRKFromMonitor, fetchEntityChangeLogsFromMonitor, fetchProductsByIdsFromMonitor, fetchSingleProductByPartNumberFromMonitor, fetchOutletPriceFromMonitor, clearFailedARTFSCFetches, reportFailedARTFSCFetches } from "./utils/monitor.server.js";
 import dotenv from "dotenv";
 import { shopifyApi, LATEST_API_VERSION } from "@shopify/shopify-api";
 import fetch from "node-fetch";
@@ -284,7 +284,27 @@ async function generateMetafieldsForVariation(variation) {
       }
     } catch (error) {
       console.error(`Failed to fetch ARTFSC for product ${variation.id}:`, error);
-      // Continue without the ARTFSC metafield rather than failing the entire sync
+    }
+  }
+
+  // Fetch ARTTRDMRK data if the variation has the ARTTRDMRK field
+  if (variation.hasARTTRDMRK) {
+    try {
+      console.log(`Fetching ARTTRDMRK data for product ${variation.id}...`);
+      const trademarkDescription = await fetchARTTRDMRKFromMonitor(variation.id);
+      if (trademarkDescription) {
+        console.log(`Found ARTTRDMRK: ${trademarkDescription} for product ${variation.id}`);
+        metafields.push({
+          namespace: "custom",
+          key: "trademark",
+          value: trademarkDescription,
+          type: "single_line_text_field"
+        });
+      } else {
+        console.log(`No ARTTRDMRK description found for product ${variation.id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch ARTTRDMRK for product ${variation.id}:`, error);
     }
   }
 
@@ -385,8 +405,9 @@ async function fetchSingleProductByPartNumber(partNumber) {
       partCodeDescription: part.PartCode?.Description || null,
       // Convert ExtraFields array to object for easier access
       ExtraFields: extraFieldsObj,
-      // Flag to indicate if this product has ARTFSC (for async fetching)
+      // Flags to indicate if this product has extra fields (for async fetching)
       hasARTFSC: extraFieldsObj.ARTFSC !== undefined,
+      hasARTTRDMRK: extraFieldsObj.ARTTRDMRK !== undefined,
       // Pricing metadata
       isOutletProduct: isOutletProduct,
       hasOutletPrice: productPrice !== null,
