@@ -440,16 +440,16 @@ setInterval(() => {
       table.hidden = expanded;
       card.classList.toggle('is-expanded', !expanded);
 
-      // Fetch real-time stock on first open (sequentially) — skip for guests
+      // Fetch real-time stock on first open (batch) — skip for guests
       if (!expanded && !stockFetchedCards[cardId] && !(window.customerState && !window.customerState.isLoggedIn)) {
         stockFetchedCards[cardId] = true;
 
         var stockCells = card.querySelectorAll('[data-stock-variant-id]');
         if (stockCells.length === 0) return;
 
-        var apiUrl = window.pricingApiUrl
-          ? 'https://' + window.pricingApiUrl + '/api/stock-update'
-          : '/api/stock-update';
+        var batchApiUrl = window.pricingApiUrl
+          ? 'https://' + window.pricingApiUrl + '/api/stock-update-batch'
+          : '/api/stock-update-batch';
 
         var warehouseNames = {
           goteborg: 'Göteborg',
@@ -471,65 +471,67 @@ setInterval(() => {
           }
         }
 
-        // Fetch sequentially — one variant at a time
+        // Build batch request for all variants in this card
+        var batchItems = [];
+        var cellMap = {};
         for (var i = 0; i < stockCells.length; i++) {
           var cell = stockCells[i];
           var monitorId = cell.getAttribute('data-stock-monitor-id');
-
-          // No monitor ID — show synced fallback
+          var variantId = cell.getAttribute('data-stock-variant-id');
           if (!monitorId) {
             renderSyncedFallback(cell);
             continue;
           }
+          batchItems.push({ monitorId: monitorId, variantId: 'gid://shopify/ProductVariant/' + variantId });
+          cellMap[variantId] = cell;
+        }
 
+        if (batchItems.length > 0) {
           try {
-            var response = await fetch(apiUrl, {
+            var response = await fetch(batchApiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                monitorId: monitorId,
-                variantId: 'gid://shopify/ProductVariant/' + cell.getAttribute('data-stock-variant-id'),
-                shop: window.Shopify?.shop || window.location.hostname
-              })
+              body: JSON.stringify({ items: batchItems })
             });
 
-            if (!response.ok) {
-              renderSyncedFallback(cell);
-              continue;
-            }
+            var result = response.ok ? await response.json() : null;
+            var stockResults = result && result.stock ? result.stock : [];
 
-            var data = await response.json();
-            if (!data || !data.stock) {
-              renderSyncedFallback(cell);
-              continue;
-            }
+            stockResults.forEach(function(item) {
+              var vid = item.variantId.replace('gid://shopify/ProductVariant/', '');
+              var cell = cellMap[vid];
+              if (!cell) return;
 
-            var totalStock = 0;
-            var warehouseDetails = [];
-            var orderedWarehouses = ['goteborg', 'stockholm', 'lund', 'sundsvall', 'ronas', 'vittsjo'];
-
-            orderedWarehouses.forEach(function(name) {
-              var balance = data.stock[name] || 0;
-              totalStock += balance;
-              if (balance > 0) {
-                warehouseDetails.push(warehouseNames[name] + ' (' + Math.round(balance) + ')');
+              var totalStock = item.total || 0;
+              if (totalStock > 0) {
+                var warehouseDetails = [];
+                var orderedWarehouses = ['goteborg', 'stockholm', 'lund', 'sundsvall', 'ronas', 'vittsjo'];
+                orderedWarehouses.forEach(function(name) {
+                  var balance = item.warehouses[name] || 0;
+                  if (balance > 0) {
+                    warehouseDetails.push(warehouseNames[name] + ' (' + Math.round(balance) + ')');
+                  }
+                });
+                var tooltipHtml = warehouseDetails.length > 0
+                  ? '<span class="card-variants__stock-tooltip">' + warehouseDetails.map(function(d) { return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.125rem 0"><span style="width:6px;height:6px;border-radius:50%;background:#0d8756;flex-shrink:0;margin-top:-1px"></span>' + d + '</div>'; }).join('') + '</span>'
+                  : '';
+                cell.innerHTML = '<span class="card-variants__stock-wrap" style="color:#0d8756">' +
+                  '<span class="stock-dot stock-dot--in-stock"></span>' +
+                  'I lager (' + Math.round(totalStock) + ')' +
+                  tooltipHtml +
+                  '</span>';
+              } else {
+                cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
               }
+              delete cellMap[vid];
             });
 
-            if (totalStock > 0) {
-              var tooltipHtml = warehouseDetails.length > 0
-                ? '<span class="card-variants__stock-tooltip">' + warehouseDetails.map(function(d) { return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.125rem 0"><span style="width:6px;height:6px;border-radius:50%;background:#0d8756;flex-shrink:0;margin-top:-1px"></span>' + d + '</div>'; }).join('') + '</span>'
-                : '';
-              cell.innerHTML = '<span class="card-variants__stock-wrap" style="color:#0d8756">' +
-                '<span class="stock-dot stock-dot--in-stock"></span>' +
-                'I lager (' + Math.round(totalStock) + ')' +
-                tooltipHtml +
-                '</span>';
-            } else {
-              cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
-            }
+            // Fallback for any cells not in the response
+            Object.values(cellMap).forEach(function(cell) { renderSyncedFallback(cell); });
+
           } catch (err) {
-            renderSyncedFallback(cell);
+            // Batch failed — fallback all cells
+            Object.values(cellMap).forEach(function(cell) { renderSyncedFallback(cell); });
           }
         }
       }
