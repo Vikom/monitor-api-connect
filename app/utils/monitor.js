@@ -1049,6 +1049,66 @@ export async function fetchARTFSCFromMonitor(productId) {
 }
 
 /**
+ * Fetch ARTTRDMRK (trademark/brand) for a specific product from Monitor ExtraFields.
+ * Same pattern as fetchARTFSCFromMonitor — uses SelectedOption.Description.
+ * @param {string} productId - Monitor Part ID
+ * @returns {Promise<string|null>} Trademark description or null
+ */
+export async function fetchARTTRDMRKFromMonitor(productId) {
+  try {
+    const sessionId = await monitorClient.getSessionId();
+
+    let url = `${monitorUrl}/${monitorCompany}/api/v1/Common/ExtraFields`;
+    url += `?$filter=ParentId eq '${productId}' and Identifier eq 'ARTTRDMRK'`;
+    url += '&$expand=SelectedOption';
+
+    let res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Monitor-SessionId": sessionId,
+      },
+      agent,
+    });
+
+    if (res.status !== 200) {
+      await monitorClient.login();
+      const newSessionId = await monitorClient.getSessionId();
+      res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "X-Monitor-SessionId": newSessionId,
+        },
+        agent,
+      });
+      if (res.status !== 200) {
+        return null;
+      }
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+
+    // Try SelectedOption.Description first (option-type field)
+    if (data[0].SelectedOption?.Description) {
+      return data[0].SelectedOption.Description;
+    }
+    // Fallback to StringValue (string-type field)
+    if (data[0].StringValue) {
+      return data[0].StringValue;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error fetching ARTTRDMRK for product ${productId}:`, error);
+    return null;
+  }
+}
+
+/**
  * Fetch outlet price for a specific part
  * @param {string} partId - The part ID to fetch outlet price for
  * @returns {Promise<number|null>} The outlet price or null if not found

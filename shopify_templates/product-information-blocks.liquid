@@ -547,6 +547,14 @@
               </tr>
             {%- endif -%}
 
+            {%- assign trademark = current_variant.metafields.custom.trademark -%}
+            {%- if trademark != blank -%}
+              <tr class="spec-row" data-spec="trademark">
+                <td class="spec-label"><strong>Varumärke</strong></td>
+                <td class="spec-value" data-value="trademark">{{ trademark }}</td>
+              </tr>
+            {%- endif -%}
+
             {%- assign volume = current_variant.metafields.custom.volume -%}
             {%- if volume != blank -%}
               <tr class="spec-row" data-spec="volume">
@@ -619,6 +627,7 @@
           {%- for variant in product.variants -%}
             "{{ variant.id }}": {
               "sku": {{ variant.sku | json }},
+              "trademark": {{ variant.metafields.custom.trademark | json }},
               "volume": {{ variant.metafields.custom.volume | json }},
               "length": {{ variant.metafields.custom.length | json }},
               "width": {{ variant.metafields.custom.width | json }},
@@ -757,7 +766,7 @@
       
       if (!specs || !tbody) return;
       
-      const specTypes = ['sku', 'volume', 'length', 'width', 'depth', 'standard_unit', 'fsc', 'qtypac'];
+      const specTypes = ['sku', 'trademark', 'volume', 'length', 'width', 'depth', 'standard_unit', 'fsc', 'qtypac'];
       let hasVisibleSpecs = false;
       
       specTypes.forEach(specType => {
@@ -776,8 +785,8 @@
             
             const formattedValue = value.replace(/\./g, ',');
             
-            // For qtypac, standard_unit, and fsc, don't add units
-            if (specType === 'qtypac' || specType === 'standard_unit' || specType === 'fsc') {
+            // For these types, don't add units — just show the value as-is
+            if (specType === 'qtypac' || specType === 'standard_unit' || specType === 'fsc' || specType === 'trademark') {
               valueCell.textContent = formattedValue;
             } else {
               valueCell.textContent = hasUnit ? formattedValue : `${formattedValue} ${unit}`;
