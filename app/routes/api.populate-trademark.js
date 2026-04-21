@@ -54,6 +54,38 @@ export async function loader({ request }) {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Debug mode: list all ExtraField identifiers for a specific product
+  const debugMonitorId = url.searchParams.get("debug");
+  if (debugMonitorId) {
+    try {
+      const client = await getMonitorClient();
+      let session = await client.getSessionId();
+      const efUrl = `${monitorUrl}/${monitorCompany}/api/v1/Common/ExtraFields?$filter=ParentId eq '${debugMonitorId}'&$expand=SelectedOption`;
+      let res = await fetch(efUrl, {
+        headers: { Accept: "application/json", "Content-Type": "application/json", "X-Monitor-SessionId": session },
+        agent,
+      });
+      if (res.status === 401) {
+        await client.login();
+        session = await client.getSessionId();
+        res = await fetch(efUrl, {
+          headers: { Accept: "application/json", "Content-Type": "application/json", "X-Monitor-SessionId": session },
+          agent,
+        });
+      }
+      const data = await res.json();
+      const fields = Array.isArray(data) ? data.map(f => ({
+        identifier: f.Identifier,
+        stringValue: f.StringValue,
+        decimalValue: f.DecimalValue,
+        selectedOption: f.SelectedOption?.Description || null,
+      })) : [];
+      return json({ debug: true, monitorId: debugMonitorId, fields });
+    } catch (err) {
+      return json({ error: err.message }, { status: 500 });
+    }
+  }
+
   try {
     const shop = process.env.ADVANCED_STORE_DOMAIN;
     const token = process.env.ADVANCED_STORE_ADMIN_TOKEN;
