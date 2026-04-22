@@ -36,6 +36,17 @@
     assign is_fully_outlet = true
   endif
 
+  assign is_balk = false
+  assign is_kakel_klinker = false
+  for col in product.collections
+    if col.id == 650179477838
+      assign is_balk = true
+    endif
+    if col.id == 650145923406
+      assign is_kakel_klinker = true
+    endif
+  endfor
+
   assign featured_media = product.featured_media
   assign image_ratio = '1'
   if featured_media != blank
@@ -175,41 +186,68 @@
               <span class="card-variants__price-value">-</span><span class="card-variants__price-unit text-sm">/{{ v_standard_unit }}</span>
             </td>
             <td class="card-variants__buy-cell customer-only-table-cell">
-              <form method="post" action="/cart/add" id="variant-form-{{ unique_id }}-{{ variant.id }}" class="card-variants__form" is="product-form" data-hide-errors="true">
-                <input type="hidden" name="id" value="{{ variant.id }}">
-                <quantity-input class="quantity">
-                  <button type="button" name="minus" class="quantity__button" aria-label="Minska antal">
-                    <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </button>
-                  <input
-                    class="quantity__input"
-                    type="number"
-                    name="quantity"
-                    value="1"
-                    min="1"
-                    step="1"
-                    size="3"
-                    inputmode="numeric"
-                    autocomplete="off"
-                    aria-label="Antal"
+              {%- if is_balk -%}
+                <a href="{{ product.url }}?variant={{ variant.id }}" class="btn btn--secondary card-variants__add-btn">
+                  Konfigurera
+                </a>
+              {%- else -%}
+                {%- liquid
+                  assign v_allows_decimal = true
+                  assign v_quantity_step = 0.05
+                  assign v_min_quantity = 0.05
+                  assign whole_number_units = 'st,rle,pkt,pås,Sk,krt,frp' | split: ','
+                  for unit in whole_number_units
+                    if v_standard_unit == unit
+                      assign v_allows_decimal = false
+                      assign v_quantity_step = 1
+                      assign v_min_quantity = 1
+                      break
+                    endif
+                  endfor
+                  assign v_quantity_package = variant.metafields.custom.quantity_package
+                  if is_kakel_klinker and v_quantity_package != blank
+                    assign v_quantity_step = v_quantity_package
+                    assign v_min_quantity = v_quantity_package
+                  endif
+                -%}
+                <form method="post" action="/cart/add" id="variant-form-{{ unique_id }}-{{ variant.id }}" class="card-variants__form" is="product-form" data-hide-errors="true">
+                  <input type="hidden" name="id" value="{{ variant.id }}">
+                  <quantity-input class="quantity">
+                    <button type="button" name="minus" class="quantity__button" aria-label="Minska antal">
+                      <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                    <input
+                      class="quantity__input"
+                      {% if v_allows_decimal %}type="text"{% else %}type="number"{% endif %}
+                      name="quantity"
+                      value="{% if is_kakel_klinker and v_quantity_package != blank %}{{ v_quantity_package | replace: '.', ',' }}{% elsif v_allows_decimal %}{{ v_min_quantity | replace: '.', ',' }}{% else %}1{% endif %}"
+                      min="{{ v_min_quantity | replace: '.', ',' }}"
+                      step="{{ v_quantity_step | replace: '.', ',' }}"
+                      {% if v_allows_decimal %}data-decimal="true" data-unit="{{ v_standard_unit }}"{% else %}data-decimal="false"{% endif %}
+                      {% if is_kakel_klinker and v_quantity_package != blank %}readonly{% endif %}
+                      size="3"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      aria-label="Antal"
+                    >
+                    <button type="button" name="plus" class="quantity__button" aria-label="Öka antal">
+                      <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                  </quantity-input>
+                  <span class="quantity-unit">{{ v_standard_unit }}</span>
+                  <button
+                    type="submit"
+                    class="btn btn--primary card-variants__add-btn"
                   >
-                  <button type="button" name="plus" class="quantity__button" aria-label="Öka antal">
-                    <svg width="16" height="16" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M2.6875 7H12.3125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M7.5 2.1875V11.8125" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    Lägg till
                   </button>
-                </quantity-input>
-                <span class="quantity-unit">{{ v_standard_unit }}</span>
-                <button
-                  type="submit"
-                  class="btn btn--primary card-variants__add-btn"
-                >
-                  Lägg till
-                </button>
-              </form>
+                </form>
+              {%- endif -%}
             </td>
             <td class="card-variants__guest-cell guest-only-table-cell text-sm">Logga in för att handla</td>
           </tr>
