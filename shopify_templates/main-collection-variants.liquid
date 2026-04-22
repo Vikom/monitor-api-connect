@@ -69,7 +69,7 @@
                 -%}
               </p>
             </div>
-            {%- if enable_filtering and is_outlet_collection == false -%}
+            {%- if enable_filtering -%}
               {%- render 'facets-drawer',
                 results: collection,
                 enable_sorting: enable_sorting,
@@ -117,20 +117,18 @@
       </div>
     {%- endif -%}
     {%- liquid
-      if enable_filtering and is_outlet_collection == false
+      if enable_filtering
         render 'facets-active', results: collection
       endif
     -%}
     <div class="collection__content flex">
       {%- if collection.all_products_count > 0 -%}
         <div
-          class="no-js-hidden{% if is_outlet_collection %} hidden{% elsif enable_filtering and filter_type == 'vertical' %} hidden xl:block{% else %} hidden{% endif %}"
+          class="no-js-hidden{% if enable_filtering and filter_type == 'vertical' %} hidden xl:block{% else %} hidden{% endif %}"
           id="FacetFiltersContainer"
         >
           <div class="sticky-element z-8" style="--sticky-offset: 7.2rem;">
-            {%- unless is_outlet_collection -%}
-              {%- render 'facets', context: 'vertical', results: collection -%}
-            {%- endunless -%}
+            {%- render 'facets', context: 'vertical', results: collection -%}
           </div>
         </div>
       {%- endif -%}
