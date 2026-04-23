@@ -27,6 +27,20 @@
     assign is_fully_outlet = true
   endif
 
+  assign product_in_outlet_collection = false
+  for col in product.collections
+    if col.handle == 'outlet' or col.handle contains 'outlet-'
+      assign product_in_outlet_collection = true
+      break
+    endif
+  endfor
+
+  unless product_in_outlet_collection
+    assign has_outlet = false
+    assign outlet_count = 0
+    assign is_fully_outlet = false
+  endunless
+
   assign featured_media = product.featured_media
   assign image_ratio = settings.pcard_image_ratio | default: '1'
   if image_ratio == 'adapt' and featured_media != blank

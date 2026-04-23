@@ -38,6 +38,7 @@
 
   assign is_balk = false
   assign is_kakel_klinker = false
+  assign product_in_outlet_collection = false
   for col in product.collections
     if col.id == 650179477838
       assign is_balk = true
@@ -45,7 +46,16 @@
     if col.id == 650145923406
       assign is_kakel_klinker = true
     endif
+    if col.handle == 'outlet' or col.handle contains 'outlet-'
+      assign product_in_outlet_collection = true
+    endif
   endfor
+
+  unless product_in_outlet_collection
+    assign has_outlet = false
+    assign outlet_count = 0
+    assign is_fully_outlet = false
+  endunless
 
   assign featured_media = product.featured_media
   assign image_ratio = '1'
