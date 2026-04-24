@@ -497,6 +497,20 @@ setInterval(() => {
             var result = response.ok ? await response.json() : null;
             var stockResults = result && result.stock ? result.stock : [];
 
+            // Helper: enable/disable add-to-cart button for a variant
+            function updateAddButton(vid, canOrder) {
+              var row = card.querySelector('tr[data-variant-id="' + vid + '"]');
+              if (!row) return;
+              var btn = row.querySelector('[data-stock-btn]');
+              if (btn) {
+                if (canOrder) {
+                  btn.removeAttribute('disabled');
+                } else {
+                  btn.setAttribute('disabled', '');
+                }
+              }
+            }
+
             stockResults.forEach(function(item) {
               var vid = item.variantId.replace('gid://shopify/ProductVariant/', '');
               var cell = cellMap[vid];
@@ -520,18 +534,43 @@ setInterval(() => {
                   'I lager (' + Math.round(totalStock) + ')' +
                   tooltipHtml +
                   '</span>';
+                updateAddButton(vid, true);
               } else {
-                cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
+                // No stock — check synced metafield for beställningsvara vs slut
+                var synced = cell.getAttribute('data-stock-synced');
+                var isOrderable = synced === 'Beställningsvara';
+                if (isOrderable) {
+                  cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
+                  updateAddButton(vid, true);
+                } else {
+                  cell.innerHTML = '<span style="color:#dc3545"><span class="stock-dot stock-dot--out-of-stock"></span>Slut i lager</span>';
+                  updateAddButton(vid, false);
+                }
               }
               delete cellMap[vid];
             });
 
             // Fallback for any cells not in the response
-            Object.values(cellMap).forEach(function(cell) { renderSyncedFallback(cell); });
+            Object.values(cellMap).forEach(function(cell) {
+              renderSyncedFallback(cell);
+              // Enable button based on synced fallback
+              var vid = cell.getAttribute('data-stock-variant-id');
+              var synced = cell.getAttribute('data-stock-synced');
+              var available = cell.getAttribute('data-stock-available') === 'true';
+              var canOrder = synced === 'I lager' || synced === 'Beställningsvara' || available;
+              updateAddButton(vid, canOrder);
+            });
 
           } catch (err) {
-            // Batch failed — fallback all cells
-            Object.values(cellMap).forEach(function(cell) { renderSyncedFallback(cell); });
+            // Batch failed — fallback all cells and enable buttons based on synced data
+            Object.values(cellMap).forEach(function(cell) {
+              renderSyncedFallback(cell);
+              var vid = cell.getAttribute('data-stock-variant-id');
+              var synced = cell.getAttribute('data-stock-synced');
+              var available = cell.getAttribute('data-stock-available') === 'true';
+              var canOrder = synced === 'I lager' || synced === 'Beställningsvara' || available;
+              updateAddButton(vid, canOrder);
+            });
           }
         }
       }
