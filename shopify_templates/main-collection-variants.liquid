@@ -521,7 +521,14 @@ setInterval(() => {
                   tooltipHtml +
                   '</span>';
               } else {
-                cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
+                // No stock — check synced metafield for beställningsvara vs slut
+                var synced = cell.getAttribute('data-stock-synced');
+                var isOrderable = synced === 'Beställningsvara';
+                if (isOrderable) {
+                  cell.innerHTML = '<span style="color:#d97706"><span class="stock-dot stock-dot--out-of-stock"></span>Beställning</span>';
+                } else {
+                  cell.innerHTML = '<span style="color:#dc3545"><span class="stock-dot stock-dot--out-of-stock"></span>Slut i lager</span>';
+                }
               }
               delete cellMap[vid];
             });
