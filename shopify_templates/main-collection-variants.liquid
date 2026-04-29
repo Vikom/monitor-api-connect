@@ -33,6 +33,93 @@
     endif
   endfor
 -%}
+
+<style>
+  /* Hide outlet filter visually but keep in DOM for form serialization */
+  [data-index="drawer-filter.v.m.custom.outlet"],
+  [data-index="vertical-filter.v.m.custom.outlet"] {
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  /* Hide active filter badge/chip for outlet — set by JS */
+</style>
+{%- if is_outlet_collection -%}
+<script>
+(function() {
+  // Check the outlet checkbox so Shopify's facet system includes it in every request
+  function checkOutletFilter() {
+    document.querySelectorAll('input[name="filter.v.m.custom.outlet"]').forEach(function(cb) {
+      if (!cb.checked) {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  }
+
+  // Initial: redirect if not in URL, otherwise check the box
+  if (!window.location.search.includes('filter.v.m.custom.outlet')) {
+    var sep = window.location.search ? '&' : '?';
+    window.location.replace(window.location.href + sep + 'filter.v.m.custom.outlet=true');
+  } else {
+    // Ensure checkbox is checked after DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkOutletFilter);
+    } else {
+      checkOutletFilter();
+    }
+
+    // Hide outlet badge and fix product count
+    function cleanOutletUI() {
+      // Hide "Outlet: Ja" badge
+      document.querySelectorAll('#FacetFiltersActive a[is="facet-remove"]').forEach(function(badge) {
+        if (badge.textContent.includes('Outlet')) {
+          badge.style.display = 'none';
+          // If it's the only badge, hide the entire container
+          var container = badge.closest('#FacetFiltersActive');
+          if (container && container.querySelectorAll('a[is="facet-remove"]').length <= 1) {
+            container.style.display = 'none';
+          }
+        }
+      });
+
+      // Fix "X av Y produkter" → "X produkter"
+      var countEl = document.getElementById('ProductCount');
+      if (countEl) {
+        var text = countEl.textContent;
+        var match = text.match(/^(\d+)\s+av\s+\d+/);
+        if (match) {
+          countEl.textContent = text.replace(/\d+\s+av\s+\d+\s+/, match[1] + ' ');
+        }
+      }
+    }
+
+    // Re-check after facet AJAX updates rebuild the DOM
+    function onDomUpdate() {
+      setTimeout(function() {
+        checkOutletFilter();
+        cleanOutletUI();
+      }, 100);
+      setTimeout(cleanOutletUI, 300);
+      setTimeout(cleanOutletUI, 600);
+    }
+
+    // Observe the broadest container that gets updated by facets
+    var observer = new MutationObserver(onDomUpdate);
+    var mainSection = document.querySelector('.collection') || document.querySelector('.collection__content') || document.body;
+    observer.observe(mainSection, { childList: true, subtree: true });
+
+    // Initial clean
+    setTimeout(cleanOutletUI, 100);
+    setTimeout(cleanOutletUI, 500);
+  }
+})();
+</script>
+{%- endif -%}
+
 {%- capture image_sizes -%}
 (max-width: 767px) calc((100vw - 38px) / {{ columns_mobile }}),
 (max-width: 1279px) calc((100vw - 90px) / {{ columns_tablet }}),
