@@ -1054,28 +1054,39 @@ async function findExistingProductByName(shop, accessToken, productName) {
 // Helper function to create a new product with all its variations
 async function createNewProductWithVariations(shop, accessToken, productName, variations, onlineStoreSalesChannelId) {
   const fetch = (await import('node-fetch')).default;
-  
+
+  // Resolve vendor from ARTTRDMRK before creating the product
+  let productVendor = "Sonsab";
+  if (variations[0].hasARTTRDMRK) {
+    try {
+      const trademark = await fetchARTTRDMRKFromMonitor(variations[0].id);
+      if (trademark) productVendor = trademark;
+    } catch (e) {
+      console.warn(`Could not fetch ARTTRDMRK for vendor: ${e.message}`);
+    }
+  }
+
   // First, create the product without any options to avoid creating default variants
-  const mutation = `mutation productCreate($product: ProductCreateInput!) { 
-    productCreate(product: $product) { 
-      product { 
-        id 
-        title 
-        status 
-      } 
-      userErrors { 
-        field 
-        message 
-      } 
-    } 
+  const mutation = `mutation productCreate($product: ProductCreateInput!) {
+    productCreate(product: $product) {
+      product {
+        id
+        title
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
   }`;
-  
+
   const variables = {
     product: {
       title: productName,
       // descriptionHtml: `<p>${variations[0].extraDescription || ""}</p>`,
       status: "ACTIVE",
-      vendor: variations[0].vendor || "Sonsab",
+      vendor: productVendor,
       metafields: [
         {
           namespace: "custom",

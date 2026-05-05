@@ -547,11 +547,10 @@
               </tr>
             {%- endif -%}
 
-            {%- assign trademark = current_variant.metafields.custom.trademark -%}
-            {%- if trademark != blank -%}
+            {%- if product.vendor != blank and product.vendor != 'Sonsab' -%}
               <tr class="spec-row" data-spec="trademark">
                 <td class="spec-label"><strong>Varumärke</strong></td>
-                <td class="spec-value" data-value="trademark">{{ trademark }}</td>
+                <td class="spec-value" data-value="trademark"><a href="/collections/{{ product.vendor | handleize }}">{{ product.vendor }}</a></td>
               </tr>
             {%- endif -%}
 
@@ -627,7 +626,7 @@
           {%- for variant in product.variants -%}
             "{{ variant.id }}": {
               "sku": {{ variant.sku | json }},
-              "trademark": {{ variant.metafields.custom.trademark | json }},
+              "trademark": {{ product.vendor | json }},
               "volume": {{ variant.metafields.custom.volume | json }},
               "length": {{ variant.metafields.custom.length | json }},
               "width": {{ variant.metafields.custom.width | json }},

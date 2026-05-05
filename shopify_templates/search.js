@@ -125,7 +125,7 @@ class PredictiveSearch extends HTMLElement {
     url.searchParams.set('resources[limit]', this.dataset.resultsLimit || 3);
     url.searchParams.set('resources[limit_scope]', 'each');
     url.searchParams.set('resources[options][prefix]', 'last');
-    url.searchParams.set('resources[options][fields]', 'title,product_type,variants.title,variants.sku,variants.barcode');
+    url.searchParams.set('resources[options][fields]', 'title,product_type,variants.title,variants.sku,variants.barcode,vendor');
     url.searchParams.set('section_id', FoxTheme.utils.getSectionId(this));
 
     return url;
